@@ -1,0 +1,100 @@
+:root {
+  /* Background Colors */
+  --background-color: #1b1b1b;  /* Deep dark background */
+  --color-first: #2f2f2f; /* Darker gray for general layout */
+  --color-second: #a6d8e6;  /* Pastel cyan for subtle highlights */
+  --color-third: #e7a2b3;  /* Pastel orange-pink (peach) for subtle accent */
+  --color-fourth: #FF8C00;  /* Soft pastel orange for contrast */
+  
+  /* Accent Colors */
+  --color-fifth: #D1E8E2;  /* Light cyan pastel for softer contrast */
+  --color-titlebar: #121212;  /* Dark title bar */
+  --color-iteminfo-content: #ffe0b3;  /* Light pastel beige */
+  --color-iteminfo-border: #FFD700;  /* Bright yellow accent for focus */
+  
+  /* Font Colors */
+  --font-color-title: #FFFFFF; /* White for titles */
+  --font-color-first: #F1F1F1;  /* Soft white for primary text */
+  --font-color-second: #D6D6D6;  /* Very light gray for secondary text */
+  --font-color-third: #F8F8F8;  /* Almost white for third-level text */
+  --font-color-fourth: #fff;    /* White */
+  --font-color-fifth: #f2f2f2;  /* Light pastel gray */
+  --font-color-inventory-slot: #fff;
+
+  /* Font & Sizes */
+  --font-family-first: 'Bitter', serif;  /* Using 'Bitter' for the Neo-Brutalism look */
+  --font-family-second: 'Space Grotesk', serif;  /* Using 'Bitter' for the Neo-Brutalism look */
+  --font-size-title-first: 32px;
+  --font-size-title-second: 28px;
+  --font-size-inventory-slot: 14px;
+
+  /* Border & Radius */
+  --border-radius-first: 6px;  /* More angular, Neo-Brutalism style */
+  --border-radius-second: 6px; /* Less rounded edges */
+  --border-radius-item-info: 6px; /* Consistent with Neo-Brutalism style */
+
+  /* Padding & Margins */
+  --padding-first: 40px;
+  --padding-second: 20px;
+  --padding-third: 10px;
+  --padding-fourth: 5px;
+
+  --margin-first: 20px;
+  --margin-second: 10px;
+  --margin-third: 5px;
+
+  /* Button & Input Styles */
+  --button-color-first: #a8dadc;
+  --input-color-first: var(--color-second);
+
+  /* Shadow & Effects */
+  --shadow-color: rgba(0, 0, 0, 0.9);  /* Pure black shadow */
+  --shadow-first: 8px 8px 12px var(--shadow-color);  /* Shadow bottom-right */
+  --shadow-second: 4px 4px 8px var(--shadow-color);  /* Lighter shadow for subtle effects */
+
+  /* Sidebar & Borders */
+  --bg: #161625;
+  --heading: #d0d9e0;  /* Soft pastel blue */
+  --sidebar-primary: #d7d7d7;  /* Light gray */
+  --primary-border-width: 6px;
+  --primary-border-radius: 6px; /* Adjusted for Neo-Brutalism */
+  --secondary-border-radius: 6px; /* Adjusted for sharper look */
+  --primary-margin: 24px;
+  --first-margin: 20px;
+
+  /* Borders */
+  --border-color: #000; /* Pure black border color */
+}
+
+
+
+[data-theme="dark"] {
+  --background-color: #292929;
+  --color-first: #121212;
+  --color-second: #1d1d1d;
+  --color-third: #1f1f1f;
+  --color-fourth: #2d2d2d;
+  --color-fifth: #363636;
+  --color-titlebar: #010101;
+  --font-color-first: #fff;
+  --font-color-second: #fff;
+  --font-color-third: #fff;
+  --font-color-fourth: #fff;
+  --font-color-fifth: #fff;
+
+  --font: #e1e1ff;
+  --bg: #161625;
+  --heading: #818cab;
+  --sidebar-primary: #cecece;
+  --primary-border-width: 4px;
+  --primary-border-radius: 16px;
+  --secondary-border-radius: 8px;
+  --primary-margin: 8px;
+}
+/*
+Background: Light pastel gray #EAEAEA or warm beige #F4F1DE
+Primary Accent: Soft pastel blue #A8DADC or mint green #81B29A
+Secondary Accent: Muted yellow #F4A261 or pastel orange #E76F51
+Text (Contrast): Dark charcoal #333333 or deep navy #264653
+Borders & Shadows: Solid black #000000 (for that sharp brutalist contrast)
+*/
