@@ -3,7 +3,7 @@ import { injectable } from 'tsyringe';
 
 @injectable()
 export class NotificationService {
-    addNotification(message: string, title: string, type: 'success' | 'danger' | 'info'): void {
+    addNotification(message: string, type: 'success' | 'danger' | 'info'): void {
         let container = document.querySelector('aa-notification-container-cmp');
     
         if (!container) {
@@ -13,7 +13,6 @@ export class NotificationService {
     
         const notification = document.createElement('aa-notification-cmp') as NotificationElement;
         notification.message = message;
-        notification.title = title;
         notification.type = type;
     
         container.appendChild(notification);

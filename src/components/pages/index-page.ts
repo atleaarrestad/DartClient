@@ -9,6 +9,8 @@ import { container } from "tsyringe";
 
 import { User } from "../../models/userSchema.js";
 
+import {aaPlayer} from "../aa-player-cmp.js"
+
 import "../aa-button-cmp.js";
 
 @customElement("index-page")
@@ -32,6 +34,10 @@ export class IndexPage extends LitElement {
     return html`
       <aa-button @click="${this.LoadPlayers}">get all users</aa-button>
       <h4>Server responze: ${this.mydata}</h4>
+      <player-container>
+        <aa-player name="Atool"></aa-player>
+        <aa-player name="Møægge"></aa-player>
+      </player-container>
     `;
   }
 
@@ -49,27 +55,24 @@ export class IndexPage extends LitElement {
       this.players = [];
     }
     this.requestUpdate();
-    this.notificationService.addNotification("yoyoyoy", "title", "success");
-  }
-  private async PingServer(): Promise<void> {
-    try {
-      const response = await fetch("https://localhost:5068/api/ping", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ key: "value" }),
-      });
-      const data = await response.text(); 
-      this.mydata = data;
-    } catch (error) {
-      console.error("Error pinging server:", error);
-      this.mydata = "Error pinging server";
-    }
+    this.notificationService.addNotification("test success", "success");
+    this.notificationService.addNotification("test danger", "danger");
+    this.notificationService.addNotification("test info", "info");
+    this.notificationService.addNotification("Could not parse user model from server! shieeet", "danger");
   }
 
   static override styles = [sharedStyles, css`
     :host {
         
-      }`];
+    }
+    player-container {
+      display: flex;
+      gap: 10px;
+      padding: 20px;
+      border: 3px solid black;
+      border-radius: 15px;
+      background: var(--dartboard-bg, #fff);
+    }
+      
+      `];
 }

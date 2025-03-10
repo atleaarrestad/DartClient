@@ -1,6 +1,12 @@
 :root {
+
+  --color-success: #DFF362;
+  --color-danger: #ed807f;
+  --color-info: #7DF9FF;
+  --color-background: #FFF2E8;
+
+
   /* Background Colors */
-  --background-color: #1b1b1b;  /* Deep dark background */
   --color-first: #2f2f2f; /* Darker gray for general layout */
   --color-second: #a6d8e6;  /* Pastel cyan for subtle highlights */
   --color-third: #e7a2b3;  /* Pastel orange-pink (peach) for subtle accent */
@@ -24,9 +30,10 @@
   /* Font & Sizes */
   --font-family-first: 'Bitter', serif;  /* Using 'Bitter' for the Neo-Brutalism look */
   --font-family-second: 'Space Grotesk', serif;  /* Using 'Bitter' for the Neo-Brutalism look */
-  --font-size-title-first: 32px;
-  --font-size-title-second: 28px;
-  --font-size-inventory-slot: 14px;
+  --font-size-title: 32px;
+  --font-size-subtitle: 28px;
+  --font-size-notification: 16px;
+  --font-size-text: 14px;
 
   /* Border & Radius */
   --border-radius-first: 6px;  /* More angular, Neo-Brutalism style */
