@@ -10,9 +10,9 @@ export enum RoundStatus {
 }
 
 export enum ThrowType {
-    Single = 0,
-    Double = 1,
     Triple = 2,
+    Double = 1,
+    Single = 0,
     Rim = 3,
     Miss = 4,
 }

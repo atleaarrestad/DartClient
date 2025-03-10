@@ -2,30 +2,16 @@ import { html, css, LitElement } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./aa-round-cmp.js";
 import { RoundStatus, ThrowType, ScoreModifier } from "../models/enums.js";
+import { Round } from "../models/roundSchema.js";
 
 @customElement("aa-player")
 export class aaPlayer extends LitElement {
   @property({ type: String }) name = "Player";
 
-  @state() rounds: Array<{
-    roundNumber: number;
-    cumulativePoints: number;
-    roundStatus: RoundStatus;
-    dartThrows: Array<{
-      hitLocation: number;
-      throwType: ThrowType;
-      finalPoints: number;
-      activatedModifiers: ScoreModifier[];
-    }>;
-  }> = [
-    { roundNumber: 1, cumulativePoints: 0, roundStatus: RoundStatus.Valid, dartThrows: [{
-      hitLocation: 0,
-      throwType: ThrowType.Single,
-      finalPoints: 0,
-      activatedModifiers: []
-    }] },
-    { roundNumber: 2, cumulativePoints: 0, roundStatus: RoundStatus.Valid, dartThrows: [] },
-    { roundNumber: 3, cumulativePoints: 0, roundStatus: RoundStatus.Valid, dartThrows: [] },
+  @state() rounds: Round[] = [
+    this._createRound(1),
+    this._createRound(2),
+    this._createRound(3),
   ];
 
   static override styles = css`
@@ -46,17 +32,14 @@ export class aaPlayer extends LitElement {
       <div><strong>${this.name}</strong></div>
       ${this.rounds.map((round, index) => html`
         <aa-round
-          .roundNumber=${round.roundNumber}
-          .cumulativePoints=${round.cumulativePoints}
-          .roundStatus=${round.roundStatus}
-          .dartThrows=${round.dartThrows}
+          .round=${round}
           @round-updated=${(e: CustomEvent) => this._handleRoundUpdate(e.detail, index)}
         ></aa-round>
       `)}
     `;
   }
 
-  private _handleRoundUpdate(updatedRound: any, index: number) {
+  private _handleRoundUpdate(updatedRound: Round, index: number) {
     this.rounds = this.rounds.map((round, i) =>
       i === index ? updatedRound : round
     );
@@ -79,5 +62,18 @@ export class aaPlayer extends LitElement {
     } catch (error) {
       console.error("Error validating rounds:", error);
     }
+  }
+
+  private _createRound(roundNumber: number): Round {
+    return {
+      roundNumber,
+      dartThrows: [
+        { throwIndex: 0, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
+        { throwIndex: 1, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
+        { throwIndex: 2, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
+      ],
+      cumulativePoints: 0,
+      roundStatus: RoundStatus.Valid,
+    };
   }
 }
