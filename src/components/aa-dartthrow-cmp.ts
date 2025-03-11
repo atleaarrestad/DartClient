@@ -1,12 +1,10 @@
 import { html, css, LitElement } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { ThrowType, ScoreModifier } from "../models/enums.js"; // Import enums
-import { DartThrow } from "../models/dartThrowSchema.js"
-
+import { customElement, property, state } from "lit/decorators.js";
+import { ThrowType } from "../models/enums.js";
+import { DartThrow } from "../models/dartThrowSchema.js";
 
 @customElement("aa-dartthrow")
 export class aaDartThrow extends LitElement {
-
   @property({ type: Object }) dartThrow: DartThrow = {
     hitLocation: 0,
     throwType: ThrowType.Single,
@@ -15,72 +13,132 @@ export class aaDartThrow extends LitElement {
     activatedModifiers: [],
   };
   
+  @state() displayValue: string = "";
+  @state() isReadOnly: boolean = false;
 
   static override styles = css`
     :host {
       display: flex;
       gap: 5px;
       align-items: center;
+      position: relative;
     }
-    select, input {
-      width: 60px;
+    input {
       text-align: center;
     }
-    input[type="number"] {
-      -moz-appearance: textfield;
+    input[type="text"] {
+      position: relative;
+      z-index: 0;
     }
-    input::-webkit-outer-spin-button,
-    input::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
+    .multiplier {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      width: 22px;
+      height: 22px;
+      background: green;
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      z-index: 1;
     }
   `;
 
-override render() {
-  return html`
-    <input
-      type="number"
-      min="0"
-      max="20"
-      .value=${String(this.dartThrow.hitLocation)}
-      @input=${this._updateHitLocation}
-    >
-    <select @change=${this._updateThrowType}>
-      ${Object.keys(ThrowType)
-        .filter((key) => isNaN(Number(key)))
-        .map((key) => html`
-          <option value=${ThrowType[key as keyof typeof ThrowType]} ?selected=${this.dartThrow.throwType === ThrowType[key as keyof typeof ThrowType]}>
-            ${key}
-          </option>
-        `)}
-    </select>
-    <span>Points: ${this.dartThrow.finalPoints}</span>
-  `;
-}
+  override render() {
+    return html`
+      <div style="position: relative;">
+        <input
+          type="text"
+          .value=${this.displayValue}
+          ?readonly=${this.isReadOnly}
+          @input=${this.handleInputChanged}
+          @keydown=${this._handleKeyDown}
+        >
+        ${this._renderMultiplier()}
+      </div>
+      <span>${this.dartThrow.hitLocation}</span>
+    `;
+  }
 
+  private _renderMultiplier() {
+    if (this.dartThrow.throwType === ThrowType.Double) {
+      return html`<span class="multiplier">2x</span>`;
+    }
+    if (this.dartThrow.throwType === ThrowType.Triple) {
+      return html`<span class="multiplier">3x</span>`;
+    }
+    return null;
+  }
 
+  private handleInputChanged(event: Event) {
+    const input = event.target as HTMLInputElement;
+    let value = parseInt(input.value, 10);
+    debugger;
+    if (isNaN(value)) {
+      this.displayValue = "";
+      this.dartThrow = { ...this.dartThrow, hitLocation: 0, throwType: ThrowType.Single};
+    } else if (value >= 0 && value <= 20) {
+      this.displayValue = String(value);
+      this.dartThrow = { ...this.dartThrow, hitLocation: value };
+    } else {
+      this.displayValue = String(this.dartThrow.hitLocation);
+      input.value = this.displayValue;
+    }
+    
+    if (this.dartThrow.hitLocation === 0 &&
+      (this.dartThrow.throwType == ThrowType.Double || this.dartThrow.throwType == ThrowType.Triple)){
+       this.dartThrow.throwType = ThrowType.Single;
+      }
 
-private _updateHitLocation(event: Event) {
-  const input = event.target as HTMLInputElement;
-  let value = parseInt(input.value, 10);
-  if (isNaN(value) || value < 0 || value > 20) value = 0;
+    this.requestUpdate();
+  }
 
-  this.dartThrow = { ...this.dartThrow, hitLocation: value };
-  this._emitUpdate();
-}
+  private _handleKeyDown(event: KeyboardEvent) {
+    const upKeys = ["ArrowUp", "Up", "KP_Up"];
+    const downKeys = ["ArrowDown", "Down", "KP_Down"];
+    
+    if (!upKeys.includes(event.key) && !downKeys.includes(event.key)) return;
+    event.preventDefault();
 
-private _updateThrowType(event: Event) {
-  const select = event.target as HTMLSelectElement;
-  this.dartThrow = { ...this.dartThrow, throwType: parseInt(select.value) as ThrowType };
-  this._emitUpdate();
-}
+    const throwTypes = [ThrowType.Miss, ThrowType.Rim, ThrowType.Single, ThrowType.Double, ThrowType.Triple];
+    let currentIndex = throwTypes.indexOf(this.dartThrow.throwType);
 
-private _emitUpdate() {
-  this.dispatchEvent(new CustomEvent("throw-updated", {
-    detail: this.dartThrow,
-    bubbles: true,
-    composed: true
-  }));
-}
+    if (upKeys.includes(event.key) && currentIndex < throwTypes.length - 1) {
+      currentIndex++;
+    } else if (downKeys.includes(event.key) && currentIndex > 0) {
+      currentIndex--;
+    } else {
+      return;
+    }
 
+    this.dartThrow = { ...this.dartThrow, throwType: throwTypes[currentIndex]! };
+
+    if (this.dartThrow.hitLocation === 0 &&
+       (this.dartThrow.throwType == ThrowType.Double || this.dartThrow.throwType == ThrowType.Triple)){
+        this.dartThrow.throwType = ThrowType.Single;
+       }
+
+    this.updateDisplayForThrowType();
+  }
+  private updateDisplayForThrowType() {
+    if (this.dartThrow.throwType === ThrowType.Miss) {
+      this.displayValue = "MISS";
+      this.dartThrow = { ...this.dartThrow, hitLocation: 0 };
+      this.isReadOnly = true;
+    } else if (this.dartThrow.throwType === ThrowType.Rim) {
+      this.displayValue = "RIM";
+      this.dartThrow = { ...this.dartThrow, hitLocation: 0 };
+      this.isReadOnly = true;
+    } else {
+      this.isReadOnly = false;
+      if (this.displayValue === "MISS" || this.displayValue === "RIM") {
+        this.displayValue = String(this.dartThrow.hitLocation);
+      }
+    }
+  }
+  
 }
