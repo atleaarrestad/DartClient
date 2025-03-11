@@ -1,5 +1,5 @@
 import { html, css, LitElement } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { customElement, property, query, state } from "lit/decorators.js";
 import { ThrowType } from "../models/enums.js";
 import { DartThrow } from "../models/dartThrowSchema.js";
 
@@ -12,9 +12,8 @@ export class aaDartThrow extends LitElement {
     throwIndex: 0,
     activatedModifiers: [],
   };
-  
-  @state() displayValue: string = "";
   @state() isReadOnly: boolean = false;
+  @query("input") inputElement: HTMLInputElement;
 
   static override styles = css`
     :host {
@@ -23,11 +22,9 @@ export class aaDartThrow extends LitElement {
       align-items: center;
       position: relative;
     }
-    input {
-      text-align: center;
-    }
     input[type="text"] {
       position: relative;
+      text-align: center;
       z-index: 0;
     }
     .multiplier {
@@ -53,7 +50,7 @@ export class aaDartThrow extends LitElement {
       <div style="position: relative;">
         <input
           type="text"
-          .value=${this.displayValue}
+          value=""
           ?readonly=${this.isReadOnly}
           @input=${this.handleInputChanged}
           @keydown=${this._handleKeyDown}
@@ -77,16 +74,15 @@ export class aaDartThrow extends LitElement {
   private handleInputChanged(event: Event) {
     const input = event.target as HTMLInputElement;
     let value = parseInt(input.value, 10);
-    debugger;
+
     if (isNaN(value)) {
-      this.displayValue = "";
+      input.value = "";
       this.dartThrow = { ...this.dartThrow, hitLocation: 0, throwType: ThrowType.Single};
     } else if (value >= 0 && value <= 20) {
-      this.displayValue = String(value);
+      input.value = String(value);
       this.dartThrow = { ...this.dartThrow, hitLocation: value };
     } else {
-      this.displayValue = String(this.dartThrow.hitLocation);
-      input.value = this.displayValue;
+      input.value = String(this.dartThrow.hitLocation);
     }
     
     if (this.dartThrow.hitLocation === 0 &&
@@ -125,20 +121,20 @@ export class aaDartThrow extends LitElement {
     this.updateDisplayForThrowType();
   }
   private updateDisplayForThrowType() {
+    console.log(this.inputElement);
     if (this.dartThrow.throwType === ThrowType.Miss) {
-      this.displayValue = "MISS";
+      this.inputElement.value = "MISS";
       this.dartThrow = { ...this.dartThrow, hitLocation: 0 };
       this.isReadOnly = true;
     } else if (this.dartThrow.throwType === ThrowType.Rim) {
-      this.displayValue = "RIM";
+      this.inputElement.value = "RIM";
       this.dartThrow = { ...this.dartThrow, hitLocation: 0 };
       this.isReadOnly = true;
     } else {
       this.isReadOnly = false;
-      if (this.displayValue === "MISS" || this.displayValue === "RIM") {
-        this.displayValue = String(this.dartThrow.hitLocation);
+      if (this.inputElement.value === "MISS" || this.inputElement.value === "RIM") {
+        this.inputElement.value = String(this.dartThrow.hitLocation);
       }
     }
   }
-  
 }
