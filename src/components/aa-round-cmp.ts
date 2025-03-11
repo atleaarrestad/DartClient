@@ -6,12 +6,7 @@ import "./aa-dartthrow-cmp.js";
 
 @customElement("aa-round")
 export class aaRound extends LitElement {
-  @property({ type: Object }) round: Round = {
-    roundNumber: 0,
-    dartThrows: [],
-    cumulativePoints: 0,
-    roundStatus: RoundStatus.Valid,
-  };
+  @property({ type: Object }) round: Round
 
   static override styles = css`
     :host {

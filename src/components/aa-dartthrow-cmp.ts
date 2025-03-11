@@ -5,13 +5,7 @@ import { DartThrow } from "../models/dartThrowSchema.js";
 
 @customElement("aa-dartthrow")
 export class aaDartThrow extends LitElement {
-  @property({ type: Object }) dartThrow: DartThrow = {
-    hitLocation: 0,
-    throwType: ThrowType.Single,
-    finalPoints: 0,
-    throwIndex: 0,
-    activatedModifiers: [],
-  };
+  @property({ type: Object }) dartThrow: DartThrow
   @state() isReadOnly: boolean = false;
   @query("input") inputElement: HTMLInputElement;
 
