@@ -57,7 +57,6 @@ export class aaDartThrow extends LitElement {
         >
         ${this._renderMultiplier()}
       </div>
-      <span>${this.dartThrow.hitLocation}</span>
     `;
   }
 
