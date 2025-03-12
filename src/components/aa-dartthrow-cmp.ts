@@ -22,20 +22,22 @@ export class aaDartThrow extends LitElement {
     }
 
     .multiplier {
+      pointer-events: none;
       position: absolute;
-      top: -5px;
-      right: -5px;
-      width: 22px;
-      height: 22px;
-      background: green;
-      color: white;
-      font-size: 12px;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
+      top: 0%;
+      right: 0px;
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(180,204,185,0) 0%, rgba(180,204,185,0.4) 80%);
       z-index: 1;
+      text-align: right;
+      span {
+        font-size: var(--font-size-multiplier);
+        font-style: italic;
+        padding-right: .5rem;
+        line-height: 2rem;
+
+      }
     }
     .is-middle-input {
       border-left: 1px solid rgba(0, 0, 0, .25);
@@ -60,10 +62,16 @@ export class aaDartThrow extends LitElement {
 
   private _renderMultiplier() {
     if (this.dartThrow.throwType === ThrowType.Double) {
-      return html`<span class="multiplier">2x</span>`;
+      return html`
+      <div class="multiplier">
+        <span>x2</span>
+      </div>`;
     }
     if (this.dartThrow.throwType === ThrowType.Triple) {
-      return html`<span class="multiplier">3x</span>`;
+      return html`
+      <div class="multiplier">
+        <span>x3</span>
+      </div>`;
     }
     return null;
   }

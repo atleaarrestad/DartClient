@@ -39,6 +39,7 @@
   --font-size-dartthrow: 20px;
   --font-size-cumulative-points: var(--font-size-dartthrow);
   --font-size-round-number: 10px;
+  --font-size-multiplier: 14px;
 
   /* Border & Radius */
   --border-radius-first: 6px;  /* More angular, Neo-Brutalism style */
