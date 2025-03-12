@@ -10,18 +10,26 @@ export class aaRound extends LitElement {
 
   static override styles = css`
     :host {
-      display: flex;
-      flex-direction: column;
-      border: 1px solid black;
-      padding: 10px;
-      margin: 5px;
-      width: fit-content;
+      display: block;
     }
-    .round-header {
-      display: flex;
-      justify-content: space-between;
+    .round-container {
+      display: grid;
+      grid-template-columns: 2rem 1fr 3rem;
       align-items: center;
-      margin-bottom: 5px;
+    }
+    .round-number {
+      text-align: center;
+      font-weight: bold;
+      border-right: 1px solid black;
+    }
+    .throws-container {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+    }
+    .cumulative-points {
+      text-align: right;
+      font-weight: bold;
     }
   `;
 
@@ -32,17 +40,22 @@ export class aaRound extends LitElement {
 
   override render() {
     return html`
-      <div class="round-header">
-        <span>Round ${this.round.roundNumber}</span>
-        <span>Status: ${RoundStatus[this.round.roundStatus]}</span>
-        <span>Points: ${this.round.cumulativePoints}</span>
+      <div class="round-container">
+        <div class="round-number">${this.round.roundNumber}</div>
+        
+        <div class="throws-container">
+          ${this.round.dartThrows.map((dartThrow, index) => html`
+            <aa-dartthrow
+              .dartThrow=${dartThrow}
+              @throw-updated=${(e: CustomEvent) => this._updateThrow(e.detail, index)}
+            ></aa-dartthrow>
+          `)}
+        </div>
+        
+        <div class="cumulative-points">
+          ${this.round.cumulativePoints}
+        </div>
       </div>
-      ${this.round.dartThrows.map((dartThrow, index) => html`
-        <aa-dartthrow
-          .dartThrow=${dartThrow}
-          @throw-updated=${(e: CustomEvent) => this._updateThrow(e.detail, index)}
-        ></aa-dartthrow>
-      `)}
     `;
   }
 
