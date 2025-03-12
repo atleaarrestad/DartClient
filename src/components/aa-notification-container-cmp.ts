@@ -1,9 +1,10 @@
 import { LitElement, html, css } from 'lit';
 import { customElement } from 'lit/decorators.js';
+import { sharedStyles } from "../../styles.js";
 
 @customElement('aa-notification-container-cmp')
 export class NotificationContainer extends LitElement {
-  static override styles = css`
+  static override styles = [sharedStyles ,css`
     :host {
       position: fixed;
       top: 20px;
@@ -14,7 +15,7 @@ export class NotificationContainer extends LitElement {
       z-index: 9999;
       max-height: 80vh;
     }
-  `;
+  `];
 
   override render() {
     return html`<slot></slot>`;

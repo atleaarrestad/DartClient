@@ -2,6 +2,7 @@ import { html, css, LitElement } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import { ThrowType } from "../models/enums.js";
 import { DartThrow } from "../models/dartThrowSchema.js";
+import { sharedStyles } from "../../styles.js";
 
 @customElement("aa-dartthrow")
 export class aaDartThrow extends LitElement {
@@ -9,18 +10,17 @@ export class aaDartThrow extends LitElement {
   @state() isReadOnly: boolean = false;
   @query("input") inputElement: HTMLInputElement;
 
-  static override styles = css`
-    :host {
-      display: flex;
-      gap: 5px;
-      align-items: center;
-      position: relative;
-    }
+  static override styles = [sharedStyles, css`
     input[type="text"] {
       position: relative;
       text-align: center;
       z-index: 0;
+      background-color: rgba(0, 0, 0, 0);
+      border: unset;
+      width: 100%;
+      font-size: var(--font-size-dartthrow);
     }
+
     .multiplier {
       position: absolute;
       top: -5px;
@@ -37,11 +37,15 @@ export class aaDartThrow extends LitElement {
       border-radius: 50%;
       z-index: 1;
     }
-  `;
+    .is-middle-input {
+      border-left: 1px solid rgba(0, 0, 0, .25);
+      border-right: 1px solid rgba(0, 0, 0, .25);
+    }
+  `];
 
   override render() {
     return html`
-      <div style="position: relative;">
+      <div style="position: relative;" class=${this.dartThrow.throwIndex === 1 ? 'is-middle-input': ''}>
         <input
           type="text"
           value=""

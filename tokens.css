@@ -35,6 +35,11 @@
   --font-size-notification: 16px;
   --font-size-text: 14px;
 
+
+  --font-size-dartthrow: 20px;
+  --font-size-cumulative-points: var(--font-size-dartthrow);
+  --font-size-round-number: 10px;
+
   /* Border & Radius */
   --border-radius-first: 6px;  /* More angular, Neo-Brutalism style */
   --border-radius-second: 6px; /* Less rounded edges */

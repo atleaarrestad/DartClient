@@ -30,16 +30,7 @@ export class IndexPage extends LitElement {
     super.connectedCallback();
   }
 
-  override render() {
-    return html`
-      <aa-button @click="${this.LoadPlayers}">get all users</aa-button>
-      <h4>Server responze: ${this.mydata}</h4>
-      <player-container>
-        <aa-player name="Atool"></aa-player>
-        <aa-player name="Møægge"></aa-player>
-      </player-container>
-    `;
-  }
+  
 
   private async TestDataService(): Promise<void> {
     console.log(this.dataService);
@@ -61,17 +52,29 @@ export class IndexPage extends LitElement {
     this.notificationService.addNotification("Could not parse user model from server! shieeet", "danger");
   }
 
+  override render() {
+    return html`
+      <aa-button @click="${this.LoadPlayers}">get all users</aa-button>
+      <h4>Server responze: ${this.mydata}</h4>
+      <player-container>
+        <aa-player name="Kreegsoffer"></aa-player>
+        <aa-player name="Kreegsoffer"></aa-player>
+        <aa-player name="Kreegsoffer"></aa-player>
+
+      </player-container>
+    `;
+  }
+
   static override styles = [sharedStyles, css`
     :host {
         
     }
     player-container {
+
       display: flex;
-      gap: 10px;
-      padding: 20px;
-      border: 3px solid black;
-      border-radius: 15px;
-      background: var(--dartboard-bg, #fff);
+      place-items: center;
+      place-content: center;
+      flex-grow: 1;
     }
       
       `];

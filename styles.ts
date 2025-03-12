@@ -8,7 +8,12 @@ export const sharedStyles = css`
     box-sizing: border-box;
     line-height: 1.5;
     font-family: var(--font-family-first);
-    
+    list-style-type: none;
+    width: 100%;
+    height: 100%;
+  }
+  input {
+    font-size: var(--font-size-input);
   }
   ${unsafeCSS(fontAwesomeStyles)}
 `;

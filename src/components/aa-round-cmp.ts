@@ -3,35 +3,40 @@ import { customElement, property } from "lit/decorators.js";
 import { RoundStatus, ThrowType, ScoreModifier } from "../models/enums.js";
 import { Round } from "../models/roundSchema.js";
 import "./aa-dartthrow-cmp.js";
+import { sharedStyles } from "../../styles.js";
 
 @customElement("aa-round")
 export class aaRound extends LitElement {
   @property({ type: Object }) round: Round
 
-  static override styles = css`
+  static override styles = [sharedStyles, css`
     :host {
-      display: block;
+
     }
+
     .round-container {
       display: grid;
-      grid-template-columns: 2rem 1fr 3rem;
+      grid-template-columns: 1.5rem 1fr 3rem;
       align-items: center;
     }
-    .round-number {
-      text-align: center;
-      font-weight: bold;
-      border-right: 1px solid black;
-    }
     .throws-container {
-      display: flex;
-      flex-direction: row;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+    .round-number {
+      border-right: 1px solid black;
+      font-size: var(--font-size-round-number);
+      line-height: 1.75rem;
     }
     .cumulative-points {
-      text-align: right;
-      font-weight: bold;
+      border-left: 1px solid black;
+      font-size: var(--font-size-cumulative-points)
     }
-  `;
+    .cumulative-points, .round-number{
+      text-align: center;
+      
+    }
+  `];
 
   override connectedCallback() {
     super.connectedCallback();
@@ -41,8 +46,7 @@ export class aaRound extends LitElement {
   override render() {
     return html`
       <div class="round-container">
-        <div class="round-number">${this.round.roundNumber}</div>
-        
+        <span class="round-number">${this.round.roundNumber}</span>
         <div class="throws-container">
           ${this.round.dartThrows.map((dartThrow, index) => html`
             <aa-dartthrow
@@ -50,7 +54,7 @@ export class aaRound extends LitElement {
               @throw-updated=${(e: CustomEvent) => this._updateThrow(e.detail, index)}
             ></aa-dartthrow>
           `)}
-        </div>
+          </div>
         
         <div class="cumulative-points">
           ${this.round.cumulativePoints}

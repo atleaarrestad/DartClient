@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import "./aa-round-cmp.js";
 import { RoundStatus, ThrowType, ScoreModifier } from "../models/enums.js";
 import { Round } from "../models/roundSchema.js";
+import { sharedStyles } from "../../styles.js";
 
 @customElement("aa-player")
 export class aaPlayer extends LitElement {
@@ -14,28 +15,40 @@ export class aaPlayer extends LitElement {
     this._createRound(3),
   ];
 
-  static override styles = css`
+  static override styles = [sharedStyles, css`
     :host {
+      width: 100%;
+      max-width: 25vw;
       display: flex;
       flex-direction: column;
-      align-items: center;
       border: 2px solid black;
-      padding: 10px;
-      margin: 5px;
       border-radius: 10px;
       background: var(--player-bg, #f0f0f0);
     }
-  `;
+    .rounds-container {
+      
+    }
+    .alternate-color {
+      background-color: rgba(180, 204, 185, 0.25)
+    }
+    .player-name-container{
+      text-align: center;
+    }
+  `];
 
   override render() {
     return html`
-      <div><strong>${this.name}</strong></div>
-      ${this.rounds.map((round, index) => html`
-        <aa-round
-          .round=${round}
-          @round-updated=${(e: CustomEvent) => this._handleRoundUpdate(e.detail, index)}
-        ></aa-round>
-      `)}
+      <div class="player-name-container">${this.name}</div>
+      <div class="rounds-container">
+        ${this.rounds.map((round, index) => html`
+          <div class="${index % 2 === 0 ? 'alternate-color' : ''}">
+            <aa-round
+              .round=${round}
+              @round-updated=${(e: CustomEvent) => this._handleRoundUpdate(e.detail, index)}
+            ></aa-round>
+          </div>
+        `)}
+        </div>
     `;
   }
 
