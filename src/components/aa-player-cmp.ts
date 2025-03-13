@@ -79,7 +79,6 @@ export class aaPlayer extends LitElement {
   override render() {
     return html`
       <aa-combobox></aa-combobox>
-      <div class="player-name-container">${this.name}</div>
       <span class="total-sum">0 (-250)</span>
       <div class="round-labels-container round-grid">
         <span class="border-right">N</span>

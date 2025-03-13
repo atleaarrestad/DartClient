@@ -1,7 +1,7 @@
 import { html, css, LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { sharedStyles } from "../../styles.js"; // Adjust import based on your project setup
-import { User } from '../models/userSchema.js'; // Adjust the import according to your actual file structure
+import { sharedStyles } from "../../styles.js";
+import { User } from '../models/userSchema.js';
 
 @customElement("aa-combobox")
 export class AaCombobox extends LitElement {
@@ -39,9 +39,8 @@ export class AaCombobox extends LitElement {
   selectedUser: User | null = null;
 
   @property({ type: Boolean })
-  isDropdownOpen: boolean = false; // Controls visibility of the dropdown
+  isDropdownOpen: boolean = false;
 
-  // Filtered users based on search query
   get filteredUsers() {
     if (!this.searchQuery) {
       return this.users;
@@ -55,7 +54,6 @@ export class AaCombobox extends LitElement {
     );
   }
 
-  // Handle user selection from the list
   private handleUserSelect(user: User) {
     this.selectedUser = user;
     this.selectedIndex = this.filteredUsers.indexOf(user);
@@ -63,12 +61,12 @@ export class AaCombobox extends LitElement {
     this.dispatchEvent(new CustomEvent("user-selected", { detail: user }));
   }
 
-  // Handle keyboard events for navigation
   private handleKeyDown(event: KeyboardEvent) {
     const userCount = this.filteredUsers.length;
     if (event.key === "ArrowDown") {
-      if (this.selectedIndex < userCount - 1) {
-        this.selectedIndex++;
+        this.isDropdownOpen = true;
+        if (this.selectedIndex < userCount - 1) {
+            this.selectedIndex++;
       }
     } else if (event.key === "ArrowUp") {
       if (this.selectedIndex > 0) {
@@ -78,45 +76,38 @@ export class AaCombobox extends LitElement {
       this.handleUserSelect(this.filteredUsers[this.selectedIndex]!);
     }
 
-    // After selection or navigation, ensure the selected item is visible
     this.scrollSelectedItemIntoView();
   }
 
-  // Scroll the selected item into view
   private scrollSelectedItemIntoView() {
     const listItems = this.shadowRoot?.querySelectorAll('.user-option');
     if (listItems && listItems[this.selectedIndex]) {
       (listItems[this.selectedIndex] as HTMLElement).scrollIntoView({
         behavior: 'instant',
-        block: 'nearest', // Ensures the item scrolls into view
+        block: 'nearest',
       });
     }
   }
 
-  // Handle input change for the search functionality
   private handleSearchChange(event: Event) {
     const input = event.target as HTMLInputElement;
     this.searchQuery = input.value;
-    this.selectedIndex = -1; // Reset the selected index when searching
-    this.isDropdownOpen = true; // Open the dropdown when typing starts
+    this.selectedIndex = -1;
+    this.isDropdownOpen = true;
   }
 
-  // Handle input focus
   private handleInputFocus() {
-    this.isDropdownOpen = true; // Open dropdown on focus
+    this.isDropdownOpen = true; 
   }
 
-  // Handle input blur (optional if you want to close on blur)
   private handleInputBlur() {
     setTimeout(() => {
-      // Delay to allow clicks to register, then close
       if (!this.shadowRoot?.activeElement?.closest('.user-list')) {
         this.isDropdownOpen = false;
       }
     }, 200);
   }
 
-  // Render the combobox UI
   override render() {
     return html`
       <div class="combobox-container">
@@ -169,15 +160,18 @@ export class AaCombobox extends LitElement {
         border-radius: 4px;
         font-size: 14px;
         text-align: center;
+        background-color: rgba(0, 0, 0, 0);
+        border: unset;
+        font-size: 24px;
       }
 
       .user-list {
         list-style-type: none;
         margin: 0;
         padding: 0;
-        max-height: 30vh; /* 30% of the screen height */
+        max-height: 35vh;
         height: fit-content;
-        overflow-y: auto; /* Allow scrolling */
+        overflow-y: auto;
         border: 1px solid #ccc;
         border-top: none;
         position: absolute;
@@ -186,14 +180,14 @@ export class AaCombobox extends LitElement {
         background-color: white;
         box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
         z-index: 10;
-        background-color: white; /* Ensure consistent background */
+        background-color: white;
       }
 
       .user-option {
         height: max-content;
         padding: 8px;
         cursor: pointer;
-        background-color: white; /* Ensure consistent background */
+        background-color: white;
       }
 
       .user-option.selected {
