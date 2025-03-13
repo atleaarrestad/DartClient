@@ -1,9 +1,9 @@
 import { html, css, LitElement } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import "./aa-round-cmp.js";
 import { RoundStatus, ThrowType, ScoreModifier } from "../models/enums.js";
 import { Round } from "../models/roundSchema.js";
 import { sharedStyles } from "../../styles.js";
+import { AaCombobox } from "./aa-combobox-cmp.js"
 
 @customElement("aa-player")
 export class aaPlayer extends LitElement {
@@ -34,12 +34,13 @@ export class aaPlayer extends LitElement {
     .player-name-container{
       text-align: center;
     }
-    .round-labels-container {
+    .round-grid {
       display: grid;
       grid-template-columns: 1.5rem 1fr 3rem;
       align-items: center;
+    }
+    .round-labels-container {
       text-align: center;
-      border-top: 1px solid black;
       border-bottom: 1px solid black;
       background-color: #B4CCB9;
       font-size: 10px;
@@ -50,27 +51,64 @@ export class aaPlayer extends LitElement {
     .border-left{
       border-left: 1px solid black;
     }
+    .throws-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+    .round-number {
+      border-right: 1px solid black;
+      font-size: var(--font-size-round-number);
+      line-height: 1.75rem;
+      text-align: center;
+    }
+    .cumulative-points-round {
+      border-left: 1px solid black;
+      font-size: var(--font-size-cumulative-points);
+      text-align: center;
+    }
+    .total-sum{
+      text-align: center;
+      border-top: 2px solid black;
+      border-bottom: 2px solid black;
+      padding-top: .5rem;
+      padding-bottom: .5rem;
+      font-size: 24px;
+    }
   `];
 
   override render() {
     return html`
+      <aa-combobox></aa-combobox>
       <div class="player-name-container">${this.name}</div>
-      <div class="round-labels-container">
+      <span class="total-sum">0 (-250)</span>
+      <div class="round-labels-container round-grid">
         <span class="border-right">N</span>
         <span>Throws</span>
         <span class="border-left">Sum</span>
       </div>
-      <div class="rounds-container">
+      <div>
         ${this.rounds.map((round, index) => html`
           <div class="${index % 2 === 0 ? 'alternate-color' : ''}">
-            <aa-round
-              .round=${round}
-              @round-updated=${(e: CustomEvent) => this._handleRoundUpdate(e.detail, index)}
-            ></aa-round>
+            <div class="round-grid">
+              <div class="round-number">${index + 1}</div>
+              <div class="throws-container">
+                ${round.dartThrows.map((dartThrow, index) => html`
+                  <aa-dartthrow
+                    .dartThrow=${dartThrow}
+                    @throw-updated=${(e: CustomEvent) => this._updateThrow(e.detail, index)}
+                  ></aa-dartthrow>
+                `)}
+              </div>
+              <div class="cumulative-points-round">${index*10}</div>
           </div>
+        </div>
         `)}
       </div>
     `;
+  }
+
+  private _updateThrow(updatedThrow: Round["dartThrows"][number], index: number) {
+    //yoyo
   }
 
   private _handleRoundUpdate(updatedRound: Round, index: number) {

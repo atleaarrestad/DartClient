@@ -7,8 +7,8 @@ import "./components/aa-notification-cmp.js"
 import "./components/aa-notification-container-cmp.js"
 
 import "./components/aa-player-cmp.js" 
-import "./components/aa-round-cmp.js"
 import "./components/aa-dartthrow-cmp.js"
+import "./components/aa-combobox-cmp.js"
 
 import { container } from "tsyringe";
 import { DataService } from "./services/dataService.js";

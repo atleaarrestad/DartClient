@@ -9,8 +9,7 @@ import { container } from "tsyringe";
 
 import { User } from "../../models/userSchema.js";
 
-import {aaPlayer} from "../aa-player-cmp.js"
-
+import "../aa-player-cmp.js"
 import "../aa-button-cmp.js";
 
 @customElement("index-page")
