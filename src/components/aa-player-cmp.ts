@@ -34,11 +34,32 @@ export class aaPlayer extends LitElement {
     .player-name-container{
       text-align: center;
     }
+    .round-labels-container {
+      display: grid;
+      grid-template-columns: 1.5rem 1fr 3rem;
+      align-items: center;
+      text-align: center;
+      border-top: 1px solid black;
+      border-bottom: 1px solid black;
+      background-color: #B4CCB9;
+      font-size: 10px;
+    }
+    .border-right{
+      border-right: 1px solid black;
+    }
+    .border-left{
+      border-left: 1px solid black;
+    }
   `];
 
   override render() {
     return html`
       <div class="player-name-container">${this.name}</div>
+      <div class="round-labels-container">
+        <span class="border-right">N</span>
+        <span>Throws</span>
+        <span class="border-left">Sum</span>
+      </div>
       <div class="rounds-container">
         ${this.rounds.map((round, index) => html`
           <div class="${index % 2 === 0 ? 'alternate-color' : ''}">
@@ -48,7 +69,7 @@ export class aaPlayer extends LitElement {
             ></aa-round>
           </div>
         `)}
-        </div>
+      </div>
     `;
   }
 
