@@ -28,15 +28,7 @@ export class IndexPage extends LitElement {
 
   public override connectedCallback(): void {
     this.healthCheckServer();
-    this.dataService.GetAllUsers()
-      .then(users => {
-        debugger;
-        this.players = users!;
-      })
-      .catch(error => {
-        this.notificationService.addNotification(error, "danger")
-      });
-      
+    this.LoadPlayers();
     super.connectedCallback();
   }
   
@@ -45,18 +37,14 @@ export class IndexPage extends LitElement {
     this.dataService.Ping().catch(error => this.notificationService.addNotification(error, "danger"));
   }
   private async LoadPlayers(): Promise<void> {
-    const users = await this.dataService.GetAllUsers();
-    if (users) {
-      this.players = users;
-      this.mydata = this.players[0]!.name;
-    } else {
-      this.players = [];
-    }
-    this.requestUpdate();
-    this.notificationService.addNotification("test success", "success");
-    this.notificationService.addNotification("test danger", "danger");
-    this.notificationService.addNotification("test info", "info");
-    this.notificationService.addNotification("Could not parse user model from server! shieeet", "danger");
+    this.dataService.GetAllUsers()
+      .then(users => {
+        this.players = users!;
+        console.log(this.players);
+      })
+      .catch(error => {
+        this.notificationService.addNotification(error, "danger")
+      });
   }
 
   override render() {

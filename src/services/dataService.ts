@@ -6,9 +6,8 @@ export class DataService {
   private baseUrl = "https://localhost:7117/api/";
   private abortTimeout = 5000;
 
-  public async Ping(): Promise<boolean> {
-    const result = await this.get<boolean>("ping");
-
+  public async Ping(): Promise<string> {
+    const result = await this.get<string>("ping");
     if (result === undefined || result === null) {
       throw new Error("Unable to reach server");
     }else{
