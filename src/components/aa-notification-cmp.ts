@@ -11,22 +11,7 @@ export class NotificationElement extends LitElement {
   static override styles = [
     sharedStyles,
     css`
-      :host {
-        display: flex;
-        align-items: center;
-        width: 300px;
-        padding: 12px 20px;
-        border: 2px solid black;
-        border-radius: 5px;
-        font-weight: bold;
-        text-align: left;
-        opacity: 1;
-        transform: translateY(-10px);
-        transition: opacity 0.3s, transform 0.3s;
-        pointer-events: none;
-        color: black;
-        box-shadow: 2px 2px 0px 0px black;
-      }
+      :host {}
 
       :host([hidden]) {
         opacity: 0;
@@ -58,11 +43,21 @@ export class NotificationElement extends LitElement {
         white-space: normal;
       }
       .notification {
-        width: 100%;
-        display: flex;
+        display: grid;
+        grid-template-columns: auto 1fr;
         align-items: center;
         padding: 12px 20px;
-        //border-radius: 5px;
+        width: 300px;
+        border: 2px solid black;
+        border-radius: 5px;
+        font-weight: bold;
+        text-align: left;
+        opacity: 1;
+        transform: translateY(-10px);
+        transition: opacity 0.3s, transform 0.3s;
+        pointer-events: none;
+        color: black;
+        box-shadow: 2px 2px 0px 0px black;
       }
       .message {
         font-family: var(--font-family-second);
@@ -80,7 +75,7 @@ export class NotificationElement extends LitElement {
       }, 300);
     }, 3000);
   }
-
+  
   override updated(changedProperties: Map<string, any>) {
     super.updated(changedProperties);
     if (changedProperties.has('visible') && !this.visible) {

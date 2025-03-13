@@ -8,21 +8,27 @@ export class DataService {
 
   public async Ping(): Promise<boolean> {
     const result = await this.get<boolean>("ping");
-    return result ?? false;
+
+    if (result === undefined || result === null) {
+      throw new Error("Unable to reach server");
+    }else{
+      return result;
+    }
   }
 
-  public async GetAllUsers(): Promise<User[] | null> {
+  public async GetAllUsers(): Promise<User[]> {
     const result = await this.get<User[]>("users/getall");
+    
     if (result) {
       try {
         return result.map((user) => UserSchema.parse(user));
       } catch (error) {
-        console.error("Invalid user data:", error);
-        return null;
+        throw new Error("Invalid user data received from the API");
       }
     }
-    return null;
+    throw new Error("Failed to fetch users from server");
   }
+  
 
   private async request<TResponse>(
     endpoint: string,

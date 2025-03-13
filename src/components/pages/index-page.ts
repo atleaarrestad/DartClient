@@ -25,16 +25,24 @@ export class IndexPage extends LitElement {
     this.dataService = container.resolve(DataService);
     this.notificationService = container.resolve(NotificationService);
   }
+
   public override connectedCallback(): void {
+    this.healthCheckServer();
+    this.dataService.GetAllUsers()
+      .then(users => {
+        debugger;
+        this.players = users!;
+      })
+      .catch(error => {
+        this.notificationService.addNotification(error, "danger")
+      });
+      
     super.connectedCallback();
   }
-
   
-
-  private async TestDataService(): Promise<void> {
-    console.log(this.dataService);
-    const result = await this.dataService.Ping();
-    console.log(result);
+  
+  private async healthCheckServer(): Promise<void> {
+    this.dataService.Ping().catch(error => this.notificationService.addNotification(error, "danger"));
   }
   private async LoadPlayers(): Promise<void> {
     const users = await this.dataService.GetAllUsers();
