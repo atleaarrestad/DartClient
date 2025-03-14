@@ -9,6 +9,7 @@ export class aaDartThrow extends LitElement {
   @property({ type: Object }) dartThrow: DartThrow
   @state() isReadOnly: boolean = false;
   @query("input") inputElement: HTMLInputElement;
+  @state() isDirty: boolean = false;
 
   static override styles = [sharedStyles, css`
     input[type="text"] {
@@ -54,10 +55,26 @@ export class aaDartThrow extends LitElement {
           ?readonly=${this.isReadOnly}
           @input=${this.handleInputChanged}
           @keydown=${this._handleKeyDown}
+          @blur=${this.handleBlur}
         >
         ${this._renderMultiplier()}
       </div>
     `;
+  }
+
+  private handleBlur() {
+    if (!this.isDirty){
+      return
+    }
+
+    const event = new CustomEvent('throw-updated', {
+      detail: { dartThrow: this.dartThrow },
+      bubbles: true,
+      composed: true
+    });
+
+    this.dispatchEvent(event);
+    this.isDirty = false;
   }
 
   private _renderMultiplier() {
@@ -79,6 +96,7 @@ export class aaDartThrow extends LitElement {
   private handleInputChanged(event: Event) {
     const input = event.target as HTMLInputElement;
     let value = parseInt(input.value, 10);
+    let oldValue = this.dartThrow.hitLocation;
 
     if (isNaN(value)) {
       input.value = "";
@@ -94,6 +112,10 @@ export class aaDartThrow extends LitElement {
       (this.dartThrow.throwType == ThrowType.Double || this.dartThrow.throwType == ThrowType.Triple)){
        this.dartThrow.throwType = ThrowType.Single;
       }
+
+    if (this.dartThrow.hitLocation !== oldValue){
+      this.isDirty = true;
+    }
 
     this.requestUpdate();
   }

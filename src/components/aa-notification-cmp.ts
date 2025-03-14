@@ -108,7 +108,7 @@ export class NotificationElement extends LitElement {
 
   private getBackgroundColor() {
     switch (this.type) {
-      case 'success': return 'var(--color-success)';
+      case 'success': return 'var(--color-success)'; 
       case 'danger': return 'var(--color-danger)';
       case 'info': return 'var(--color-info)';
       default: return '#333'; 

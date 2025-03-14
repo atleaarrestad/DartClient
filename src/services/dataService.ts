@@ -1,5 +1,6 @@
 import { injectable } from "tsyringe";
 import { User, UserSchema } from "../models/userSchema.js";
+import { Round } from "src/models/roundSchema.js";
 
 @injectable()
 export class DataService {
@@ -13,6 +14,11 @@ export class DataService {
     }else{
       return result;
     }
+  }
+
+  public async ValidateRounds(rounds: Round[]): Promise<Round[]> {
+    const result = await this.post<Round[], Round[]>("validate/player/rounds", rounds);
+    return result!;
   }
 
   public async GetAllUsers(): Promise<User[]> {

@@ -5,9 +5,13 @@ import { Round } from "../models/roundSchema.js";
 import { sharedStyles } from "../../styles.js";
 import { AaCombobox } from "./aa-combobox-cmp.js"
 import { User } from "../models/userSchema.js";
+import { DataService } from "../services/dataService.js";
+import { container } from "tsyringe";
 
 @customElement("aa-player")
 export class aaPlayer extends LitElement {
+  private dataService: DataService;
+
   @property({ type: Array }) players : User[] = [];
   private selectedPlayerIndex: number = -1;
 
@@ -16,6 +20,11 @@ export class aaPlayer extends LitElement {
     this._createRound(2),
     this._createRound(3),
   ];
+
+  constructor() {
+      super();
+      this.dataService = container.resolve(DataService);
+    }
 
   static override styles = [sharedStyles, css`
     :host {
@@ -88,19 +97,19 @@ export class aaPlayer extends LitElement {
         <span class="border-left">Sum</span>
       </div>
       <div>
-        ${this.rounds.map((round, index) => html`
-          <div class="${index % 2 === 0 ? 'alternate-color' : ''}">
+        ${this.rounds.map((round, roundIndex) => html`
+          <div class="${roundIndex % 2 === 0 ? 'alternate-color' : ''}">
             <div class="round-grid">
-              <div class="round-number">${index + 1}</div>
+              <div class="round-number">${roundIndex + 1}</div>
               <div class="throws-container">
-                ${round.dartThrows.map((dartThrow, index) => html`
+                ${round.dartThrows.map((dartThrow, throwIndex) => html`
                   <aa-dartthrow
                     .dartThrow=${dartThrow}
-                    @throw-updated=${(e: CustomEvent) => this._updateThrow(e.detail, index)}
+                    @throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, roundIndex)}
                   ></aa-dartthrow>
                 `)}
               </div>
-              <div class="cumulative-points-round">${index*10}</div>
+              <div class="cumulative-points-round">${round.cumulativePoints}</div>
           </div>
         </div>
         `)}
@@ -108,34 +117,26 @@ export class aaPlayer extends LitElement {
     `;
   }
 
-  private _updateThrow(updatedThrow: Round["dartThrows"][number], index: number) {
-    //yoyo
+  private handleThrowUpdated(updatedThrow: Round["dartThrows"][number], roundIndex: number) {
+    const updatedRounds = [...this.rounds];
+    
+    updatedRounds[roundIndex] = {
+      ...updatedRounds[roundIndex]!, 
+      dartThrows: updatedRounds[roundIndex]!.dartThrows.map((dartThrow, index) => 
+        index === updatedThrow.throwIndex ? { ...dartThrow, ...updatedThrow } : dartThrow
+    ),
+  };
+  
+  this.rounds = updatedRounds;
+
+  this.dataService.ValidateRounds(this.rounds).then((response: Round[]) => {
+    this.rounds = response;
+    console.log(response);
+  })
   }
-
-  private _handleRoundUpdate(updatedRound: Round, index: number) {
-    this.rounds = this.rounds.map((round, i) =>
-      i === index ? updatedRound : round
-    );
-
-    this._sendRoundsToServer();
-  }
-
-  private async _sendRoundsToServer() {
-    try {
-      const response = await fetch("/validate-rounds", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(this.rounds),
-      });
-
-      if (!response.ok) throw new Error("Failed to validate rounds");
-
-      const validatedRounds = await response.json();
-      this.rounds = validatedRounds;
-    } catch (error) {
-      console.error("Error validating rounds:", error);
-    }
-  }
+  
+  
+  
 
   private _createRound(roundNumber: number): Round {
     return {
