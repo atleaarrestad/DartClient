@@ -7,6 +7,7 @@ export class NotificationElement extends LitElement {
   @property() message: string = '';
   @property() type: 'success' | 'danger' | 'info' = 'success';
   @property({ type: Boolean }) visible: boolean = true;
+  @property({ type: Object }) promise: Promise<any> | null = null;
 
   static override styles = [
     sharedStyles,
@@ -18,14 +19,11 @@ export class NotificationElement extends LitElement {
         transform: translateY(-20px);
       }
 
-      :host(:hover) {
-        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
-        transform: translateY(-5px);
-      }
-
       .icon {
-        font-size: 24px;
-        margin-right: 12px;
+        font-size: 14px;
+        padding-right: 1rem;
+        height: fit-content;
+        width: fit-content;
       }
 
       .content {
@@ -63,17 +61,26 @@ export class NotificationElement extends LitElement {
         font-family: var(--font-family-second);
         font-size: var(--font-size-notification);
       }
-
     `
   ];
 
   override firstUpdated() {
-    setTimeout(() => {
-      this.visible = false;
+
+    if (this.promise){
+      this.promise.finally(() => {
+        setTimeout(() => {
+                this.visible = false;
+                this.remove();
+            }, 600);
+      }) 
+    }else{
       setTimeout(() => {
-        this.remove();
-      }, 300);
-    }, 3000);
+        this.visible = false;
+        setTimeout(() => {
+          this.remove();
+        }, 300);
+      }, 3000);
+    }
   }
   
   override updated(changedProperties: Map<string, any>) {
@@ -86,6 +93,11 @@ export class NotificationElement extends LitElement {
   }
 
   private getIconClass() {
+
+    if (this.promise != undefined){
+      return 'fas fa-spinner fa-spin info';
+    }
+
     switch (this.type) {
       case 'success': return 'fas fa-check-circle success';
       case 'danger': return 'fas fa-exclamation-triangle danger';

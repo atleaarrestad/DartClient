@@ -36,7 +36,10 @@ export class IndexPage extends LitElement {
     this.dataService.Ping().catch(error => this.notificationService.addNotification(error, "danger"));
   }
   private async LoadPlayers(): Promise<void> {
-    this.dataService.GetAllUsers()
+    const usersPromise = this.dataService.GetAllUsers();
+    this.notificationService.addNotification("Fetching users..", "info", usersPromise);
+
+    usersPromise
         .then(users => {
             if (users) {
                 this.players = [...users];
