@@ -5,29 +5,7 @@ import { User } from '../models/userSchema.js';
 
 @customElement("aa-combobox")
 export class AaCombobox extends LitElement {
-  @property({ type: Array })
-  users: User[] = [
-    { alias: "kristoffer", name: "kristoffer", id: "toto", seasonStatistics: [] },
-    { alias: "atle", name: "atle", id: "toto2", seasonStatistics: [] },
-    { alias: "frisbeeguden", name: "frisbeeguden", id: "toto3", seasonStatistics: [] },
-    { alias: "ikkjeroenlie", name: "ikkjeroenlie", id: "toto4", seasonStatistics: [] },
-    { alias: "kristoffer", name: "kristoffer", id: "toto", seasonStatistics: [] },
-    { alias: "atle", name: "atle", id: "toto2", seasonStatistics: [] },
-    { alias: "frisbeeguden", name: "frisbeeguden", id: "toto3", seasonStatistics: [] },
-    { alias: "ikkjeroenlie", name: "ikkjeroenlie", id: "toto4", seasonStatistics: [] },
-    { alias: "kristoffer", name: "kristoffer", id: "toto", seasonStatistics: [] },
-    { alias: "atle", name: "atle", id: "toto2", seasonStatistics: [] },
-    { alias: "frisbeeguden", name: "frisbeeguden", id: "toto3", seasonStatistics: [] },
-    { alias: "ikkjeroenlie", name: "ikkjeroenlie", id: "toto4", seasonStatistics: [] },
-    { alias: "kristoffer", name: "kristoffer", id: "toto", seasonStatistics: [] },
-    { alias: "atle", name: "atle", id: "toto2", seasonStatistics: [] },
-    { alias: "frisbeeguden", name: "frisbeeguden", id: "toto3", seasonStatistics: [] },
-    { alias: "ikkjeroenlie", name: "ikkjeroenlie", id: "toto4", seasonStatistics: [] },
-    { alias: "kristoffer", name: "kristoffer", id: "toto", seasonStatistics: [] },
-    { alias: "atle", name: "atle", id: "toto2", seasonStatistics: [] },
-    { alias: "frisbeeguden", name: "frisbeeguden", id: "toto3", seasonStatistics: [] },
-    { alias: "ikkjeroenlie", name: "ikkjeroenlie", id: "toto4", seasonStatistics: [] },
-  ];
+  @property({ type: Array }) players : User[] = [];
 
   @property({ type: String })
   searchQuery: string = "";
@@ -43,11 +21,11 @@ export class AaCombobox extends LitElement {
 
   get filteredUsers() {
     if (!this.searchQuery) {
-      return this.users;
+      return this.players;
     }
 
     const query = this.searchQuery.toLowerCase();
-    return this.users.filter(
+    return this.players.filter(
       (user) =>
         user.alias.toLowerCase().includes(query) ||
         user.name.toLowerCase().includes(query)
@@ -114,7 +92,7 @@ export class AaCombobox extends LitElement {
         <input
           type="text"
           placeholder="Search users..."
-          .value="${this.selectedUser ? this.selectedUser.alias : this.searchQuery}"
+          .value="${this.selectedUser ? `${this.selectedUser.alias}` : this.searchQuery}"
           @input="${this.handleSearchChange}"
           @keydown="${this.handleKeyDown}"
           @focus="${this.handleInputFocus}"
@@ -129,7 +107,7 @@ export class AaCombobox extends LitElement {
                       class="user-option ${this.selectedIndex === index ? "selected" : ""}"
                       @click="${() => this.handleUserSelect(user)}"
                     >
-                      ${user.alias}
+                      ${user.alias} ${user.seasonStatistics?.length > 0 ? `- ${user.seasonStatistics.at(-1)?.mmr}` : ''}
                     </li>
                   `
                 )}

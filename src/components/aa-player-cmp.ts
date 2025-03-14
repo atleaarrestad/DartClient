@@ -4,10 +4,12 @@ import { RoundStatus, ThrowType, ScoreModifier } from "../models/enums.js";
 import { Round } from "../models/roundSchema.js";
 import { sharedStyles } from "../../styles.js";
 import { AaCombobox } from "./aa-combobox-cmp.js"
+import { User } from "../models/userSchema.js";
 
 @customElement("aa-player")
 export class aaPlayer extends LitElement {
-  @property({ type: String }) name = "Player";
+  @property({ type: Array }) players : User[] = [];
+  private selectedPlayerIndex: number = -1;
 
   @state() rounds: Round[] = [
     this._createRound(1),
@@ -78,7 +80,7 @@ export class aaPlayer extends LitElement {
 
   override render() {
     return html`
-      <aa-combobox></aa-combobox>
+      <aa-combobox .players = ${this.players}></aa-combobox>
       <span class="total-sum">0 (-250)</span>
       <div class="round-labels-container round-grid">
         <span class="border-right">N</span>

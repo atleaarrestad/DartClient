@@ -17,7 +17,6 @@ export class IndexPage extends LitElement {
   private dataService: DataService;
   private notificationService: NotificationService;
 
-  @property({ type: String }) mydata = "";
   @property({ type: Array }) players : User[] = [];
 
   constructor() {
@@ -38,23 +37,25 @@ export class IndexPage extends LitElement {
   }
   private async LoadPlayers(): Promise<void> {
     this.dataService.GetAllUsers()
-      .then(users => {
-        this.players = users!;
-        console.log(this.players);
-      })
-      .catch(error => {
-        this.notificationService.addNotification(error, "danger")
-      });
-  }
+        .then(users => {
+            if (users) {
+                this.players = [...users];
+            } else {
+                this.players = [];
+            }
+        })
+        .catch(error => {
+            this.notificationService.addNotification(error, "danger");
+        });
+}
 
   override render() {
     return html`
       <aa-button @click="${this.LoadPlayers}">get all users</aa-button>
-      <h4>Server responze: ${this.mydata}</h4>
       <player-container>
-        <aa-player name="Kreegsoffer"></aa-player>
-        <aa-player name="Kreegsoffer"></aa-player>
-        <aa-player name="Kreegsoffer"></aa-player>
+        <aa-player .players=${this.players}></aa-player>
+        <aa-player .players=${this.players}></aa-player>
+        <aa-player .players=${this.players}></aa-player>
 
       </player-container>
     `;
