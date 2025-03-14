@@ -9,7 +9,7 @@ export class aaDartThrow extends LitElement {
   @property({ type: Object }) dartThrow: DartThrow
   @state() isReadOnly: boolean = false;
   @query("input") inputElement: HTMLInputElement;
-  @state() isDirty: boolean = false;
+  @state() oldValue: number = 0;
 
   static override styles = [sharedStyles, css`
     input[type="text"] {
@@ -63,7 +63,7 @@ export class aaDartThrow extends LitElement {
   }
 
   private handleBlur() {
-    if (!this.isDirty){
+    if (this.oldValue === this.dartThrow.hitLocation){
       return
     }
 
@@ -74,7 +74,7 @@ export class aaDartThrow extends LitElement {
     });
 
     this.dispatchEvent(event);
-    this.isDirty = false;
+    this.oldValue = this.dartThrow.hitLocation
   }
 
   private _renderMultiplier() {
@@ -96,7 +96,6 @@ export class aaDartThrow extends LitElement {
   private handleInputChanged(event: Event) {
     const input = event.target as HTMLInputElement;
     let value = parseInt(input.value, 10);
-    let oldValue = this.dartThrow.hitLocation;
 
     if (isNaN(value)) {
       input.value = "";
@@ -112,10 +111,6 @@ export class aaDartThrow extends LitElement {
       (this.dartThrow.throwType == ThrowType.Double || this.dartThrow.throwType == ThrowType.Triple)){
        this.dartThrow.throwType = ThrowType.Single;
       }
-
-    if (this.dartThrow.hitLocation !== oldValue){
-      this.isDirty = true;
-    }
 
     this.requestUpdate();
   }
