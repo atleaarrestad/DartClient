@@ -54,12 +54,10 @@ export class IndexPage extends LitElement {
 
   override render() {
     return html`
-      <aa-button @click="${this.LoadPlayers}">get all users</aa-button>
       <player-container>
         <aa-player .players=${this.players}></aa-player>
         <aa-player .players=${this.players}></aa-player>
         <aa-player .players=${this.players}></aa-player>
-
       </player-container>
     `;
   }
@@ -74,6 +72,7 @@ export class IndexPage extends LitElement {
       place-items: center;
       place-content: center;
       flex-grow: 1;
+      margin-top: 24px;
     }
       
       `];
