@@ -64,7 +64,6 @@ export class IndexPage extends LitElement {
 
   static override styles = [sharedStyles, css`
     :host {
-        
     }
     player-container {
 
@@ -73,6 +72,7 @@ export class IndexPage extends LitElement {
       place-content: center;
       flex-grow: 1;
       margin-top: 24px;
+      height: fit-content;
     }
       
       `];

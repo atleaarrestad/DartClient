@@ -19,6 +19,28 @@ export class aaPlayer extends LitElement {
     this._createRound(1),
     this._createRound(2),
     this._createRound(3),
+    this._createRound(4),
+    this._createRound(5),
+    this._createRound(6),
+    this._createRound(7),
+    this._createRound(8),
+    this._createRound(9),
+    this._createRound(10),
+    this._createRound(11),
+    this._createRound(12),
+    this._createRound(13),
+    this._createRound(14),
+    this._createRound(15),
+    this._createRound(16),
+    this._createRound(17),
+    this._createRound(18),
+    this._createRound(19),
+    this._createRound(20),
+    this._createRound(21),
+    this._createRound(22),
+    this._createRound(23),
+    this._createRound(24),
+    this._createRound(25),
   ];
 
   constructor() {
@@ -30,6 +52,7 @@ export class aaPlayer extends LitElement {
     :host {
       width: 100%;
       max-width: 25vw;
+      min-height: 35vh;
       display: flex;
       flex-direction: column;
       border: 2px solid black;
@@ -37,7 +60,9 @@ export class aaPlayer extends LitElement {
       background: var(--player-bg, #f0f0f0);
     }
     .rounds-container {
-      
+      max-height: 75vh;
+      overflow-y: auto;
+      scrollbar-width: none;
     }
     .alternate-color {
       background-color: rgba(180, 204, 185, 0.25)
@@ -96,7 +121,7 @@ export class aaPlayer extends LitElement {
         <span>Throws</span>
         <span class="border-left">Sum</span>
       </div>
-      <div>
+      <div class="rounds-container">
         ${this.rounds.map((round, roundIndex) => html`
           <div class="${roundIndex % 2 === 0 ? 'alternate-color' : ''}">
             <div class="round-grid">
