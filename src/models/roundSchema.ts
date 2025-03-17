@@ -9,4 +9,10 @@ export const RoundSchema = z.object({
     roundStatus: z.nativeEnum(RoundStatus), // Uses RoundStatus enum
   });
   
-  export type Round = z.infer<typeof RoundSchema>;
+export const PlayerRoundsScema = z.object({
+  playerId: z.string().uuid(),
+  rounds: z.array(RoundSchema)
+});
+
+export type Round = z.infer<typeof RoundSchema>;
+export type PlayerRounds = z.infer<typeof PlayerRoundsScema>;

@@ -5,7 +5,7 @@ import { User } from '../models/userSchema.js';
 
 @customElement("aa-combobox")
 export class AaCombobox extends LitElement {
-  @property({ type: Array }) players : User[] = [];
+  @property({ type: Array }) users : User[] = [];
 
   @property({ type: String })
   searchQuery: string = "";
@@ -21,11 +21,11 @@ export class AaCombobox extends LitElement {
 
   get filteredUsers() {
     if (!this.searchQuery) {
-      return this.players;
+      return this.users;
     }
 
     const query = this.searchQuery.toLowerCase();
-    return this.players.filter(
+    return this.users.filter(
       (user) =>
         user.alias.toLowerCase().includes(query) ||
         user.name.toLowerCase().includes(query)

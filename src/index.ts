@@ -6,7 +6,6 @@ import "./components/pages/index-page.js";
 import "./components/aa-notification-cmp.js"
 import "./components/aa-notification-container-cmp.js"
 
-import "./components/aa-player-cmp.js" 
 import "./components/aa-dartthrow-cmp.js"
 import "./components/aa-combobox-cmp.js"
 
