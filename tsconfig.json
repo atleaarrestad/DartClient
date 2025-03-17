@@ -40,6 +40,6 @@
     "declaration": true, // enables or disables d.ts files from being generated.
     "declarationMap": true // enables/disables d.ts.map files from being generated.
   },
-  "include": ["./**/*.ts", "./**/*.d.ts", "./**/*.js"],
+  "include": ["./**/*.ts", "./**/*.d.ts"],
   "exclude": ["./**/*.test.ts", "./**/*.bench.ts"]
 }

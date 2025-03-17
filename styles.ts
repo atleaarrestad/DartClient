@@ -1,5 +1,5 @@
 import { css, unsafeCSS } from "lit";
-import fontAwesomeStyles from '@fortawesome/fontawesome-free/css/all.css?inline';
+import fontAwesomeStyles from "@fortawesome/fontawesome-free/css/all.css?inline";
 
 export const sharedStyles = css`
   * {

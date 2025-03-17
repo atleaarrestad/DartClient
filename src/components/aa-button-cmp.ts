@@ -5,21 +5,18 @@ import { LitElement } from "lit";
 
 @customElement("aa-button")
 export class aaButton extends LitElement {
-    
-  public override connectedCallback(): void {
-    super.connectedCallback();
-  }
+	public override connectedCallback(): void {
+		super.connectedCallback();
+	}
 
-  override render() {
-    return html`
+	override render() {
+		return html`
      <button><slot></slot></button>
     `;
-  }
+	}
 
-  static override styles = [sharedStyles, css`
-    :host {
-      
-    }
+	static override styles = [sharedStyles, css`
+	
     button {
       background: var(--button-color-first);
       color: #000;

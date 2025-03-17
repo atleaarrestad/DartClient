@@ -1,0 +1,43 @@
+{
+	"editor.bracketPairColorization.enabled": true,
+	"editor.guides.bracketPairs": "active",
+	"editor.formatOnSave": true,
+	"editor.codeActionsOnSave": {
+		"source.fixAll.eslint": "explicit"
+	},
+	"editor.detectIndentation": false,
+	"editor.insertSpaces": false,
+	"eslint.run": "onType",
+	"eslint.useESLintClass": true,
+	"eslint.useFlatConfig": true,
+	"eslint.format.enable": true,
+	"eslint.validate": [
+		"javascript",
+		"typescript",
+		"typescriptreact"
+	],
+	"eslint.workingDirectories": [
+		{
+			"mode": "auto"
+		}
+	],
+	"[javascript]": {
+		"editor.defaultFormatter": "dbaeumer.vscode-eslint"
+	},
+	"[typescript]": {
+		"editor.defaultFormatter": "dbaeumer.vscode-eslint"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "dbaeumer.vscode-eslint"
+	},
+	"typescript.format.insertSpaceAfterTypeAssertion": true,
+	"typescript.format.semicolons": "insert",
+	"javascript.format.semicolons": "insert",
+	"typescript.updateImportsOnFileMove.enabled": "always",
+	"typescript.preferences.importModuleSpecifier": "project-relative",
+	"javascript.preferences.importModuleSpecifier": "project-relative",
+	"typescript.preferences.importModuleSpecifierEnding": "js",
+	"javascript.preferences.importModuleSpecifierEnding": "js",
+	"typescript.preferences.quoteStyle": "double",
+	"javascript.preferences.quoteStyle": "double",
+}

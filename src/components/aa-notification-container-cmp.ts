@@ -1,10 +1,10 @@
-import { LitElement, html, css } from 'lit';
-import { customElement } from 'lit/decorators.js';
+import { LitElement, html, css } from "lit";
+import { customElement } from "lit/decorators.js";
 import { sharedStyles } from "../../styles.js";
 
-@customElement('aa-notification-container-cmp')
+@customElement("aa-notification-container-cmp")
 export class NotificationContainer extends LitElement {
-  static override styles = [sharedStyles ,css`
+	static override styles = [sharedStyles, css`
     :host {
       position: fixed;
       top: 20px;
@@ -17,7 +17,7 @@ export class NotificationContainer extends LitElement {
     }
   `];
 
-  override render() {
-    return html`<slot></slot>`;
-  }
+	override render() {
+		return html`<slot></slot>`;
+	}
 }

@@ -1,7 +1,7 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css } from "lit";
 
 class BrutalistButton extends LitElement {
-  static override styles = css`
+	static override styles = css`
     button {
       //font-family: 'Space Grotesk', sans-serif;
       font-family: 'Bitter', sans-serif;
@@ -30,9 +30,9 @@ class BrutalistButton extends LitElement {
     }
   `;
 
-  override render() {
-    return html`<button><slot></slot></button>`;
-  }
+	override render() {
+		return html`<button><slot></slot></button>`;
+	}
 }
 
-customElements.define('brutalist-button', BrutalistButton);
+customElements.define("brutalist-button", BrutalistButton);

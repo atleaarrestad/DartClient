@@ -9,148 +9,147 @@ import { container } from "tsyringe";
 
 import { User } from "../../models/userSchema.js";
 import { Round } from "../../models/roundSchema.js";
-import { ThrowType, RoundStatus } from "../../models/enums.js"
+import { ThrowType, RoundStatus } from "../../models/enums.js";
 
 import "../aa-button-cmp.js";
 import { PlayerRounds } from "src/models/roundSchema.js";
 import { aaDartThrow } from "../aa-dartthrow-cmp.js";
 
-
 @customElement("index-page")
 export class IndexPage extends LitElement {
-  private dataService: DataService;
-  private notificationService: NotificationService;
+	private dataService: DataService;
+	private notificationService: NotificationService;
 
-  @property({ type: Array }) users : User[] = [];
-  @property({type: Array}) players: PlayerRounds[] = [
-    {playerId: "",
-      rounds: [
-        this.createRound(1),
-        this.createRound(2),
-        this.createRound(3)
-      ]
-    },
-    {playerId: "",
-      rounds: [
-        this.createRound(1),
-        this.createRound(2),
-        this.createRound(3)
-      ]
-    }
-  ];
+	@property({ type: Array }) users: User[] = [];
+	@property({ type: Array }) players: PlayerRounds[] = [
+		{ playerId: "",
+			rounds: [
+				this.createRound(1),
+				this.createRound(2),
+				this.createRound(3),
+			],
+		},
+		{ playerId: "",
+			rounds: [
+				this.createRound(1),
+				this.createRound(2),
+				this.createRound(3),
+			],
+		},
+	];
 
-  constructor() {
-    super();
-    this.dataService = container.resolve(DataService);
-    this.notificationService = container.resolve(NotificationService);
-  }
+	constructor() {
+		super();
+		this.dataService = container.resolve(DataService);
+		this.notificationService = container.resolve(NotificationService);
+	}
 
-  public override connectedCallback(): void {
-    this.healthCheckServer();
-    this.loadUsers();
-    super.connectedCallback();
-  }
-  
-  
-  private async healthCheckServer(): Promise<void> {
-    this.dataService.Ping().catch(error => this.notificationService.addNotification(error, "danger"));
-  }
+	public override connectedCallback(): void {
+		this.healthCheckServer();
+		this.loadUsers();
+		super.connectedCallback();
+	}
 
-  private async loadUsers(): Promise<void> {
-    const usersPromise = this.dataService.GetAllUsers();
-    this.notificationService.addNotification("Fetching users..", "info", usersPromise);
+	private async healthCheckServer(): Promise<void> {
+		this.dataService.Ping().catch(error => this.notificationService.addNotification(error, "danger"));
+	}
 
-    usersPromise
-        .then(users => {
-            if (users) {
-                this.users = [...users];
-            } else {
-                this.users = [];
-            }
-        })
-        .catch(error => {
-            this.notificationService.addNotification(error, "danger");
-        });
+	private async loadUsers(): Promise<void> {
+		const usersPromise = this.dataService.GetAllUsers();
+		this.notificationService.addNotification("Fetching users..", "info", usersPromise);
 
-  }
+		usersPromise
+			.then((users) => {
+				if (users) {
+					this.users = [...users];
+				}
+				else {
+					this.users = [];
+				}
+			})
+			.catch((error) => {
+				this.notificationService.addNotification(error, "danger");
+			});
+	}
 
-  private createRound(roundNumber: number): Round {
-      return {
-        roundNumber,
-        dartThrows: [
-          { throwIndex: 0, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
-          { throwIndex: 1, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
-          { throwIndex: 2, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
-        ],
-        cumulativePoints: 0,
-        roundStatus: RoundStatus.Valid,
-      };
-  }
+	private createRound(roundNumber: number): Round {
+		return {
+			roundNumber,
+			dartThrows: [
+				{ throwIndex: 0, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
+				{ throwIndex: 1, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
+				{ throwIndex: 2, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
+			],
+			cumulativePoints: 0,
+			roundStatus: RoundStatus.Valid,
+		};
+	}
 
-  private handleThrowUpdated(updatedThrow: Round["dartThrows"][number], playerIndex: number, roundIndex: number) {
-    if (!this.players[playerIndex]) {
-      return;
-    }
-  
-    const updatedRounds = [...this.players[playerIndex].rounds];
-  
-    updatedRounds[roundIndex] = {
-      ...updatedRounds[roundIndex]!, 
-      dartThrows: updatedRounds[roundIndex]!.dartThrows.map((dartThrow, index) => 
-        index === updatedThrow.throwIndex ? { ...dartThrow, ...updatedThrow } : dartThrow
-      )
-    };
-  
-    const updatedPlayer = { ...this.players[playerIndex], rounds: updatedRounds };
-  
-    this.players = [
-      ...this.players.slice(0, playerIndex),
-      updatedPlayer,                         
-      ...this.players.slice(playerIndex + 1)
-    ];
-  
-    this.dataService.ValidateRounds(updatedRounds).then((response: Round[]) => {
-      updatedPlayer.rounds = [...response];
+	private handleThrowUpdated(updatedThrow: Round["dartThrows"][number], playerIndex: number, roundIndex: number) {
+		if (!this.players[playerIndex]) {
+			return;
+		}
 
-      this.players = [
-        ...this.players.slice(0, playerIndex),
-        updatedPlayer,
-        ...this.players.slice(playerIndex + 1)
-      ];
-    });
-  }
+		const updatedRounds = [...this.players[playerIndex].rounds];
 
-  private handleUserselected(user: User, playerIndex: number) {
-    this.players[playerIndex]!.playerId = user.id;
-    console.log(this.players[playerIndex]);
-  }
+		updatedRounds[roundIndex] = {
+			...updatedRounds[roundIndex]!,
+			dartThrows: updatedRounds[roundIndex]!.dartThrows.map((dartThrow, index) =>
+				index === updatedThrow.throwIndex ? { ...dartThrow, ...updatedThrow } : dartThrow,
+			),
+		};
 
-  private handleRequestNextThrowFocus(playerIndex: number, roundIndex: number, throwIndex: number) {
-    const player = this.players[playerIndex];
-    const round = player!.rounds[roundIndex];
-  
-    if (throwIndex === 2) {
-      if (playerIndex === this.players.length - 1) {
-        const nextRoundIndex = roundIndex + 1 < player!.rounds.length ? roundIndex + 1 : 0;
-        this.focusThrow(0, nextRoundIndex);
-      } else {
-        const nextPlayerIndex = playerIndex + 1;
-        this.focusThrow(nextPlayerIndex, roundIndex);
-      }
-    } else {
-      const nextThrowIndex = throwIndex + 1;
-      this.focusThrow(playerIndex, roundIndex, nextThrowIndex);
-    }
-  }
-  
-  private focusThrow(playerIndex: number, roundIndex: number, throwIndex: number = 0) {
-    const throwId = `throw-${playerIndex}${roundIndex}${throwIndex}`;
-    const dartThrowElement = this.renderRoot.querySelector<aaDartThrow>(`#${throwId}`);
-    dartThrowElement?.focus();
-  }
-  
-  override render() {
-    return html`
+		const updatedPlayer = { ...this.players[playerIndex], rounds: updatedRounds };
+
+		this.players = [
+			...this.players.slice(0, playerIndex),
+			updatedPlayer,
+			...this.players.slice(playerIndex + 1),
+		];
+
+		this.dataService.ValidateRounds(updatedRounds).then((response: Round[]) => {
+			updatedPlayer.rounds = [...response];
+
+			this.players = [
+				...this.players.slice(0, playerIndex),
+				updatedPlayer,
+				...this.players.slice(playerIndex + 1),
+			];
+		});
+	}
+
+	private handleUserselected(user: User, playerIndex: number) {
+		this.players[playerIndex]!.playerId = user.id;
+		console.log(this.players[playerIndex]);
+	}
+
+	private handleRequestNextThrowFocus(playerIndex: number, roundIndex: number, throwIndex: number) {
+		const player = this.players[playerIndex];
+
+		if (throwIndex === 2) {
+			if (playerIndex === this.players.length - 1) {
+				const nextRoundIndex = roundIndex + 1 < player!.rounds.length ? roundIndex + 1 : 0;
+				this.focusThrow(0, nextRoundIndex);
+			}
+			else {
+				const nextPlayerIndex = playerIndex + 1;
+				this.focusThrow(nextPlayerIndex, roundIndex);
+			}
+		}
+		else {
+			const nextThrowIndex = throwIndex + 1;
+			this.focusThrow(playerIndex, roundIndex, nextThrowIndex);
+		}
+	}
+
+	private focusThrow(playerIndex: number, roundIndex: number, throwIndex: number = 0) {
+		const throwId = `throw-${playerIndex}${roundIndex}${throwIndex}`;
+		const dartThrowElement = this.renderRoot.querySelector<aaDartThrow>(`#${throwId}`);
+		dartThrowElement?.focus();
+	}
+
+	override render() {
+		return html`
       <div class="player-container">
         ${this.players.map((player, playerIndex) => html`
           <article class="player">
@@ -165,7 +164,7 @@ export class IndexPage extends LitElement {
             </div>
             <div class="rounds-container">
               ${player.rounds.map((round, roundIndex) => html`
-                <div class="${roundIndex % 2 === 0 ? 'alternate-color' : ''}">
+                <div class="${roundIndex % 2 === 0 ? "alternate-color" : ""}">
                   <div class="round-grid">
                     <div class="round-number">${roundIndex + 1}</div>
                     <div class="throws-container">
@@ -174,7 +173,7 @@ export class IndexPage extends LitElement {
                           id="throw-${playerIndex}${roundIndex}${throwIndex}"
                           .dartThrow=${dartThrow}
                           @throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
-                          @request-next-throw-focus=${(e: CustomEvent) => this.handleRequestNextThrowFocus(playerIndex, roundIndex, throwIndex)}
+                          @request-next-throw-focus=${() => this.handleRequestNextThrowFocus(playerIndex, roundIndex, throwIndex)}
                         ></aa-dartthrow>
                       `)}
                     </div>
@@ -187,11 +186,9 @@ export class IndexPage extends LitElement {
         `)}
       </div>
     `;
-  }
+	}
 
-
-  static override styles = [sharedStyles, css`
-    :host {}
+	static override styles = [sharedStyles, css`
 
     .player-container {
       display: flex;
