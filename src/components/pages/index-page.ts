@@ -93,7 +93,6 @@ export class IndexPage extends LitElement {
   
     const updatedRounds = [...this.players[playerIndex].rounds];
   
-    // Update the specific round with the new dartThrow data
     updatedRounds[roundIndex] = {
       ...updatedRounds[roundIndex]!, 
       dartThrows: updatedRounds[roundIndex]!.dartThrows.map((dartThrow, index) => 
@@ -117,50 +116,49 @@ export class IndexPage extends LitElement {
         updatedPlayer,
         ...this.players.slice(playerIndex + 1)
       ];
-  
-      console.log(this.players[playerIndex]);
     });
   }
-  
-  
-  
-  
 
-override render() {
-  return html`
-    <div class="player-container">
-      ${this.players.map((player, playerIndex) => html`
-        <article class="player">
-          <aa-combobox .users = ${this.users}></aa-combobox>
-          <span class="total-sum">0 (-250)</span>
-          <div class="round-labels-container round-grid">
-            <span class="border-right">N</span>
-            <span>Throws</span>
-            <span class="border-left">Sum</span>
-          </div>
-          <div class="rounds-container">
-            ${player.rounds.map((round, roundIndex) => html`
-              <div class="${roundIndex % 2 === 0 ? 'alternate-color' : ''}">
-                <div class="round-grid">
-                  <div class="round-number">${roundIndex + 1}</div>
-                  <div class="throws-container">
-                    ${round.dartThrows.map((dartThrow, throwIndex) => html`
-                      <aa-dartthrow
-                        .dartThrow=${dartThrow}
-                        @throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
-                      ></aa-dartthrow>
-                    `)}
-                  </div>
-                  <div class="cumulative-points-round">${round.cumulativePoints}</div>
-              </div>
+  private handleUserselected(user: User, playerIndex: number) {
+    this.players[playerIndex]!.playerId = user.id;
+    console.log(this.players[playerIndex]);
+  }
+  
+  override render() {
+    return html`
+      <div class="player-container">
+        ${this.players.map((player, playerIndex) => html`
+          <article class="player">
+            <aa-combobox @user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)} .users = ${this.users}></aa-combobox>
+            <span class="total-sum">0 (-250)</span>
+            <div class="round-labels-container round-grid">
+              <span class="border-right">N</span>
+              <span>Throws</span>
+              <span class="border-left">Sum</span>
             </div>
-            `)}
-          </div>
-        </article>
-      `)}
-    </div>
-  `;
-}
+            <div class="rounds-container">
+              ${player.rounds.map((round, roundIndex) => html`
+                <div class="${roundIndex % 2 === 0 ? 'alternate-color' : ''}">
+                  <div class="round-grid">
+                    <div class="round-number">${roundIndex + 1}</div>
+                    <div class="throws-container">
+                      ${round.dartThrows.map((dartThrow, throwIndex) => html`
+                        <aa-dartthrow
+                          .dartThrow=${dartThrow}
+                          @throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
+                        ></aa-dartthrow>
+                      `)}
+                    </div>
+                    <div class="cumulative-points-round">${round.cumulativePoints}</div>
+                </div>
+              </div>
+              `)}
+            </div>
+          </article>
+        `)}
+      </div>
+    `;
+  }
 
 
   static override styles = [sharedStyles, css`
