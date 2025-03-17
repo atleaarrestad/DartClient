@@ -13,6 +13,7 @@ import { ThrowType, RoundStatus } from "../../models/enums.js"
 
 import "../aa-button-cmp.js";
 import { PlayerRounds } from "src/models/roundSchema.js";
+import { aaDartThrow } from "../aa-dartthrow-cmp.js";
 
 
 @customElement("index-page")
@@ -123,13 +124,39 @@ export class IndexPage extends LitElement {
     this.players[playerIndex]!.playerId = user.id;
     console.log(this.players[playerIndex]);
   }
+
+  private handleRequestNextThrowFocus(playerIndex: number, roundIndex: number, throwIndex: number) {
+    const player = this.players[playerIndex];
+    const round = player!.rounds[roundIndex];
+  
+    if (throwIndex === 2) {
+      if (playerIndex === this.players.length - 1) {
+        const nextRoundIndex = roundIndex + 1 < player!.rounds.length ? roundIndex + 1 : 0;
+        this.focusThrow(0, nextRoundIndex);
+      } else {
+        const nextPlayerIndex = playerIndex + 1;
+        this.focusThrow(nextPlayerIndex, roundIndex);
+      }
+    } else {
+      const nextThrowIndex = throwIndex + 1;
+      this.focusThrow(playerIndex, roundIndex, nextThrowIndex);
+    }
+  }
+  
+  private focusThrow(playerIndex: number, roundIndex: number, throwIndex: number = 0) {
+    const throwId = `throw-${playerIndex}${roundIndex}${throwIndex}`;
+    const dartThrowElement = this.renderRoot.querySelector<aaDartThrow>(`#${throwId}`);
+    dartThrowElement?.focus();
+  }
   
   override render() {
     return html`
       <div class="player-container">
         ${this.players.map((player, playerIndex) => html`
           <article class="player">
-            <aa-combobox @user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)} .users = ${this.users}></aa-combobox>
+            <aa-combobox
+              @user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)}
+              .users=${this.users}></aa-combobox>
             <span class="total-sum">0 (-250)</span>
             <div class="round-labels-container round-grid">
               <span class="border-right">N</span>
@@ -144,8 +171,10 @@ export class IndexPage extends LitElement {
                     <div class="throws-container">
                       ${round.dartThrows.map((dartThrow, throwIndex) => html`
                         <aa-dartthrow
+                          id="throw-${playerIndex}${roundIndex}${throwIndex}"
                           .dartThrow=${dartThrow}
                           @throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
+                          @request-next-throw-focus=${(e: CustomEvent) => this.handleRequestNextThrowFocus(playerIndex, roundIndex, throwIndex)}
                         ></aa-dartthrow>
                       `)}
                     </div>

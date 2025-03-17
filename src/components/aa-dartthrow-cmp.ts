@@ -46,18 +46,23 @@ export class aaDartThrow extends LitElement {
     }
   `];
 
+  override focus(options?: FocusOptions): void {
+    this.shadowRoot?.querySelector("input")?.focus(options);
+  }
+
   override render() {
     return html`
       <div style="position: relative;" class=${this.dartThrow.throwIndex === 1 ? 'is-middle-input': ''}>
         <input
+          tabindex="-1"
           type="text"
           value=""
           ?readonly=${this.isReadOnly}
           @input=${this.handleInputChanged}
-          @keydown=${this._handleKeyDown}
+          @keydown=${this.handleKeyDown}
           @blur=${this.handleBlur}
         >
-        ${this._renderMultiplier()}
+        ${this.renderMultiplier()}
       </div>
     `;
   }
@@ -77,7 +82,7 @@ export class aaDartThrow extends LitElement {
     this.oldValue = this.dartThrow.hitLocation
   }
 
-  private _renderMultiplier() {
+  private renderMultiplier() {
     if (this.dartThrow.throwType === ThrowType.Double) {
       return html`
       <div class="multiplier">
@@ -115,9 +120,25 @@ export class aaDartThrow extends LitElement {
     this.requestUpdate();
   }
 
-  private _handleKeyDown(event: KeyboardEvent) {
+  private requestNextThrowFocus() {
+    const event = new CustomEvent('request-next-throw-focus', {
+      detail: { dartThrow: this.dartThrow },
+      bubbles: true,
+      composed: true
+    });
+    this.dispatchEvent(event);
+  }
+
+  private handleKeyDown(event: KeyboardEvent) {
     const upKeys = ["ArrowUp", "Up", "KP_Up"];
     const downKeys = ["ArrowDown", "Down", "KP_Down"];
+    const blurKeys = ["Tab", "Enter"];
+
+    if (blurKeys.includes(event.key)) {
+      event.preventDefault();
+      this.requestNextThrowFocus();
+      return;
+    }
     
     if (!upKeys.includes(event.key) && !downKeys.includes(event.key)) return;
     event.preventDefault();
@@ -143,7 +164,6 @@ export class aaDartThrow extends LitElement {
     this.updateDisplayForThrowType();
   }
   private updateDisplayForThrowType() {
-    console.log(this.inputElement);
     if (this.dartThrow.throwType === ThrowType.Miss) {
       this.inputElement.value = "MISS";
       this.dartThrow = { ...this.dartThrow, hitLocation: 0 };

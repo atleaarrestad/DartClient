@@ -35,7 +35,7 @@ export class AaCombobox extends LitElement {
   private handleUserSelect(user: User) {
     this.selectedUser = user;
     this.selectedIndex = this.filteredUsers.indexOf(user);
-    this.isDropdownOpen = false; // Close the dropdown on selection
+    this.isDropdownOpen = false;
     this.dispatchEvent(new CustomEvent("user-selected", { detail: user }));
   }
 
