@@ -25,15 +25,15 @@ export class IndexPage extends LitElement {
     {playerId: "",
       rounds: [
         this.createRound(1),
-        this.createRound(1),
-        this.createRound(1)
+        this.createRound(2),
+        this.createRound(3)
       ]
     },
     {playerId: "",
       rounds: [
         this.createRound(1),
-        this.createRound(1),
-        this.createRound(1)
+        this.createRound(2),
+        this.createRound(3)
       ]
     }
   ];
