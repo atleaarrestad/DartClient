@@ -216,117 +216,116 @@ export class IndexPage extends LitElement {
 
 	override render() {
 		return html`
-      <div class="player-container">
-        ${this.players.map((player, playerIndex) => html`
-          <article class="player">
-            <aa-combobox
-              @user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)}
-              .users=${this.users}></aa-combobox>
-            <span class="total-sum">0 (-250)</span>
-            <div class="round-labels-container round-grid">
-              <span class="border-right">N</span>
-              <span>Throws</span>
-              <span class="border-left">Sum</span>
-            </div>
-            <div class="rounds-container">
-              ${player.rounds.map((round, roundIndex) => html`
-                <div class="${roundIndex % 2 === 0 ? "alternate-color" : ""}">
-                  <div class="round-grid">
-                    <div class="round-number">${roundIndex + 1}</div>
-                    <div class="throws-container">
-                      ${round.dartThrows.map((dartThrow, throwIndex) => html`
-                        <aa-dartthrow
-                          id="throw-${playerIndex}${roundIndex}${throwIndex}"
-                          .dartThrow=${dartThrow}
-                          @throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
-                          @request-next-focus=${(e: CustomEvent) => this.handleRequestNextFocus(e.detail.direction, playerIndex, roundIndex, throwIndex)}
-                        ></aa-dartthrow>
-                      `)}
-                    </div>
-                    <div class="cumulative-points-round">${round.cumulativePoints}</div>
-                </div>
-              </div>
-              `)}
-            </div>
-          </article>
-        `)}
-      </div>
-    `;
+			<div class="player-container">
+				${this.players.map((player, playerIndex) => html`
+					<article class="player">
+						<aa-combobox
+							@user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)}
+							.users=${this.users}></aa-combobox>
+						<span class="total-sum">0 (-250)</span>
+						<div class="round-labels-container round-grid">
+							<span class="border-right">N</span>
+							<span>Throws</span>
+							<span class="border-left">Sum</span>
+						</div>
+						<div class="rounds-container">
+						${player.rounds.map((round, roundIndex) => html`
+							<div class="${roundIndex % 2 === 0 ? "alternate-color" : ""}">
+							<div class="round-grid">
+								<div class="round-number">${roundIndex + 1}</div>
+								<div class="throws-container">
+								${round.dartThrows.map((dartThrow, throwIndex) => html`
+									<aa-dartthrow
+										id="throw-${playerIndex}${roundIndex}${throwIndex}"
+										.dartThrow=${dartThrow}
+										@throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
+										@request-next-focus=${(e: CustomEvent) => this.handleRequestNextFocus(e.detail.direction, playerIndex, roundIndex, throwIndex)}
+									></aa-dartthrow>
+								`)}
+								</div>
+								<div class="cumulative-points-round">${round.cumulativePoints}</div>
+							</div>
+						</div>
+						`)}
+						</div>
+					</article>
+				`)}
+			</div>
+    	`;
 	}
 
 	static override styles = [sharedStyles, css`
 
-    .player-container {
-      display: flex;
-      place-items: center;
-      place-content: center;
-      flex-grow: 1;
-      margin-top: 24px;
-      height: fit-content;
-    }
-    
-    .player {
-      width: 100%;
-      max-width: 35vw;
-      min-height: 35vh;
-      display: flex;
-      flex-direction: column;
-      border: 2px solid black;
-      border-radius: 10px;
-      background: var(--player-bg, #f0f0f0);
-    }
-    
-    .rounds-container {
-      max-height: 75vh;
-      overflow-y: auto;
-      scrollbar-width: none;
-    }
-    .alternate-color {
-      background-color: rgba(180, 204, 185, 0.25)
-    }
-    .player-name-container{
-      text-align: center;
-    }
-    .round-grid {
-      display: grid;
-      grid-template-columns: 1.5rem 1fr 3rem;
-      align-items: center;
-    }
-    .round-labels-container {
-      text-align: center;
-      border-bottom: 1px solid black;
-      background-color: #B4CCB9;
-      font-size: 10px;
-    }
-    .border-right{
-      border-right: 1px solid black;
-    }
-    .border-left{
-      border-left: 1px solid black;
-    }
-    .throws-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-    }
-    .round-number {
-      border-right: 1px solid black;
-      font-size: var(--font-size-round-number);
-      line-height: 1.75rem;
-      text-align: center;
-    }
-    .cumulative-points-round {
-      border-left: 1px solid black;
-      font-size: var(--font-size-cumulative-points);
-      text-align: center;
-    }
-    .total-sum{
-      text-align: center;
-      border-top: 2px solid black;
-      border-bottom: 2px solid black;
-      padding-top: .5rem;
-      padding-bottom: .5rem;
-      font-size: 24px;
-    }
-      
+		.player-container {
+			display: flex;
+			place-items: center;
+			place-content: center;
+			flex-grow: 1;
+			margin-top: 24px;
+			height: fit-content;
+		}
+		
+		.player {
+			width: 100%;
+			max-width: 35vw;
+			min-height: 35vh;
+			display: flex;
+			flex-direction: column;
+			border: 2px solid black;
+			border-radius: 10px;
+			background: var(--player-bg, #f0f0f0);
+		}
+		
+		.rounds-container {
+			max-height: 75vh;
+			overflow-y: auto;
+			scrollbar-width: none;
+		}
+		.alternate-color {
+			background-color: rgba(180, 204, 185, 0.25)
+		}
+		.player-name-container{
+			text-align: center;
+		}
+		.round-grid {
+			display: grid;
+			grid-template-columns: 1.5rem 1fr 3rem;
+			align-items: center;
+		}
+		.round-labels-container {
+			text-align: center;
+			border-bottom: 1px solid black;
+			background-color: #B4CCB9;
+			font-size: 10px;
+		}
+		.border-right{
+			border-right: 1px solid black;
+		}
+		.border-left{
+			border-left: 1px solid black;
+		}
+		.throws-container {
+			display: grid;
+			grid-template-columns: 1fr 1fr 1fr;
+		}
+		.round-number {
+			border-right: 1px solid black;
+			font-size: var(--font-size-round-number);
+			line-height: 1.75rem;
+			text-align: center;
+		}
+		.cumulative-points-round {
+			border-left: 1px solid black;
+			font-size: var(--font-size-cumulative-points);
+			text-align: center;
+		}
+		.total-sum{
+			text-align: center;
+			border-top: 2px solid black;
+			border-bottom: 2px solid black;
+			padding-top: .5rem;
+			padding-bottom: .5rem;
+			font-size: 24px;
+		}
   `];
 }

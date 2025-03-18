@@ -9,59 +9,6 @@ export class NotificationElement extends LitElement {
 	@property({ type: Boolean }) visible: boolean = true;
 	@property({ type: Object }) promise: Promise<unknown> | null = null;
 
-	static override styles = [
-		sharedStyles,
-		css`
-      :host([hidden]) {
-        opacity: 0;
-        transform: translateY(-20px);
-      }
-
-      .icon {
-        font-size: 14px;
-        padding-right: 1rem;
-        height: fit-content;
-        width: fit-content;
-      }
-
-      .content {
-        flex-grow: 1;
-      }
-
-      .title {
-        font-size: 18px;
-        margin-bottom: 5px;
-      }
-
-      .message {
-        font-size: 14px;
-        word-wrap: break-word;
-        white-space: normal;
-      }
-      .notification {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        align-items: center;
-        padding: 12px 20px;
-        width: 300px;
-        border: 2px solid black;
-        border-radius: 5px;
-        font-weight: bold;
-        text-align: left;
-        opacity: 1;
-        transform: translateY(-10px);
-        transition: opacity 0.3s, transform 0.3s;
-        pointer-events: none;
-        color: black;
-        box-shadow: 2px 2px 0px 0px black;
-      }
-      .message {
-        font-family: var(--font-family-second);
-        font-size: var(--font-size-notification);
-      }
-    `,
-	];
-
 	override firstUpdated() {
 		if (this.promise) {
 			this.promise.finally(() => {
@@ -115,17 +62,64 @@ export class NotificationElement extends LitElement {
 
 	override render() {
 		return html`
-      <div
-        class="notification"
-        style="background-color: ${this.getBackgroundColor()}"
-      >
-        <div class="icon">
-          <i class="${this.getIconClass()}"></i>
-        </div>
-        <div class="content">
-          <div class="message">${this.message}</div>
-        </div>
-      </div>
-    `;
+			<div class="notification" style="background-color: ${this.getBackgroundColor()}">
+				<div class="icon">
+					<i class="${this.getIconClass()}"></i>
+				</div>
+				<div class="content">
+					<div class="message">${this.message}</div>
+				</div>
+			</div>
+    	`;
 	}
+
+	static override styles = [sharedStyles, css`
+		:host([hidden]) {
+			opacity: 0;
+			transform: translateY(-20px);
+		}
+
+		.icon {
+			font-size: 14px;
+			padding-right: 1rem;
+			height: fit-content;
+			width: fit-content;
+		}
+
+		.content {
+			flex-grow: 1;
+		}
+
+		.title {
+			font-size: 18px;
+			margin-bottom: 5px;
+		}
+
+		.message {
+			font-size: 14px;
+			word-wrap: break-word;
+			white-space: normal;
+		}
+		.notification {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			align-items: center;
+			padding: 12px 20px;
+			width: 300px;
+			border: 2px solid black;
+			border-radius: 5px;
+			font-weight: bold;
+			text-align: left;
+			opacity: 1;
+			transform: translateY(-10px);
+			transition: opacity 0.3s, transform 0.3s;
+			pointer-events: none;
+			color: black;
+			box-shadow: 2px 2px 0px 0px black;
+		}
+		.message {
+			font-family: var(--font-family-second);
+			font-size: var(--font-size-notification);
+		}
+	`];
 }

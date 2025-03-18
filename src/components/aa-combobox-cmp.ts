@@ -90,93 +90,90 @@ export class AaCombobox extends LitElement {
 
 	override render() {
 		return html`
-      <div class="combobox-container">
-        <input
-          type="text"
-          placeholder="Search users..."
-          .value="${this.selectedUser ? `${this.selectedUser.alias}` : this.searchQuery}"
-          @input="${this.handleSearchChange}"
-          @keydown="${this.handleKeyDown}"
-          @focus="${this.handleInputFocus}"
-          @blur="${this.handleInputBlur}"
-        />
-        ${this.isDropdownOpen
-			? html`
-              <ul class="user-list">
-                ${this.filteredUsers.map(
-					(user, index) => html`
-                    <li
-                      class="user-option ${this.selectedIndex === index ? "selected" : ""}"
-                      @click="${() => this.handleUserSelect(user)}"
-                    >
-                      ${user.alias} ${user.seasonStatistics?.length > 0 ? `- ${user.seasonStatistics.at(-1)?.mmr}` : ""}
-                    </li>
-                  `,
-				)}
-              </ul>
-            `
-			: ""}
-      </div>
-    `;
+			<div class="combobox-container">
+				<input
+					type="text"
+					placeholder="Search users..."
+					.value="${this.selectedUser ? `${this.selectedUser.alias}` : this.searchQuery}"
+					@input="${this.handleSearchChange}"
+					@keydown="${this.handleKeyDown}"
+					@focus="${this.handleInputFocus}"
+					@blur="${this.handleInputBlur}"
+				/>
+				${this.isDropdownOpen
+					? html`
+					<ul class="user-list">
+						${this.filteredUsers.map(
+							(user, index) => html`
+								<li
+									class="user-option ${this.selectedIndex === index ? "selected" : ""}"
+									@click="${() => this.handleUserSelect(user)}"
+								>
+									${user.alias} ${user.seasonStatistics?.length > 0 ? `- ${user.seasonStatistics.at(-1)?.mmr}` : ""}
+								</li>
+						`,
+						)}
+					</ul>
+					`
+					: ""}
+			</div>
+    	`;
 	}
 
-	static override styles = [
-		sharedStyles,
-		css`
-      :host {
-        display: block;
-        position: relative;
-        width: 200px;
-      }
+	static override styles = [sharedStyles, css`
+		:host {
+			display: block;
+			position: relative;
+			width: 200px;
+		}
 
-      .combobox-container {
-        position: relative;
-      }
+		.combobox-container {
+			position: relative;
+		}
 
-      input {
-        width: 100%;
-        padding: 8px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        font-size: 14px;
-        text-align: center;
-        background-color: rgba(0, 0, 0, 0);
-        border: unset;
-        font-size: 24px;
-      }
+		input {
+			width: 100%;
+			padding: 8px;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			font-size: 14px;
+			text-align: center;
+			background-color: rgba(0, 0, 0, 0);
+			border: unset;
+			font-size: 24px;
+		}
 
-      .user-list {
-        list-style-type: none;
-        margin: 0;
-        padding: 0;
-        max-height: 35vh;
-        height: fit-content;
-        overflow-y: auto;
-        border: 1px solid #ccc;
-        border-top: none;
-        position: absolute;
-        top: 100%;
-        width: 100%;
-        background-color: white;
-        box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
-        z-index: 10;
-        background-color: white;
-      }
+		.user-list {
+			list-style-type: none;
+			margin: 0;
+			padding: 0;
+			max-height: 35vh;
+			height: fit-content;
+			overflow-y: auto;
+			border: 1px solid #ccc;
+			border-top: none;
+			position: absolute;
+			top: 100%;
+			width: 100%;
+			background-color: white;
+			box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+			z-index: 10;
+			background-color: white;
+		}
 
-      .user-option {
-        height: max-content;
-        padding: 8px;
-        cursor: pointer;
-        background-color: white;
-      }
+		.user-option {
+			height: max-content;
+			padding: 8px;
+			cursor: pointer;
+			background-color: white;
+		}
 
-      .user-option.selected {
-        background-color: #d3e4f1;
-      }
+		.user-option.selected {
+			background-color: #d3e4f1;
+		}
 
-      .user-option:hover {
-        background-color: #f1f1f1;
-      }
-    `,
-	];
+		.user-option:hover {
+			background-color: #f1f1f1;
+		}
+    `];
 }

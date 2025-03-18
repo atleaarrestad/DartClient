@@ -17,7 +17,6 @@ export class changeMe extends LitElement {
 	}
 
 	static override styles = [sharedStyles, css`
-    :host {
-        
-      }`];
+		:host {}
+	`];
 }

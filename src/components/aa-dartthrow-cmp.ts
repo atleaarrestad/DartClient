@@ -11,58 +11,6 @@ export class aaDartThrow extends LitElement {
 	@query("input") inputElement: HTMLInputElement;
 	@state() oldValue: number = 0;
 
-	static override styles = [sharedStyles, css`
-    input[type="text"] {
-      position: relative;
-      text-align: center;
-      z-index: 0;
-      background-color: rgba(0, 0, 0, 0);
-      border: unset;
-      width: 100%;
-      font-size: var(--font-size-dartthrow);
-    }
-
-    .multiplier {
-      pointer-events: none;
-      position: absolute;
-      top: 0%;
-      right: 0px;
-      width: 40%;
-      height: 100%;
-      background: linear-gradient(90deg, rgba(180,204,185,0) 0%, rgba(180,204,185,0.4) 80%);
-      z-index: 1;
-      text-align: right;
-      span {
-        font-size: var(--font-size-multiplier);
-        font-style: italic;
-        padding-right: .5rem;
-        line-height: 2rem;
-
-      }
-    }
-    .is-middle-input {
-      border-left: 1px solid rgba(0, 0, 0, .25);
-      border-right: 1px solid rgba(0, 0, 0, .25);
-    }
-  `];
-
-	override render() {
-		return html`
-      <div style="position: relative;" class=${this.dartThrow.throwIndex === 1 ? "is-middle-input" : ""}>
-        <input
-          tabindex="-1"
-          type="text"
-          value=""
-          ?readonly=${this.isReadOnly}
-          @input=${this.handleInputChanged}
-          @keydown=${this.handleKeyDown}
-          @blur=${this.handleBlur}
-        >
-        ${this.renderMultiplier()}
-      </div>
-    `;
-	}
-
 	override focus(options?: FocusOptions): void {
 		this.shadowRoot?.querySelector("input")?.focus(options);
 	}
@@ -197,4 +145,55 @@ export class aaDartThrow extends LitElement {
 			}
 		}
 	}
+
+	override render() {
+		return html`
+			<div style="position: relative;" class=${this.dartThrow.throwIndex === 1 ? "is-middle-input" : ""}>
+				<input
+					tabindex="-1"
+					type="text"
+					value=""
+					?readonly=${this.isReadOnly}
+					@input=${this.handleInputChanged}
+					@keydown=${this.handleKeyDown}
+					@blur=${this.handleBlur}
+				>
+				${this.renderMultiplier()}
+			</div>
+    	`;
+	}
+
+	static override styles = [sharedStyles, css`
+		input[type="text"] {
+			position: relative;
+			text-align: center;
+			z-index: 0;
+			background-color: rgba(0, 0, 0, 0);
+			border: unset;
+			width: 100%;
+			font-size: var(--font-size-dartthrow);
+		}
+
+		.multiplier {
+			pointer-events: none;
+			position: absolute;
+			top: 0%;
+			right: 0px;
+			width: 40%;
+			height: 100%;
+			background: linear-gradient(90deg, rgba(180,204,185,0) 0%, rgba(180,204,185,0.4) 80%);
+			z-index: 1;
+			text-align: right;
+			span {
+				font-size: var(--font-size-multiplier);
+				font-style: italic;
+				padding-right: .5rem;
+				line-height: 2rem;
+			}
+		}
+		.is-middle-input {
+			border-left: 1px solid rgba(0, 0, 0, .25);
+			border-right: 1px solid rgba(0, 0, 0, .25);
+    	}
+  `];
 }
