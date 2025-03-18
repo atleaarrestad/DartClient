@@ -52,8 +52,13 @@ export class AaCombobox extends LitElement {
 				this.selectedIndex--;
 			}
 		}
-		else if (event.key === "Enter" && this.selectedIndex >= 0) {
-			this.handleUserSelect(this.filteredUsers[this.selectedIndex]!);
+		else if (event.key === "Enter") {
+			if (this.selectedIndex >= 0) {
+				this.handleUserSelect(this.filteredUsers[this.selectedIndex]!);
+			}
+			else if (userCount === 1) {
+				this.handleUserSelect(this.filteredUsers[0]!);
+			}
 		}
 
 		this.scrollSelectedItemIntoView();
