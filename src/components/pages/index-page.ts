@@ -149,12 +149,11 @@ export class IndexPage extends LitElement {
 
 	private handleRequestNextFocus(
 		direction: "right" | "left",
-		type: "player" | "throw",
 		playerIndex: number,
 		roundIndex: number,
 		throwIndex: number,
 	) {
-		const nextFocus = this.getNextFocus(direction, type, playerIndex, roundIndex, throwIndex);
+		const nextFocus = this.getNextFocus(direction, playerIndex, roundIndex, throwIndex);
 
 		if (nextFocus) {
 			const { nextPlayerIndex, nextRoundIndex, nextThrowIndex } = nextFocus;
@@ -164,64 +163,45 @@ export class IndexPage extends LitElement {
 
 	private getNextFocus(
 		direction: "right" | "left",
-		type: "player" | "throw",
 		playerIndex: number,
 		roundIndex: number,
 		throwIndex: number,
 	): { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number } | null {
 		const playerCount = this.players.length;
 
-		if (type === "throw") {
-			if (direction === "right") {
-				if (throwIndex === 2) {
-					if (playerIndex === playerCount - 1) {
-						const nextRoundIndex = roundIndex + 1 < this.players[playerIndex]!.rounds.length ? roundIndex + 1 : 0;
-						return { nextPlayerIndex: 0, nextRoundIndex, nextThrowIndex: 0 };
-					}
-					else {
-						return { nextPlayerIndex: playerIndex + 1, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
-					}
-				}
-				else {
-					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
-				}
-			}
-
-			if (direction === "left") {
-				if (throwIndex === 0) {
-					if (playerIndex === 0) {
-						const nextRoundIndex = roundIndex === 0 ? this.players[0]!.rounds.length - 1 : roundIndex - 1;
-						return { nextPlayerIndex: playerCount - 1, nextRoundIndex, nextThrowIndex: 2 };
-					}
-					else {
-						return { nextPlayerIndex: playerIndex - 1, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
-					}
-				}
-				else {
-					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
-				}
-			}
-		}
-
-		if (type === "player") {
-			if (direction === "right") {
+		if (direction === "right") {
+			if (throwIndex === 2) {
 				if (playerIndex === playerCount - 1) {
-					const nextRoundIndex = roundIndex + 1 < this.players[0]!.rounds.length ? roundIndex + 1 : 0;
+					if (this.players[playerIndex]?.rounds.length == roundIndex + 1) {
+						return null;
+					}
+					const nextRoundIndex = roundIndex + 1 < this.players[playerIndex]!.rounds.length ? roundIndex + 1 : 0;
 					return { nextPlayerIndex: 0, nextRoundIndex, nextThrowIndex: 0 };
 				}
 				else {
 					return { nextPlayerIndex: playerIndex + 1, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
 				}
 			}
+			else {
+				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
+			}
+		}
 
-			if (direction === "left") {
+		if (direction === "left") {
+			if (throwIndex === 0) {
 				if (playerIndex === 0) {
+					if (roundIndex === 0) {
+						return null;
+					}
 					const nextRoundIndex = roundIndex === 0 ? this.players[0]!.rounds.length - 1 : roundIndex - 1;
-					return { nextPlayerIndex: playerCount - 1, nextRoundIndex, nextThrowIndex: 0 };
+					return { nextPlayerIndex: playerCount - 1, nextRoundIndex, nextThrowIndex: 2 };
 				}
 				else {
-					return { nextPlayerIndex: playerIndex - 1, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
+					return { nextPlayerIndex: playerIndex - 1, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
 				}
+			}
+			else {
+				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
 			}
 		}
 
@@ -259,7 +239,7 @@ export class IndexPage extends LitElement {
                           id="throw-${playerIndex}${roundIndex}${throwIndex}"
                           .dartThrow=${dartThrow}
                           @throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
-                          @request-next-focus=${(e: CustomEvent) => this.handleRequestNextFocus(e.detail.direction, e.detail.type, playerIndex, roundIndex, throwIndex)}
+                          @request-next-focus=${(e: CustomEvent) => this.handleRequestNextFocus(e.detail.direction, playerIndex, roundIndex, throwIndex)}
                         ></aa-dartthrow>
                       `)}
                     </div>

@@ -122,9 +122,9 @@ export class aaDartThrow extends LitElement {
 		this.requestUpdate();
 	}
 
-	private requestNextFocus(direction: "right" | "left", type: "player" | "throw") {
+	private requestNextFocus(direction: "right" | "left") {
 		const event = new CustomEvent("request-next-focus", {
-			detail: { direction: direction, type: type },
+			detail: { direction: direction },
 			bubbles: true,
 			composed: true,
 		});
@@ -133,23 +133,14 @@ export class aaDartThrow extends LitElement {
 
 	private handleKeyDown(event: KeyboardEvent) {
 		const keyActions: Record<string, () => void> = {
-
-			ArrowRight: () => this.requestNextFocus("right", "throw"),
-			Right: () => this.requestNextFocus("right", "throw"),
-			KP_Right: () => this.requestNextFocus("right", "throw"),
-
-			ArrowLeft: () => this.requestNextFocus("left", "throw"),
-			Left: () => this.requestNextFocus("left", "throw"),
-			KP_Left: () => this.requestNextFocus("left", "throw"),
-
-			Enter: () => this.requestNextFocus("right", "throw"),
+			Enter: () => this.requestNextFocus("right"),
 
 			Tab: () => {
 				if (event.shiftKey) {
-					this.requestNextFocus("left", "player");
+					this.requestNextFocus("left");
 				}
 				else {
-					this.requestNextFocus("right", "player");
+					this.requestNextFocus("right");
 				}
 			},
 
