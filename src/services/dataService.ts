@@ -29,7 +29,7 @@ export class DataService {
 			try {
 				return result.map(user => UserSchema.parse(user));
 			}
-			catch (error) {
+			catch {
 				throw new Error("Invalid user data received from the API");
 			}
 		}
