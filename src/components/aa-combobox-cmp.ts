@@ -81,11 +81,13 @@ export class AaCombobox extends LitElement {
 	}
 
 	private handleInputBlur() {
-		setTimeout(() => {
-			if (!this.shadowRoot?.activeElement?.closest(".user-list")) {
-				this.isDropdownOpen = false;
-			}
-		}, 200);
+		if (!this.shadowRoot?.activeElement?.closest(".user-list")) {
+			this.isDropdownOpen = false;
+		}
+	}
+
+	override focus(options?: FocusOptions): void {
+		this.renderRoot.querySelector("input")?.focus(options);
 	}
 
 	override render() {
@@ -102,7 +104,7 @@ export class AaCombobox extends LitElement {
 				/>
 				${this.isDropdownOpen
 					? html`
-					<ul class="user-list">
+					<ul class="user-list" tabindex="-1">
 						${this.filteredUsers.map(
 							(user, index) => html`
 								<li

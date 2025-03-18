@@ -14,6 +14,7 @@ import { ThrowType, RoundStatus } from "../../models/enums.js";
 import "../aa-button-cmp.js";
 import { PlayerRounds } from "src/models/roundSchema.js";
 import { aaDartThrow } from "../aa-dartthrow-cmp.js";
+import { AaCombobox } from "../aa-combobox-cmp.js";
 
 @customElement("index-page")
 export class IndexPage extends LitElement {
@@ -136,8 +137,11 @@ export class IndexPage extends LitElement {
 
 	private addNewPlayer(roundCount: number) {
 		const newPlayer = this.getEmptyPlayerObject(roundCount);
-
 		this.players = [...this.players, newPlayer];
+
+		setTimeout(() => {
+			this.renderRoot.querySelector<AaCombobox>(`#combobox-${this.players.length - 1}`)?.focus();
+		}, 100);
 	}
 
 	private getEmptyPlayerObject(roundCount: number): PlayerRounds {
@@ -220,6 +224,7 @@ export class IndexPage extends LitElement {
 				${this.players.map((player, playerIndex) => html`
 					<article class="player">
 						<aa-combobox
+							id="combobox-${playerIndex}"
 							@user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)}
 							.users=${this.users}></aa-combobox>
 						<span class="total-sum">0 (-250)</span>
