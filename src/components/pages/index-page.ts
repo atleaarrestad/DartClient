@@ -420,6 +420,7 @@ export class IndexPage extends LitElement {
 			flex-direction: column;
 			border: 1px solid black;
 			background: var(--player-bg, #f0f0f0);
+			box-shadow: 3px 3px 0px 0px black;
 		}
 
 		.player:first-child {
