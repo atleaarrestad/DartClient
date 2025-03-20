@@ -344,10 +344,18 @@ export class IndexPage extends LitElement {
 		return null;
 	}
 
-	private focusThrow(playerIndex: number, roundIndex: number, throwIndex: number = 0) {
-		const throwId = `throw-${playerIndex}${roundIndex}${throwIndex}`;
-		const dartThrowElement = this.renderRoot.querySelector<aaDartThrow>(`#${throwId}`);
-		dartThrowElement?.focus();
+	private getCumulativePoints(player: PlayerRounds): number | undefined {
+		const lastRound = player.rounds[player.rounds.length - 1];
+		return lastRound?.cumulativePoints;
+	}
+
+	private getDifferenceFromBase(player: PlayerRounds): number | undefined {
+		const lastRound = player.rounds[player.rounds.length - 1];
+		return lastRound ? -250 + lastRound.cumulativePoints : undefined;
+	}
+
+	private getCumulativePointsForRound(round: Round): number {
+		return round.dartThrows.reduce((sum, dartThrow) => sum + (dartThrow.finalPoints || 0), 0);
 	}
 
 	override render() {
@@ -361,7 +369,7 @@ export class IndexPage extends LitElement {
 							@focus=${(e: FocusEvent) => this.handleComboboxFocused(e)}
 							.users=${this.users}>
 						</aa-combobox>
-						<span class="total-sum">0 (-250)</span>
+						<span class="total-sum">${this.getCumulativePoints(player)} (${this.getDifferenceFromBase(player)})</span>
 						<div class="round-labels-container round-grid">
 							<span class="border-right">N</span>
 							<span>Throws</span>
@@ -382,7 +390,7 @@ export class IndexPage extends LitElement {
 									></aa-dartthrow>
 								`)}
 								</div>
-								<div class="cumulative-points-round">${round.cumulativePoints}</div>
+								<div class="cumulative-points-round">${this.getCumulativePointsForRound(round)}</div>
 							</div>
 						</div>
 						`)}
