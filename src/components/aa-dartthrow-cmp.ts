@@ -70,27 +70,8 @@ export class aaDartThrow extends LitElement {
 		this.requestUpdate();
 	}
 
-	private requestNextFocus(direction: "right" | "left") {
-		const event = new CustomEvent("request-next-focus", {
-			detail: { direction: direction },
-			bubbles: true,
-			composed: true,
-		});
-		this.dispatchEvent(event);
-	}
-
 	private handleKeyDown(event: KeyboardEvent) {
 		const keyActions: Record<string, () => void> = {
-			Enter: () => this.requestNextFocus("right"),
-
-			Tab: () => {
-				if (event.shiftKey) {
-					this.requestNextFocus("left");
-				}
-				else {
-					this.requestNextFocus("right");
-				}
-			},
 
 			ArrowUp: () => this.adjustThrowType("up"),
 			Up: () => this.adjustThrowType("up"),

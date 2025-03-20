@@ -1,5 +1,5 @@
 import { html, css } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import { sharedStyles } from "../../../styles.js";
 
 import { LitElement } from "lit";
@@ -21,7 +21,9 @@ export class IndexPage extends LitElement {
 	private dataService: DataService;
 	private notificationService: NotificationService;
 
+	protected selectedId?: string;
 	@property({ type: Array }) users: User[] = [];
+
 	@property({ type: Array }) players: PlayerRounds[] = [
 		this.getEmptyPlayerObject(3),
 		this.getEmptyPlayerObject(3),
@@ -118,25 +120,78 @@ export class IndexPage extends LitElement {
 	}
 
 	private handleKeyDown(event: KeyboardEvent) {
-		if (event.shiftKey && event.key === "+") {
-			const playerWithMostRounds = this.players.reduce((prev, current) => {
-				return prev!.rounds.length > current.rounds.length ? prev : current;
-			}, this.players[0]);
+		const keyboardActions: Record<string, () => void> = {
+			"+": () => {
+				if (event.shiftKey) {
+					this.addNewPlayer();
+				}
+			},
+			"-": () => {
+				if (event.shiftKey) {
+					this.removeLastPlayer();
+				}
+			},
+			"Tab": () => {
+				if (event.shiftKey) {
+					this.moveFocus("backward");
+				}
+				else {
+					this.moveFocus("forward");
+				}
+			},
+		};
 
-			const roundsPlayed = playerWithMostRounds!.rounds.length;
-			this.addNewPlayer(roundsPlayed);
+		if (keyboardActions[event.key]) {
+			event.preventDefault();
+			keyboardActions[event.key]!();
+		}
+	}
+
+	private moveFocus(direction: "forward" | "backward") {
+		const selectedElementDetails = this.getSelectedElementDetails();
+		const playerCount = this.players.length;
+
+		if (selectedElementDetails.type === "nothing") {
+			this.focusCombobox(0);
 		}
 
-		if (event.shiftKey && event.key === "-") {
-			if (this.players.length > 1) {
-				this.players.pop();
-				this.players = [...this.players];
+		else if (selectedElementDetails.type === "combobox") {
+			if (direction == "backward") {
+				if ((playerCount - 1) === selectedElementDetails.playerIndex) {
+					console.log("hehe");
+				}
+			}
+		}
+		else if (selectedElementDetails.type === "throw") {
+			const nextThrow = this.getNextFocusForDartthrow(direction,
+				selectedElementDetails.playerIndex!,
+				selectedElementDetails.rowIndex!,
+				selectedElementDetails.throwIndex!,
+			);
+			console.log(nextThrow);
+			if (nextThrow) {
+				this.focusDartThrow(nextThrow.nextPlayerIndex, nextThrow.nextRoundIndex, nextThrow.nextThrowIndex);
+			}
+			else if (direction == "backward") {
+				this.focusCombobox(playerCount - 1);
 			}
 		}
 	}
 
-	private addNewPlayer(roundCount: number) {
-		const newPlayer = this.getEmptyPlayerObject(roundCount);
+	private removeLastPlayer() {
+		if (this.players.length > 1) {
+			this.players.pop();
+			this.players = [...this.players];
+		}
+	}
+
+	private addNewPlayer() {
+		const playerWithMostRounds = this.players.reduce((prev, current) => {
+			return prev!.rounds.length > current.rounds.length ? prev : current;
+		}, this.players[0]);
+
+		const roundsPlayed = playerWithMostRounds!.rounds.length;
+		const newPlayer = this.getEmptyPlayerObject(roundsPlayed);
 		this.players = [...this.players, newPlayer];
 
 		setTimeout(() => {
@@ -151,64 +206,118 @@ export class IndexPage extends LitElement {
 		};
 	}
 
-	private handleRequestNextFocus(
-		direction: "right" | "left",
-		playerIndex: number,
-		roundIndex: number,
-		throwIndex: number,
-	) {
-		const nextFocus = this.getNextFocus(direction, playerIndex, roundIndex, throwIndex);
+	private handleComboboxFocused(event: FocusEvent) {
+		this.selectedId = (event.target as AaCombobox).id;
 
-		if (nextFocus) {
-			const { nextPlayerIndex, nextRoundIndex, nextThrowIndex } = nextFocus;
-			this.focusThrow(nextPlayerIndex, nextRoundIndex, nextThrowIndex);
-		}
+		console.log(this.getSelectedElementDetails());
 	}
 
-	private getNextFocus(
-		direction: "right" | "left",
+	private getSelectedElementDetails(): { type: "combobox" | "throw" | "nothing"; playerIndex?: number; rowIndex?: number; throwIndex?: number } {
+		const result = { type: "nothing", playerIndex: undefined, rowIndex: undefined, throwIndex: undefined };
+		if (!this.selectedId) {
+			return result;
+		}
+
+		const idParts = this.selectedId!.split("-");
+		result.type = idParts[0]!;
+
+		if (result.type === "combobox") {
+			result.playerIndex = parseInt(idParts.pop(), 10);
+		}
+		else if (result.type === "throw") {
+			result.throwIndex = parseInt(idParts.pop(), 10);
+			result.rowIndex = parseInt(idParts.pop(), 10);
+			result.playerIndex = parseInt(idParts.pop(), 10);
+		}
+
+		return result;
+	};
+
+	private handleDartthrowFocused(event: FocusEvent) {
+		this.selectedId = (event.target as aaDartThrow).id;
+	}
+
+	private focusCombobox(index: number) {
+		const element = this.renderRoot.querySelector(`#combobox-${index}`) as AaCombobox;
+		element?.focus();
+	}
+
+	private focusDartThrow(playerIndex: number, rowIndex: number, throwIndex: number) {
+		const element = this.renderRoot.querySelector(`#throw-${playerIndex}-${rowIndex}-${throwIndex}`) as aaDartThrow;
+		element?.focus();
+	}
+
+	private getNextFocusablePlayer(currentPlayerIndex: number): number | undefined {
+		const playerCount = this.players.length;
+
+		if (playerCount <= 1) {
+			return undefined;
+		}
+
+		for (let i = 1; i < playerCount; i++) {
+			const nextPlayerIndex = (currentPlayerIndex + i) % playerCount;
+			const nextPlayer = this.players[nextPlayerIndex];
+
+			const lastRound = nextPlayer!.rounds[nextPlayer!.rounds.length - 1];
+
+			if (lastRound?.roundStatus !== RoundStatus.Victory) {
+				return nextPlayerIndex;
+			}
+		}
+
+		return undefined;
+	}
+
+	private getNextFocusForDartthrow(
+		direction: "forward" | "backward",
 		playerIndex: number,
 		roundIndex: number,
 		throwIndex: number,
 	): { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number } | null {
-		const playerCount = this.players.length;
-
-		if (direction === "right") {
+		if (direction === "forward") {
 			if (throwIndex === 2) {
-				if (playerIndex === playerCount - 1) {
-					if (this.players[playerIndex]?.rounds.length == roundIndex + 1) {
-						return null;
-					}
-					const nextRoundIndex = roundIndex + 1 < this.players[playerIndex]!.rounds.length ? roundIndex + 1 : 0;
-					return { nextPlayerIndex: 0, nextRoundIndex, nextThrowIndex: 0 };
+				const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex);
+
+				if (nextFocusablePlayer === undefined) {
+					return null;
+				}
+				// has looped around
+				if (nextFocusablePlayer < playerIndex) {
+					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
 				}
 				else {
-					return { nextPlayerIndex: playerIndex + 1, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
+					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
 				}
 			}
 			else {
 				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
 			}
 		}
-
-		if (direction === "left") {
+		if (direction === "backward") {
 			if (throwIndex === 0) {
-				if (playerIndex === 0) {
-					if (roundIndex === 0) {
-						return null;
-					}
-					const nextRoundIndex = roundIndex === 0 ? this.players[0]!.rounds.length - 1 : roundIndex - 1;
-					return { nextPlayerIndex: playerCount - 1, nextRoundIndex, nextThrowIndex: 2 };
+				const prevFocusablePlayer = this.getNextFocusablePlayer(playerIndex);
+
+				if (prevFocusablePlayer === undefined) {
+					return null;
+				}
+
+				// Check if moving to a previous round would result in an invalid round
+				if (roundIndex === 0) {
+					return null; // Can't go backward past round 0
+				}
+
+				// Has looped around to previous round
+				if (prevFocusablePlayer > playerIndex) {
+					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
 				}
 				else {
-					return { nextPlayerIndex: playerIndex - 1, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
+					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
 				}
 			}
 			else {
 				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
 			}
 		}
-
 		return null;
 	}
 
@@ -226,7 +335,9 @@ export class IndexPage extends LitElement {
 						<aa-combobox
 							id="combobox-${playerIndex}"
 							@user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)}
-							.users=${this.users}></aa-combobox>
+							@focus=${(e: FocusEvent) => this.handleComboboxFocused(e)}
+							.users=${this.users}>
+						</aa-combobox>
 						<span class="total-sum">0 (-250)</span>
 						<div class="round-labels-container round-grid">
 							<span class="border-right">N</span>
@@ -241,10 +352,10 @@ export class IndexPage extends LitElement {
 								<div class="throws-container">
 								${round.dartThrows.map((dartThrow, throwIndex) => html`
 									<aa-dartthrow
-										id="throw-${playerIndex}${roundIndex}${throwIndex}"
+										id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
 										.dartThrow=${dartThrow}
 										@throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
-										@request-next-focus=${(e: CustomEvent) => this.handleRequestNextFocus(e.detail.direction, playerIndex, roundIndex, throwIndex)}
+										@focus=${(e: FocusEvent) => this.handleDartthrowFocused(e)}
 									></aa-dartthrow>
 								`)}
 								</div>
