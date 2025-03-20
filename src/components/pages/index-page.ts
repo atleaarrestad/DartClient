@@ -165,11 +165,6 @@ export class IndexPage extends LitElement {
 					this.focusDartThrow(0, 0, 0);
 				}
 			}
-			if (direction == "backward") {
-				if ((playerCount - 1) === selectedElementDetails.playerIndex) {
-					console.log("hehe");
-				}
-			}
 		}
 		else if (selectedElementDetails.type === "throw") {
 			const nextThrow = this.getNextFocusForDartthrow(direction,
