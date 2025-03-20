@@ -411,16 +411,29 @@ export class IndexPage extends LitElement {
 			margin-top: 24px;
 			height: fit-content;
 		}
-		
-		.player {
+
+	    .player {
 			width: 100%;
 			max-width: 35vw;
 			min-height: 35vh;
 			display: flex;
 			flex-direction: column;
-			border: 2px solid black;
-			border-radius: 10px;
+			border: 1px solid black;
 			background: var(--player-bg, #f0f0f0);
+		}
+
+		.player:first-child {
+			border-top-left-radius: 10px;
+			border-bottom-left-radius: 10px;
+		}
+
+		.player:last-child {
+			border-bottom-right-radius: 10px;
+			border-top-right-radius: 10px;
+		}
+
+		.player:first-child:last-child {
+			border-radius: 10px;
 		}
 		
 		.rounds-container {
