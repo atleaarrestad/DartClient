@@ -156,6 +156,15 @@ export class IndexPage extends LitElement {
 		}
 
 		else if (selectedElementDetails.type === "combobox") {
+			const nextComboboxIndex = this.getNextFocusForCombobox(direction, selectedElementDetails.playerIndex!);
+			if (nextComboboxIndex !== undefined) {
+				this.focusCombobox(nextComboboxIndex);
+			}
+			else {
+				if (direction === "forward") {
+					this.focusDartThrow(0, 0, 0);
+				}
+			}
 			if (direction == "backward") {
 				if ((playerCount - 1) === selectedElementDetails.playerIndex) {
 					console.log("hehe");
@@ -168,7 +177,7 @@ export class IndexPage extends LitElement {
 				selectedElementDetails.rowIndex!,
 				selectedElementDetails.throwIndex!,
 			);
-			console.log(nextThrow);
+
 			if (nextThrow) {
 				this.focusDartThrow(nextThrow.nextPlayerIndex, nextThrow.nextRoundIndex, nextThrow.nextThrowIndex);
 			}
@@ -247,22 +256,38 @@ export class IndexPage extends LitElement {
 		element?.focus();
 	}
 
-	private getNextFocusablePlayer(currentPlayerIndex: number): number | undefined {
+	private getNextFocusablePlayer(currentPlayerIndex: number, direction: "forward" | "backward"): number | undefined {
 		const playerCount = this.players.length;
 
 		if (playerCount <= 1) {
 			return undefined;
 		}
 
-		for (let i = 1; i < playerCount; i++) {
-			const nextPlayerIndex = (currentPlayerIndex + i) % playerCount;
-			const nextPlayer = this.players[nextPlayerIndex];
+		const step = direction === "forward" ? 1 : -1;
 
+		for (let i = 1; i < playerCount; i++) {
+			const nextPlayerIndex = (currentPlayerIndex + step * i + playerCount) % playerCount;
+
+			const nextPlayer = this.players[nextPlayerIndex];
 			const lastRound = nextPlayer!.rounds[nextPlayer!.rounds.length - 1];
 
 			if (lastRound?.roundStatus !== RoundStatus.Victory) {
 				return nextPlayerIndex;
 			}
+		}
+
+		return undefined;
+	}
+
+	private getNextFocusForCombobox(direction: "forward" | "backward", playerIndex: number): number | undefined {
+		const playerCount = this.players.length;
+
+		if (direction === "forward" && playerIndex < playerCount - 1) {
+			return playerIndex + 1;
+		}
+
+		if (direction === "backward" && playerIndex > 0) {
+			return playerIndex - 1;
 		}
 
 		return undefined;
@@ -276,12 +301,12 @@ export class IndexPage extends LitElement {
 	): { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number } | null {
 		if (direction === "forward") {
 			if (throwIndex === 2) {
-				const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex);
+				const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, "forward");
 
 				if (nextFocusablePlayer === undefined) {
 					return null;
 				}
-				// has looped around
+				// Has looped around
 				if (nextFocusablePlayer < playerIndex) {
 					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
 				}
@@ -293,20 +318,24 @@ export class IndexPage extends LitElement {
 				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
 			}
 		}
+
 		if (direction === "backward") {
+			if (playerIndex === 0 && roundIndex === 0 && throwIndex === 0) {
+				return null;
+			}
+
 			if (throwIndex === 0) {
-				const prevFocusablePlayer = this.getNextFocusablePlayer(playerIndex);
+				const prevFocusablePlayer = this.getNextFocusablePlayer(playerIndex, "backward");
 
 				if (prevFocusablePlayer === undefined) {
 					return null;
 				}
 
-				// Check if moving to a previous round would result in an invalid round
 				if (roundIndex === 0) {
-					return null; // Can't go backward past round 0
+					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
 				}
 
-				// Has looped around to previous round
+				// If we're not in the first round, move to the previous round
 				if (prevFocusablePlayer > playerIndex) {
 					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
 				}
@@ -318,6 +347,7 @@ export class IndexPage extends LitElement {
 				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
 			}
 		}
+
 		return null;
 	}
 
