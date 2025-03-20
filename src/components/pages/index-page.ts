@@ -1,5 +1,5 @@
 import { html, css } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { customElement, property } from "lit/decorators.js";
 import { sharedStyles } from "../../../styles.js";
 
 import { LitElement } from "lit";
@@ -212,8 +212,6 @@ export class IndexPage extends LitElement {
 
 	private handleComboboxFocused(event: FocusEvent) {
 		this.selectedId = (event.target as AaCombobox).id;
-
-		console.log(this.getSelectedElementDetails());
 	}
 
 	private getSelectedElementDetails(): { type: "combobox" | "throw" | "nothing"; playerIndex?: number; rowIndex?: number; throwIndex?: number } {

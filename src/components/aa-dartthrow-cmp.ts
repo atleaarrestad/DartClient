@@ -19,6 +19,12 @@ export class aaDartThrow extends LitElement {
 		if (this.oldValue === this.dartThrow.hitLocation) {
 			return;
 		}
+		if (
+			[0, 25, 50].includes(this.dartThrow.hitLocation)
+			&& (this.dartThrow.throwType === ThrowType.Double || this.dartThrow.throwType === ThrowType.Triple)
+		) {
+			this.dartThrow.throwType = ThrowType.Single;
+		}
 
 		const event = new CustomEvent("throw-updated", {
 			detail: { dartThrow: this.dartThrow },
@@ -54,7 +60,7 @@ export class aaDartThrow extends LitElement {
 			input.value = "";
 			this.dartThrow = { ...this.dartThrow, hitLocation: 0, throwType: ThrowType.Single };
 		}
-		else if (value >= 0 && value <= 20) {
+		else if ((value >= 0 && value <= 20) || value === 25 || value == 50) {
 			input.value = String(value);
 			this.dartThrow = { ...this.dartThrow, hitLocation: value };
 		}
@@ -100,8 +106,10 @@ export class aaDartThrow extends LitElement {
 		}
 
 		// Special case: If it's a Double or Triple, and the hitLocation is 0, reset to Single
-		if (this.dartThrow.hitLocation === 0
-			&& (this.dartThrow.throwType === ThrowType.Double || this.dartThrow.throwType === ThrowType.Triple)) {
+		if (
+			[0, 25, 50].includes(this.dartThrow.hitLocation)
+			&& (this.dartThrow.throwType === ThrowType.Double || this.dartThrow.throwType === ThrowType.Triple)
+		) {
 			this.dartThrow.throwType = ThrowType.Single;
 		}
 
