@@ -15,6 +15,7 @@ import "../aa-button-cmp.js";
 import { PlayerRounds } from "src/models/roundSchema.js";
 import { aaDartThrow } from "../aa-dartthrow-cmp.js";
 import { AaCombobox } from "../aa-combobox-cmp.js";
+import { SeasonStatistics } from "../../models/seasonStatisticsSchema.js";
 
 @customElement("index-page")
 export class IndexPage extends LitElement {
@@ -358,6 +359,21 @@ export class IndexPage extends LitElement {
 		return round.dartThrows.reduce((sum, dartThrow) => sum + (dartThrow.finalPoints || 0), 0);
 	}
 
+	private getLatestSeasonStatsForPlayer(playerIndex: number): SeasonStatistics | undefined {
+		const user = this.getUserFromPlayerIndex(playerIndex);
+		if (user && user.seasonStatistics.length > 0) {
+			const seasonStats = user.seasonStatistics[user.seasonStatistics.length - 1];
+			return seasonStats;
+		}
+		return undefined;
+	}
+
+	private getUserFromPlayerIndex(playerIndex: number): User | undefined {
+		const playerId = this.players[playerIndex]!.playerId;
+		const user = this.users.find(user => user.id == playerId);
+		return user;
+	}
+
 	override render() {
 		return html`
 			<div class="player-container">
@@ -376,24 +392,27 @@ export class IndexPage extends LitElement {
 							<span class="border-left">Sum</span>
 						</div>
 						<div class="rounds-container">
-						${player.rounds.map((round, roundIndex) => html`
-							<div class="${roundIndex % 2 === 0 ? "alternate-color" : ""}">
-							<div class="round-grid">
-								<div class="round-number">${roundIndex + 1}</div>
-								<div class="throws-container">
-								${round.dartThrows.map((dartThrow, throwIndex) => html`
-									<aa-dartthrow
-										id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
-										.dartThrow=${dartThrow}
-										@throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
-										@focus=${(e: FocusEvent) => this.handleDartthrowFocused(e)}
-									></aa-dartthrow>
-								`)}
+							${player.rounds.map((round, roundIndex) => html`
+								<div class="${roundIndex % 2 === 0 ? "alternate-color" : ""}">
+								<div class="round-grid">
+									<div class="round-number">${roundIndex + 1}</div>
+									<div class="throws-container">
+									${round.dartThrows.map((dartThrow, throwIndex) => html`
+										<aa-dartthrow
+											id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
+											.dartThrow=${dartThrow}
+											@throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
+											@focus=${(e: FocusEvent) => this.handleDartthrowFocused(e)}
+										></aa-dartthrow>
+									`)}
 								</div>
 								<div class="cumulative-points-round">${this.getCumulativePointsForRound(round)}</div>
+								</div>
 							</div>
+							`)}
 						</div>
-						`)}
+						<div class="rank-container">
+							${this.getLatestSeasonStatsForPlayer(playerIndex)?.mmr}
 						</div>
 					</article>
 				`)}
