@@ -14,6 +14,8 @@ import "../aa-button-cmp.js";
 import { aaDartThrow } from "../aa-dartthrow-cmp.js";
 import { AaCombobox } from "../aa-combobox-cmp.js";
 
+import { getRankDisplayValue, Rank, getRankIcon } from "../../models/rank.js";
+
 @customElement("index-page")
 export class IndexPage extends LitElement {
 	private dataService: DataService;
@@ -24,8 +26,8 @@ export class IndexPage extends LitElement {
 	@property({ type: Array }) users: User[] = [];
 
 	@property({ type: Array }) players: PlayerRounds[] = [
-		this.getEmptyPlayerObject(3),
-		this.getEmptyPlayerObject(3),
+		this.getEmptyPlayerObject(15),
+		this.getEmptyPlayerObject(15),
 	];
 
 	constructor() {
@@ -58,7 +60,13 @@ export class IndexPage extends LitElement {
 		usersPromise
 			.then((users) => {
 				if (users) {
+					users[1]!.seasonStatistics[0]!.currentRank = Rank.Diamond2;
+					users[2]!.seasonStatistics[0]!.currentRank = Rank.Gold4;
+
 					this.users = [...users];
+
+					this.handleUserselected(users[1]!, 0);
+					this.handleUserselected(users[2]!, 1);
 				}
 				else {
 					this.users = [];
@@ -122,6 +130,7 @@ export class IndexPage extends LitElement {
 
 	private handleUserselected(user: User, playerIndex: number) {
 		this.players[playerIndex]!.playerId = user.id;
+		this.requestUpdate();
 	}
 
 	private handleKeyDown(event: KeyboardEvent) {
@@ -393,50 +402,79 @@ export class IndexPage extends LitElement {
 	override render() {
 		return html`
 			<div class="player-container">
-				${this.players.map((player, playerIndex) => html`
-					<article class="player">
-						<aa-combobox
-							id="combobox-${playerIndex}"
-							@user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)}
-							@focus=${(e: FocusEvent) => this.handleComboboxFocused(e)}
-							.users=${this.users}>
-						</aa-combobox>
-						<span class="total-sum">${this.getCumulativePoints(player)} (${this.getDifferenceFromBase(player)})</span>
-						<div class="round-labels-container round-grid">
-							<span class="border-right">N</span>
-							<span>Throws</span>
-							<span class="border-left">Sum</span>
-						</div>
-						<div class="rounds-container">
-							${player.rounds.map((round, roundIndex) => html`
-								<div class="${roundIndex % 2 === 0 ? "alternate-color" : ""}">
-								<div class="round-grid">
-									<div class="round-number">${roundIndex + 1}</div>
-									<div class="throws-container">
-									${round.dartThrows.map((dartThrow, throwIndex) => html`
-										<aa-dartthrow
-											id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
-											.dartThrow=${dartThrow}
-											@throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
-											@focus=${(e: FocusEvent) => this.handleDartthrowFocused(e)}
-										></aa-dartthrow>
-									`)}
-								</div>
-								<div class="cumulative-points-round">${this.getCumulativePointsForRound(round)}</div>
+				${this.players.map((player, playerIndex) => {
+					const seasonStats = this.getLatestSeasonStatsForPlayer(playerIndex);
+					const mmr = seasonStats?.mmr;
+					const rank = seasonStats?.currentRank;
+
+					return html`
+						<article class="player">
+							<aa-combobox
+								id="combobox-${playerIndex}"
+								@user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)}
+								@focus=${(e: FocusEvent) => this.handleComboboxFocused(e)}
+								.users=${this.users}>
+							</aa-combobox>
+							<span class="total-sum">${this.getCumulativePoints(player)} (${this.getDifferenceFromBase(player)})</span>
+							<div class="round-labels-container round-grid">
+								<span class="border-right">N</span>
+								<span>Throws</span>
+								<span class="border-left">Sum</span>
+							</div>
+							<div class="rounds-container">
+								${player.rounds.map((round, roundIndex) => html`
+									<div class="${roundIndex % 2 === 0 ? "alternate-color" : ""}">
+										<div class="round-grid">
+											<div class="round-number">${roundIndex + 1}</div>
+											<div class="throws-container">
+												${round.dartThrows.map((dartThrow, throwIndex) => html`
+													<aa-dartthrow
+														id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
+														.dartThrow=${dartThrow}
+														@throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
+														@focus=${(e: FocusEvent) => this.handleDartthrowFocused(e)}>
+													</aa-dartthrow>
+												`)}
+											</div>
+											<div class="cumulative-points-round">${this.getCumulativePointsForRound(round)}</div>
+										</div>
+									</div>
+								`)}
+							</div>
+							<div class="centered">
+								<div class="rank-container">
+									<img class="rank-icon" src="${getRankIcon(rank)}" alt="${getRankDisplayValue(rank)}" />
+									<span class="rank">${getRankDisplayValue(rank)}</span>
 								</div>
 							</div>
-							`)}
-						</div>
-						<div class="rank-container">
-							${this.getLatestSeasonStatsForPlayer(playerIndex)?.mmr}
-						</div>
-					</article>
-				`)}
+
+						</article>
+					`;
+				})}
 			</div>
-    	`;
+		`;
 	}
 
 	static override styles = [sharedStyles, css`
+
+		.centered {
+			max-width: fit-content;
+			margin-left: auto;
+			margin-right: auto;
+		}
+
+		.rank-container {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 0.5rem;
+		}
+
+		.rank-icon {
+			width: 3rem;
+			height: 3rem;
+			object-fit: contain;
+		}
 
 		.player-container {
 			display: flex;
@@ -450,7 +488,6 @@ export class IndexPage extends LitElement {
 	    .player {
 			width: 100%;
 			max-width: 35vw;
-			min-height: 35vh;
 			display: flex;
 			flex-direction: column;
 			border: 1px solid black;
@@ -476,6 +513,7 @@ export class IndexPage extends LitElement {
 			max-height: 75vh;
 			overflow-y: auto;
 			scrollbar-width: none;
+			border-bottom: 1px solid black;
 		}
 		.alternate-color {
 			background-color: rgba(180, 204, 185, 0.25)
