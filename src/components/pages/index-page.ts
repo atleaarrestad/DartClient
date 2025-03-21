@@ -69,7 +69,7 @@ export class IndexPage extends LitElement {
 			});
 	}
 
-	private async GetLatestSeason(): Promise<Void> {
+	private async GetLatestSeason(): Promise<void> {
 		const season = await this.dataService.GetCurrentSeason();
 		this.season = season;
 	}
@@ -125,45 +125,42 @@ export class IndexPage extends LitElement {
 	}
 
 	private handleKeyDown(event: KeyboardEvent) {
-		const keyboardActions: Record<string, () => void> = {
-			"+": () => {
-				if (event.shiftKey) {
+		if (event.shiftKey) {
+			switch (event.key) {
+				case "+":
 					this.addNewPlayer();
-				}
-			},
-			"-": () => {
-				if (event.shiftKey) {
-					this.removeLastPlayer();
-				}
-			},
-			"Tab": () => {
-				if (event.shiftKey) {
-					this.moveFocus("backward");
-				}
-				else {
-					this.moveFocus("forward");
-				}
-			},
-			"p": () => {
-				debugger;
-				/*
-				if (!event.shiftKey) {
-					return;
-				}
-					*/
-				this.dataService.SubmitGame({ playerRoundsList: this.players }).then((gameResult: GameResult) => {
-					console.log(gameResult);
-				})
-					.catch((error) => {
-						console.log(error);
-						this.notificationService.addNotification(error, "danger");
-					});
-			},
-		};
+					event.preventDefault();
+					break;
 
-		if (keyboardActions[event.key]) {
-			event.preventDefault();
-			keyboardActions[event.key]!();
+				case "-":
+					this.removeLastPlayer();
+					event.preventDefault();
+					break;
+
+				case "Tab":
+					this.moveFocus("backward");
+					event.preventDefault();
+					break;
+
+				case "s":
+				case "S":
+					this.dataService.SubmitGame({ playerRoundsList: this.players })
+						.then((gameResult: GameResult) => {
+							console.log(gameResult);
+						})
+						.catch((error) => {
+							console.log(error);
+							this.notificationService.addNotification(error, "danger");
+						});
+					event.preventDefault();
+					break;
+			}
+		}
+		else {
+			if (event.key === "Tab") {
+				this.moveFocus("forward");
+				event.preventDefault();
+			}
 		}
 	}
 
