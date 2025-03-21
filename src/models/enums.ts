@@ -1,7 +1,3 @@
-export enum ScoreModifier {
-	DoublePointsAt69 = 0,
-}
-
 export enum RoundStatus {
 	Valid = 0,
 	Overshoot = 1,
@@ -15,4 +11,14 @@ export enum ThrowType {
 	Single = 0,
 	Rim = 3,
 	Miss = 4,
+}
+
+export enum WinCondition {
+	MustHitBoard = 0,
+	MustReachExactGoal = 1,
+}
+
+export enum ScoreModifier {
+	DoublePointsAt69 = 0,
+	reserved = 1,
 }

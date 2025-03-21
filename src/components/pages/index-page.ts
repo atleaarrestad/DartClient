@@ -1,5 +1,5 @@
 import { html, css } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import { sharedStyles } from "../../../styles.js";
 
 import { LitElement } from "lit";
@@ -7,20 +7,18 @@ import { DataService } from "../../services/dataService.js";
 import { NotificationService } from "../../services/notificationService.js";
 import { container } from "tsyringe";
 
-import { User } from "../../models/userSchema.js";
-import { Round } from "../../models/roundSchema.js";
+import { User, Round, SeasonStatistics, PlayerRounds, GameResult, Season } from "../../models/schemas.js";
 import { ThrowType, RoundStatus } from "../../models/enums.js";
 
 import "../aa-button-cmp.js";
-import { PlayerRounds } from "src/models/roundSchema.js";
 import { aaDartThrow } from "../aa-dartthrow-cmp.js";
 import { AaCombobox } from "../aa-combobox-cmp.js";
-import { SeasonStatistics } from "../../models/seasonStatisticsSchema.js";
 
 @customElement("index-page")
 export class IndexPage extends LitElement {
 	private dataService: DataService;
 	private notificationService: NotificationService;
+	@state() private season?: Season;
 
 	protected selectedId?: string;
 	@property({ type: Array }) users: User[] = [];
@@ -39,6 +37,7 @@ export class IndexPage extends LitElement {
 	public override connectedCallback(): void {
 		this.healthCheckServer();
 		this.loadUsers();
+		this.GetLatestSeason();
 		window.addEventListener("keydown", event => this.handleKeyDown(event));
 		super.connectedCallback();
 	}
@@ -68,6 +67,11 @@ export class IndexPage extends LitElement {
 			.catch((error) => {
 				this.notificationService.addNotification(error, "danger");
 			});
+	}
+
+	private async GetLatestSeason(): Promise<Void> {
+		const season = await this.dataService.GetCurrentSeason();
+		this.season = season;
 	}
 
 	private createRound(roundNumber: number): Round {
@@ -139,6 +143,21 @@ export class IndexPage extends LitElement {
 				else {
 					this.moveFocus("forward");
 				}
+			},
+			"p": () => {
+				debugger;
+				/*
+				if (!event.shiftKey) {
+					return;
+				}
+					*/
+				this.dataService.SubmitGame({ playerRoundsList: this.players }).then((gameResult: GameResult) => {
+					console.log(gameResult);
+				})
+					.catch((error) => {
+						console.log(error);
+						this.notificationService.addNotification(error, "danger");
+					});
 			},
 		};
 

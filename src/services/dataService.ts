@@ -1,11 +1,11 @@
 import { injectable } from "tsyringe";
-import { User, UserSchema } from "../models/userSchema.js";
-import { Round } from "src/models/roundSchema.js";
+import { GameResult, GameResultSchema, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
+import { GameSubmission, Round } from "src/models/schemas.js";
 
 @injectable()
 export class DataService {
 	private baseUrl = "https://localhost:7117/api/";
-	private abortTimeout = 5000;
+	private abortTimeout = 500000;
 
 	public async Ping(): Promise<string> {
 		const result = await this.get<string>("ping");
@@ -14,6 +14,31 @@ export class DataService {
 		}
 		else {
 			return result;
+		}
+	}
+
+	public async GetCurrentSeason(): Promise<Season> {
+		const result = await this.get<Season>("season/latest");
+
+		if (result) {
+			try {
+				return SeasonSchema.parse(result);
+			}
+			catch {
+				throw new Error("Not able to parse season from server");
+			}
+		}
+		throw new Error("Failed to fetch latest season from server");
+	}
+
+	public async SubmitGame(GameSubmission: GameSubmission): Promise<GameResult> {
+		const result = await this.post<GameSubmission, GameResult>("games/add", GameSubmission);
+		try	{
+			return GameResultSchema.parse(result);
+		}
+		catch (error) {
+			console.log(error);
+			throw new Error("Unable to parse game result from server");
 		}
 	}
 
