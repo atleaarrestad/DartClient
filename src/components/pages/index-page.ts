@@ -166,9 +166,11 @@ export class IndexPage extends LitElement {
 			}
 		}
 		else {
-			if (event.key === "Tab") {
-				this.moveFocus("forward");
-				event.preventDefault();
+			switch (event.key) {
+				case "Tab":
+				case "Enter":
+					this.moveFocus("forward");
+					event.preventDefault();
 			}
 		}
 	}
