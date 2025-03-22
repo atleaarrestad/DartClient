@@ -288,9 +288,11 @@ export class IndexPage extends LitElement {
 			const nextPlayerIndex = (currentPlayerIndex + step * i + playerCount) % playerCount;
 
 			const nextPlayer = this.players[nextPlayerIndex];
-			const lastRound = nextPlayer!.rounds[nextPlayer!.rounds.length - 1];
-
-			if (lastRound?.roundStatus !== RoundStatus.Victory) {
+			const nextPlayerHasWon = nextPlayer!.rounds.some(round => round.roundStatus === RoundStatus.Victory);
+			if (nextPlayerHasWon) {
+				continue;
+			}
+			else {
 				return nextPlayerIndex;
 			}
 		}
@@ -322,8 +324,9 @@ export class IndexPage extends LitElement {
 			if (throwIndex === 2) {
 				const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, "forward");
 
+				// everyone else has won (potentially you also)
 				if (nextFocusablePlayer === undefined) {
-					return null;
+					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
 				}
 				// Has looped around
 				if (nextFocusablePlayer < playerIndex) {
@@ -346,8 +349,9 @@ export class IndexPage extends LitElement {
 			if (throwIndex === 0) {
 				const prevFocusablePlayer = this.getNextFocusablePlayer(playerIndex, "backward");
 
+				// everyone else has won (potentially you also)
 				if (prevFocusablePlayer === undefined) {
-					return null;
+					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
 				}
 
 				if (roundIndex === 0) {
