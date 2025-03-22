@@ -1,6 +1,7 @@
 import { injectable } from "tsyringe";
-import { GameResult, GameResultSchema, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
+import { GameResult, GameResultSchema, RoundSchema, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
 import { GameSubmission, Round } from "src/models/schemas.js";
+import { z } from "zod";
 
 @injectable()
 export class DataService {
@@ -44,7 +45,7 @@ export class DataService {
 
 	public async ValidateRounds(rounds: Round[]): Promise<Round[]> {
 		const result = await this.post<Round[], Round[]>("validate/player/rounds", rounds);
-		return result!;
+		return z.array(RoundSchema).parse(result);
 	}
 
 	public async GetAllUsers(): Promise<User[]> {
