@@ -444,6 +444,7 @@ export class IndexPage extends LitElement {
 						<article class="player">
 							<aa-combobox
 								id="combobox-${playerIndex}"
+								.selectedUser=${this.users.find(user => user.id === player.playerId) || null}
 								@user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)}
 								@focus=${(e: FocusEvent) => this.handleComboboxFocused(e)}
 								.users=${this.users}>
