@@ -21,6 +21,7 @@ export class IndexPage extends LitElement {
 	private dataService: DataService;
 	private notificationService: NotificationService;
 	@state() private season?: Season;
+	@state() private loading: boolean = true;
 
 	protected selectedId?: string;
 	@property({ type: Array }) users: User[] = [];
@@ -36,12 +37,17 @@ export class IndexPage extends LitElement {
 		this.notificationService = container.resolve(NotificationService);
 	}
 
-	public override connectedCallback(): void {
-		this.healthCheckServer();
-		this.loadUsers();
-		this.GetLatestSeason();
-		window.addEventListener("keydown", event => this.handleKeyDown(event));
+	public override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
+
+		await Promise.all([
+			this.healthCheckServer(),
+			this.loadUsers(),
+			this.GetLatestSeason(),
+		]);
+
+		this.loading = false;
+		window.addEventListener("keydown", event => this.handleKeyDown(event));
 	}
 
 	override disconnectedCallback(): void {
@@ -60,13 +66,13 @@ export class IndexPage extends LitElement {
 		usersPromise
 			.then((users) => {
 				if (users) {
-					users[1]!.seasonStatistics[0]!.currentRank = Rank.Diamond2;
-					users[2]!.seasonStatistics[0]!.currentRank = Rank.Gold4;
+					// users[1]!.seasonStatistics[0]!.currentRank = Rank.Diamond2;
+					// users[2]!.seasonStatistics[0]!.currentRank = Rank.Gold4;
 
 					this.users = [...users];
 
-					this.handleUserselected(users[1]!, 0);
-					this.handleUserselected(users[2]!, 1);
+					// this.handleUserselected(users[1]!, 0);
+					// this.handleUserselected(users[2]!, 1);
 				}
 				else {
 					this.users = [];
@@ -130,6 +136,7 @@ export class IndexPage extends LitElement {
 
 	private handleUserselected(user: User, playerIndex: number) {
 		this.players[playerIndex]!.playerId = user.id;
+		this.reorderPlayersByMMR();
 		this.requestUpdate();
 	}
 
@@ -377,13 +384,18 @@ export class IndexPage extends LitElement {
 	}
 
 	private getCumulativePoints(player: PlayerRounds): number | undefined {
-		const lastRound = player.rounds[player.rounds.length - 1];
-		return lastRound?.cumulativePoints;
+		for (let i = player.rounds.length - 1; i >= 0; i--) {
+			const round = player.rounds[i];
+			if (round!.roundStatus === RoundStatus.Valid || round!.roundStatus === RoundStatus.Victory) {
+				return round!.cumulativePoints;
+			}
+		}
+		return undefined;
 	}
 
 	private getDifferenceFromBase(player: PlayerRounds): number | undefined {
 		const lastRound = player.rounds[player.rounds.length - 1];
-		return lastRound ? -250 + lastRound.cumulativePoints : undefined;
+		return lastRound ? -this.season!.goal + lastRound.cumulativePoints : undefined;
 	}
 
 	private getCumulativePointsForRound(round: Round): number {
@@ -405,7 +417,22 @@ export class IndexPage extends LitElement {
 		return user;
 	}
 
+	private reorderPlayersByMMR() {
+		this.players = this.players.sort((a, b) => {
+			const userA = this.users.find(u => u.id === a.playerId);
+			const userB = this.users.find(u => u.id === b.playerId);
+
+			const mmrA = userA?.seasonStatistics?.[userA.seasonStatistics.length - 1]?.mmr ?? 0;
+			const mmrB = userB?.seasonStatistics?.[userB.seasonStatistics.length - 1]?.mmr ?? 0;
+
+			return mmrB - mmrA;
+		});
+	}
+
 	override render() {
+		if (this.loading || !this.season) {
+			return html`<p>Loading...</p>`;
+		}
 		return html`
 			<div class="player-container">
 				${this.players.map((player, playerIndex) => {
@@ -429,7 +456,7 @@ export class IndexPage extends LitElement {
 							</div>
 							<div class="rounds-container">
 								${player.rounds.map((round, roundIndex) => html`
-									<div class="${roundIndex % 2 === 0 ? "alternate-color" : ""}">
+									<div class="${roundIndex % 2 === 0 ? "alternate-color" : ""} ${round.roundStatus === RoundStatus.Overshoot ? "overshoot" : ""}">
 										<div class="round-grid">
 											<div class="round-number">${roundIndex + 1}</div>
 											<div class="throws-container">
@@ -462,6 +489,9 @@ export class IndexPage extends LitElement {
 	}
 
 	static override styles = [sharedStyles, css`
+		.overshoot{
+			background-color: red !important;
+		}
 
 		.centered {
 			max-width: fit-content;

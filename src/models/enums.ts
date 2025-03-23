@@ -3,6 +3,7 @@ export enum RoundStatus {
 	Overshoot = 1,
 	Victory = 2,
 	WinConditionFailed = 3,
+	Unplayed = 4,
 }
 
 export enum ThrowType {
