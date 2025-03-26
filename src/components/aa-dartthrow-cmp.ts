@@ -141,7 +141,7 @@ export class aaDartThrow extends LitElement {
 				<input
 					tabindex="-1"
 					type="text"
-					value=""
+					.value=${this.dartThrow.hitLocation == 0 ? "" : this.dartThrow.hitLocation.toString()}
 					?readonly=${this.isReadOnly}
 					@input=${this.handleInputChanged}
 					@keydown=${this.handleKeyDown}

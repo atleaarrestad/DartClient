@@ -5,7 +5,8 @@ import { z } from "zod";
 
 @injectable()
 export class DataService {
-	private baseUrl = "https://localhost:7117/api/";
+	private baseUrl = "https://localhost:7117/api/";// NOT DOCKER BACKEND
+	// private baseUrl = "http://localhost:8080/api/"; // DOCKER BACKEND
 	private abortTimeout = 500000;
 
 	public async Ping(): Promise<string> {

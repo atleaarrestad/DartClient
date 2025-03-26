@@ -5,6 +5,8 @@ import { sharedStyles } from "../../../styles.js";
 import { LitElement } from "lit";
 import { DataService } from "../../services/dataService.js";
 import { NotificationService } from "../../services/notificationService.js";
+import { DialogService } from "../../services/dialogService.js";
+import { postGameTemplate, gameResultDummyData } from "../../templates/dialogTemplates.js";
 import { container } from "tsyringe";
 
 import { User, Round, SeasonStatistics, PlayerRounds, GameResult, Season } from "../../models/schemas.js";
@@ -20,6 +22,7 @@ import { getRankDisplayValue, Rank, getRankIcon } from "../../models/rank.js";
 export class IndexPage extends LitElement {
 	private dataService: DataService;
 	private notificationService: NotificationService;
+	private dialogService: DialogService;
 	@state() private season?: Season;
 	@state() private loading: boolean = true;
 
@@ -35,11 +38,11 @@ export class IndexPage extends LitElement {
 		super();
 		this.dataService = container.resolve(DataService);
 		this.notificationService = container.resolve(NotificationService);
+		this.dialogService = container.resolve(DialogService);
 	}
 
 	public override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
-
 		await Promise.all([
 			this.healthCheckServer(),
 			this.loadUsers(),
@@ -47,6 +50,7 @@ export class IndexPage extends LitElement {
 		]);
 
 		this.loading = false;
+		await this.dialogService.open(postGameTemplate(gameResultDummyData, this.users));
 		window.addEventListener("keydown", event => this.handleKeyDown(event));
 	}
 
@@ -63,16 +67,10 @@ export class IndexPage extends LitElement {
 		const usersPromise = this.dataService.GetAllUsers();
 		this.notificationService.addNotification("Fetching users..", "info", usersPromise);
 
-		usersPromise
+		return usersPromise
 			.then((users) => {
 				if (users) {
-					// users[1]!.seasonStatistics[0]!.currentRank = Rank.Diamond2;
-					// users[2]!.seasonStatistics[0]!.currentRank = Rank.Gold4;
-
 					this.users = [...users];
-
-					// this.handleUserselected(users[1]!, 0);
-					// this.handleUserselected(users[2]!, 1);
 				}
 				else {
 					this.users = [];
@@ -160,15 +158,24 @@ export class IndexPage extends LitElement {
 
 				case "s":
 				case "S":
-					this.dataService.SubmitGame({ playerRoundsList: this.players })
-						.then((gameResult: GameResult) => {
-							console.log(gameResult);
-						})
-						.catch((error) => {
-							console.log(error);
-							this.notificationService.addNotification(error, "danger");
-						});
-					event.preventDefault();
+					(async () => {
+						try {
+							const gameResult: GameResult = await this.dataService.SubmitGame({ playerRoundsList: this.players });
+
+							this.resetGameData();
+
+							await this.loadUsers(); // make sure this finishes before continuing
+
+							this.reorderPlayersByMMR();
+							this.requestUpdate();
+
+							this.dialogService.open(postGameTemplate(gameResult, this.users));
+						}
+						catch (error) {
+							const errorMessage = (error as Error).message;
+							this.notificationService.addNotification(errorMessage, "danger");
+						}
+					})();
 					break;
 			}
 		}
@@ -179,6 +186,15 @@ export class IndexPage extends LitElement {
 					this.moveFocus("forward");
 					event.preventDefault();
 			}
+		}
+	}
+
+	private resetGameData() {
+		for (let i = 0; i < this.players.length; i++) {
+			const id = this.players[i]!.playerId;
+			const newPlayer = this.getEmptyPlayerObject(15);
+			newPlayer.playerId = id;
+			this.players[i] = newPlayer;
 		}
 	}
 
