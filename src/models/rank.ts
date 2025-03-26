@@ -90,6 +90,6 @@ export function getRankIcon(rank: Rank | undefined): string {
 			return "/icons/rank_grandmaster.png";
 
 		default:
-			return "/icons/bag.png";
+			return "/icons/rank_unranked.png";
 	}
 }
