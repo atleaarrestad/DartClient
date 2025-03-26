@@ -1,6 +1,7 @@
 import { html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { sharedStyles } from "../../../styles.js";
+import { classMap } from "lit/directives/class-map.js";
 
 import { LitElement } from "lit";
 import { DataService } from "../../services/dataService.js";
@@ -50,7 +51,7 @@ export class IndexPage extends LitElement {
 		]);
 
 		this.loading = false;
-		await this.dialogService.open(postGameTemplate(gameResultDummyData, this.users));
+		// await this.dialogService.open(postGameTemplate(gameResultDummyData, this.users));
 		window.addEventListener("keydown", event => this.handleKeyDown(event));
 	}
 
@@ -95,7 +96,7 @@ export class IndexPage extends LitElement {
 				{ throwIndex: 2, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
 			],
 			cumulativePoints: 0,
-			roundStatus: RoundStatus.Valid,
+			roundStatus: RoundStatus.Unplayed,
 		};
 	}
 
@@ -160,6 +161,11 @@ export class IndexPage extends LitElement {
 				case "S":
 					(async () => {
 						try {
+							const isValidGame = this.validateGameCanBeSubmitted();
+							if (!isValidGame) {
+								this.notificationService.addNotification("Cannot submit game! Play atleast one round and select user for all players", "info");
+								return;
+							}
 							const gameResult: GameResult = await this.dataService.SubmitGame({ playerRoundsList: this.players });
 
 							this.resetGameData();
@@ -445,6 +451,12 @@ export class IndexPage extends LitElement {
 		});
 	}
 
+	private validateGameCanBeSubmitted() {
+		const AllPlayersSelectedUser = this.players.every(player => player.playerId !== "");
+		const hasPlayedAtleastOneRound = this.players.every(player => player.rounds[0]?.roundStatus !== RoundStatus.Unplayed);
+		return (AllPlayersSelectedUser && hasPlayedAtleastOneRound);
+	}
+
 	override render() {
 		if (this.loading || !this.season) {
 			return html`<p>Loading...</p>`;
@@ -473,7 +485,10 @@ export class IndexPage extends LitElement {
 							</div>
 							<div class="rounds-container">
 								${player.rounds.map((round, roundIndex) => html`
-									<div class="${roundIndex % 2 === 0 ? "alternate-color" : ""} ${round.roundStatus === RoundStatus.Overshoot ? "overshoot" : ""}">
+									<div class=${classMap({
+										"alternate-color": roundIndex % 2 === 0,
+										"overshoot": round.roundStatus === RoundStatus.Overshoot,
+									})}>
 										<div class="round-grid">
 											<div class="round-number">${roundIndex + 1}</div>
 											<div class="throws-container">
@@ -506,8 +521,9 @@ export class IndexPage extends LitElement {
 	}
 
 	static override styles = [sharedStyles, css`
+
 		.overshoot{
-			background-color: red !important;
+			background-color: #ed817f89 !important;
 		}
 
 		.centered {
