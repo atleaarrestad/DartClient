@@ -540,8 +540,8 @@ export class IndexPage extends LitElement {
 		}
 
 		.rank-icon {
-			width: 3rem;
-			height: 3rem;
+			width: 64px;
+			height: 64px;
 			object-fit: contain;
 		}
 

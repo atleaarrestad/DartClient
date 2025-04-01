@@ -57,37 +57,52 @@ export function getRankDisplayValue(rank: Rank | undefined): string {
 export function getRankIcon(rank: Rank | undefined): string {
 	switch (rank) {
 		case Rank.Bronze1:
+			return "/icons/bronze_1.png";
 		case Rank.Bronze2:
+			return "/icons/bronze_2.png";
 		case Rank.Bronze3:
+			return "/icons/bronze_3.png";
 		case Rank.Bronze4:
-			return "/icons/rank_bronze.png";
+			return "/icons/bronze_4.png";
 
 		case Rank.Silver1:
+			return "/icons/silver_1.png";
 		case Rank.Silver2:
+			return "/icons/silver_2.png";
 		case Rank.Silver3:
+			return "/icons/silver_3.png";
 		case Rank.Silver4:
-			return "/icons/rank_silver.png";
+			return "/icons/silver_4.png";
 
 		case Rank.Gold1:
+			return "/icons/gold_1.png";
 		case Rank.Gold2:
+			return "/icons/gold_2.png";
 		case Rank.Gold3:
+			return "/icons/gold_3.png";
 		case Rank.Gold4:
-			return "/icons/rank_gold.png";
+			return "/icons/gold_4.png";
 
 		case Rank.Platinum1:
+			return "/icons/platinum_1.png";
 		case Rank.Platinum2:
+			return "/icons/platinum_2.png";
 		case Rank.Platinum3:
+			return "/icons/platinum_3.png";
 		case Rank.Platinum4:
-			return "/icons/rank_platinum.png";
+			return "/icons/platinum_4.png";
 
 		case Rank.Diamond1:
+			return "/icons/diamon_1.png";
 		case Rank.Diamond2:
+			return "/icons/diamon_2.png";
 		case Rank.Diamond3:
+			return "/icons/diamon_3.png";
 		case Rank.Diamond4:
-			return "/icons/rank_diamond.png";
+			return "/icons/diamon_4.png";
 
 		case Rank.Grandmaster:
-			return "/icons/rank_grandmaster.png";
+			return "/icons/grandmaster.png";
 
 		default:
 			return "/icons/rank_unranked.png";
