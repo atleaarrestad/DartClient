@@ -160,7 +160,7 @@ export class aaDartThrow extends LitElement {
 			background-color: rgba(0, 0, 0, 0);
 			border: unset;
 			width: 100%;
-			font-size: var(--font-size-dartthrow);
+			font-size: 1.25rem;
 		}
 
 		.multiplier {
@@ -174,7 +174,7 @@ export class aaDartThrow extends LitElement {
 			z-index: 1;
 			text-align: right;
 			span {
-				font-size: var(--font-size-multiplier);
+				font-size: 1rem;
 				font-style: italic;
 				padding-right: .5rem;
 				line-height: 2rem;

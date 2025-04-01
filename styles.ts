@@ -13,7 +13,7 @@ export const sharedStyles = css`
     height: 100%;
   }
   input {
-    font-size: var(--font-size-input);
+    font-size: 1rem;
   }
   ${unsafeCSS(fontAwesomeStyles)}
 `;

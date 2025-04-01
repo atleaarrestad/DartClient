@@ -467,6 +467,7 @@ export class IndexPage extends LitElement {
 					const seasonStats = this.getLatestSeasonStatsForPlayer(playerIndex);
 					const mmr = seasonStats?.mmr;
 					const rank = seasonStats?.currentRank;
+					const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
 
 					return html`
 						<article class="player">
@@ -486,7 +487,8 @@ export class IndexPage extends LitElement {
 							<div class="rounds-container">
 								${player.rounds.map((round, roundIndex) => html`
 									<div class=${classMap({
-										"alternate-color": roundIndex % 2 === 0,
+										"victory": hasVictory,
+										"alternate-color": roundIndex % 2 === 0 && !hasVictory,
 										"overshoot": round.roundStatus === RoundStatus.Overshoot,
 									})}>
 										<div class="round-grid">
@@ -522,9 +524,14 @@ export class IndexPage extends LitElement {
 
 	static override styles = [sharedStyles, css`
 
-		.overshoot{
+		.victory {
+			background-color: var(--color-victory);
+		}
+
+		.overshoot {
 			background-color: #ed817f89 !important;
 		}
+		
 
 		.centered {
 			max-width: fit-content;
@@ -557,6 +564,7 @@ export class IndexPage extends LitElement {
 	    .player {
 			width: 100%;
 			max-width: 35vw;
+			min-width: 250px;
 			display: flex;
 			flex-direction: column;
 			border: 1px solid black;
@@ -599,7 +607,7 @@ export class IndexPage extends LitElement {
 			text-align: center;
 			border-bottom: 1px solid black;
 			background-color: #B4CCB9;
-			font-size: 10px;
+			font-size: .7rem;
 		}
 		.border-right{
 			border-right: 1px solid black;
@@ -613,13 +621,13 @@ export class IndexPage extends LitElement {
 		}
 		.round-number {
 			border-right: 1px solid black;
-			font-size: var(--font-size-round-number);
+			font-size: .6rem;
 			line-height: 1.75rem;
 			text-align: center;
 		}
 		.cumulative-points-round {
 			border-left: 1px solid black;
-			font-size: var(--font-size-cumulative-points);
+			font-size: 1rem;
 			text-align: center;
 		}
 		.total-sum{
@@ -628,7 +636,7 @@ export class IndexPage extends LitElement {
 			border-bottom: 2px solid black;
 			padding-top: .5rem;
 			padding-bottom: .5rem;
-			font-size: 24px;
+			font-size: 1.5rem;
 		}
   `];
 }

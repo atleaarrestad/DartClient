@@ -80,7 +80,7 @@ export class NotificationElement extends LitElement {
 		}
 
 		.icon {
-			font-size: 14px;
+			font-size: 1rem;
 			padding-right: 1rem;
 			height: fit-content;
 			width: fit-content;
@@ -91,14 +91,15 @@ export class NotificationElement extends LitElement {
 		}
 
 		.title {
-			font-size: 18px;
+			font-size: 1.25rem;
 			margin-bottom: 5px;
 		}
 
 		.message {
-			font-size: 14px;
+			font-size: 1rem;
 			word-wrap: break-word;
 			white-space: normal;
+			font-family: var(--font-family-second);
 		}
 		.notification {
 			display: grid;
@@ -116,10 +117,6 @@ export class NotificationElement extends LitElement {
 			pointer-events: none;
 			color: black;
 			box-shadow: 2px 2px 0px 0px black;
-		}
-		.message {
-			font-family: var(--font-family-second);
-			font-size: var(--font-size-notification);
 		}
 	`];
 }

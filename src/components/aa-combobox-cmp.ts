@@ -143,11 +143,10 @@ export class AaCombobox extends LitElement {
 			padding: 8px;
 			border: 1px solid #ccc;
 			border-radius: 4px;
-			font-size: 14px;
 			text-align: center;
 			background-color: rgba(0, 0, 0, 0);
 			border: unset;
-			font-size: 24px;
+			font-size: 1.5rem
 		}
 
 		.user-list {
