@@ -58,7 +58,7 @@ export function getRankIcon(rank: Rank | undefined): string {
 	function randomIntInRange(min: number, max: number) {
 		const array = new Uint32Array(1);
 		crypto.getRandomValues(array);
-		return min + (array[0] % (max - min));
+		return min + (array[0]! % (max - min));
 	}
 	rank = randomIntInRange(0, 20);
 	switch (rank) {
