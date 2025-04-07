@@ -12,7 +12,7 @@ export class SeasonService {
 		this.dataService = container.resolve(DataService);
 	}
 
-	public async getSeason(forceGetFromDatabase: boolean): Promise<Season> {
+	public async getSeason(forceGetFromDatabase: boolean = false): Promise<Season> {
 		if (!forceGetFromDatabase && this.season) {
 			return this.season;
 		}

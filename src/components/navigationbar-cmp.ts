@@ -26,14 +26,18 @@ export class AaNavigationbar extends LitElement {
 		return html`
 			<nav class="navbar">
 				<a class="logo" href="/">
-					<img class="logo-icon" src="icons/season_alpha.png" alt="Logo" />
-					<span>Season ${this.season?.name}</span>
+					<img class="logo-icon" src="icons/home.png" alt="Home" />
+					<span>Play</span>
 				</a>
+				<a class="logo center" href=${`/season?id=${this.season?.id}`}>
+					<img class="logo-icon" src="icons/season_alpha.png" alt="Logo" />
+					<span class="fit-content">Season ${this.season?.name}</span>
+				</a>
+
 				<ul class="nav-links">
-					<li><a href="/">Home</a></li>
-					<li><a href="/about">About</a></li>
-					<li><a href="/services">Services</a></li>
-					<li><a href="/contact">Contact</a></li>
+					<li><a href="/users">Users</a></li>
+					<li><a href="/leaderboards">Leaderboards</a></li>
+					<li><a href="/gamelog">Gamelog</a></li>
 				</ul>
 			</nav>
 		`;
@@ -48,6 +52,14 @@ export class AaNavigationbar extends LitElement {
 			border-bottom: 4px solid #000;
 			box-shadow: 4px 4px 0 #000;
 			font-family: 'Bitter', serif;
+		}
+
+		.center {
+			place-content: center;
+		}
+
+		.fit-content {
+			width: fit-content;
 		}
 	
 		.navbar {
@@ -80,10 +92,12 @@ export class AaNavigationbar extends LitElement {
 		.nav-links {
 			display: flex;
 			gap: 1rem;
+			justify-content: end;
 		}
 	
 		.nav-links li {
 			list-style: none;
+			width: fit-content;
 		}
 	
 		.nav-links a {
