@@ -1,36 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lit Element Simple Starter Kit</title>
-    <script type="module" src="./src/index.ts"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Bitter:wght@400;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="./tokens.css" />
-    <style>
-      * {
-        list-style-type: none;
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        line-height: 1.5;
-        font-family: var(--font-family-first), var(--font-family-first),
-          "Arial Narrow", Arial, sans-serif;
-      }
-      body {
-        background-color: var(--color-background);
-      }
-    </style>
-  </head>
+<head>
+	<meta charset="UTF-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Lit Element Simple Starter Kit</title>
+	<script type="module" src="./src/index.ts"></script>
+	<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@400;700&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;700&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
 
-  <body>
-    <div>
-      <div id="outlet"></div>
-    </div>
-  </body>
+	<link rel="stylesheet" href="./tokens.css" />
+	<style>
+		* {
+			list-style-type: none;
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+			line-height: 1.5;
+			font-family: var(--font-family-first), var(--font-family-first),
+				"Arial Narrow", Arial, sans-serif;
+		}
+
+		body {
+			background-color: var(--color-background);
+		}
+	</style>
+</head>
+
+<body>
+	<div>
+		<aa-navigationbar></aa-navigationbar>
+		<div id="outlet"></div>
+	</div>
+</body>
+
 </html>
