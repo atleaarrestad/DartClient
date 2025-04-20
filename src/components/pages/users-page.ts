@@ -1,0 +1,173 @@
+import { html, css } from "lit";
+import { customElement, state } from "lit/decorators.js";
+import { sharedStyles } from "../../../styles.js";
+import { LitElement } from "lit";
+import { NotificationService } from "../../services/notificationService.js";
+import { DialogService } from "../../services/dialogService.js";
+import { container } from "tsyringe";
+import { User, SeasonStatistics, Season } from "../../models/schemas.js";
+import { getRankDisplayValue, getRankIcon } from "../../models/rank.js";
+import { SeasonService } from "../../services/seasonService.js";
+import { UserService } from "../../services/userService.js";
+import { Router } from "@vaadin/router";
+
+export type SortKey = "name" | "alias" | "mmr" | "rank";
+
+@customElement("users-page")
+export class UsersPage extends LitElement {
+	private notificationService: NotificationService;
+	private dialogService: DialogService;
+	private seasonService: SeasonService;
+	private userService: UserService;
+
+	@state() private season?: Season;
+	@state() private users: User[] = [];
+	@state() private sortKey: SortKey = "name";
+	@state() private sortAsc: boolean = true;
+
+	constructor() {
+		super();
+		this.userService = container.resolve(UserService);
+		this.notificationService = container.resolve(NotificationService);
+		this.seasonService = container.resolve(SeasonService);
+		this.dialogService = container.resolve(DialogService);
+	}
+
+	public override async connectedCallback(): Promise<void> {
+		super.connectedCallback();
+		this.users = await this.userService.getAllUsers() ?? [];
+		this.season = await this.seasonService.getCurrentSeason();
+		this.sortUsers(this.sortKey);
+	}
+
+	private getStatsForCurrentSeason(user: User): SeasonStatistics {
+		if (!user.seasonStatistics || user.seasonStatistics.length === 0) {
+			return { id: 0, userId: user.id, seasonId: "", currentRank: undefined, highestAchievedRank: undefined, mmr: 0 } as unknown as SeasonStatistics;
+		}
+		if (this.season) {
+			const match = user.seasonStatistics.find(s => s.seasonId === this.season!.id);
+			if (match) {
+				return match;
+			}
+		}
+		return user.seasonStatistics.reduce((prev, curr) => curr.id > prev.id ? curr : prev);
+	}
+
+	private sortUsers(key: SortKey): void {
+		if (this.sortKey === key) {
+			this.sortAsc = !this.sortAsc;
+		}
+		else {
+			this.sortKey = key;
+			this.sortAsc = true;
+		}
+		const usersWithStats = this.users.map(u => ({ user: u, stats: this.getStatsForCurrentSeason(u) }));
+		usersWithStats.sort((a, b) => {
+			let cmp = 0;
+			switch (key) {
+				case "name":
+					cmp = a.user.name.localeCompare(b.user.name);
+					break;
+				case "alias":
+					cmp = a.user.alias.localeCompare(b.user.alias);
+					break;
+				case "mmr":
+					cmp = (a.stats.mmr ?? 0) - (b.stats.mmr ?? 0);
+					break;
+				case "rank":
+					const ra = a.stats.currentRank ?? 0;
+					const rb = b.stats.currentRank ?? 0;
+					cmp = ra - rb;
+					break;
+			}
+			return this.sortAsc ? cmp : -cmp;
+		});
+		this.users = usersWithStats.map(ws => ws.user);
+	}
+
+	private getSortIndicator(key: SortKey): string {
+		if (this.sortKey !== key) return "";
+		return this.sortAsc ? "▲" : "▼";
+	}
+
+	private onRowClick(user: User): void {
+		Router.go(`/user/${user.id}`);
+	}
+
+	override render() {
+		if (!this.season || this.users.length === 0) {
+			return html`<p>Loading data…</p>`;
+		}
+
+		return html`
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th @click="${() => this.sortUsers("name")}">Username ${this.getSortIndicator("name")}</th>
+            <th @click="${() => this.sortUsers("alias")}">Alias ${this.getSortIndicator("alias")}</th>
+            <th @click="${() => this.sortUsers("mmr")}">MMR ${this.getSortIndicator("mmr")}</th>
+            <th @click="${() => this.sortUsers("rank")}">Rank ${this.getSortIndicator("rank")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${this.users.map((user) => {
+				const stats = this.getStatsForCurrentSeason(user);
+				const rankValue = stats.currentRank;
+				return html`
+              <tr  @click="${() => this.onRowClick(user)}">
+                <td>${user.name}</td>
+                <td>${user.alias}</td>
+                <td>${stats.mmr}</td>
+                <td>
+                  ${rankValue !== undefined
+						? html`<img src="${getRankIcon(rankValue)}" alt="${getRankDisplayValue(rankValue)}" title="${getRankDisplayValue(rankValue)}" />`
+						: html`-`}
+                </td>
+              </tr>
+            `;
+			})}
+        </tbody>
+      </table>
+    `;
+	}
+
+	static override styles = [
+		sharedStyles,
+		css`
+      .users-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .users-table th,
+      .users-table td {
+        padding: 0.5rem;
+        border: 1px solid var(--border-color, #ccc);
+        text-align: left;
+        white-space: nowrap;
+      }
+
+      .users-table th {
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .users-table tbody tr:nth-child(even) {
+        background-color: var(--row-even-bg, #f9f9f9);
+      }
+
+      .users-table tbody tr:hover {
+        background-color: #e5fbe7;
+      }
+
+      .users-table tbody tr {
+        cursor: pointer;
+      }
+
+      .users-table th:nth-child(4),
+      .users-table td:nth-child(4) {
+        text-align: center;
+      }
+    `,
+	];
+}

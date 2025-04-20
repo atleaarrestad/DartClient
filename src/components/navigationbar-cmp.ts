@@ -9,7 +9,7 @@ import { container } from "tsyringe";
 
 @customElement("aa-navigationbar")
 export class AaNavigationbar extends LitElement {
-	private seasonService!: SeasonService;
+	private seasonService: SeasonService;
 	@state() private season?: Season;
 	@property({ type: Boolean }) test: boolean;
 
@@ -17,7 +17,7 @@ export class AaNavigationbar extends LitElement {
 		super.connectedCallback();
 
 		this.seasonService = container.resolve(SeasonService);
-		this.seasonService.getSeason().then((season) => {
+		this.seasonService.getCurrentSeason().then((season) => {
 			this.season = season;
 		});
 	}

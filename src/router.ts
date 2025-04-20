@@ -1,5 +1,10 @@
 import { Router } from "@vaadin/router";
 
-const router = new Router(document.getElementById("outlet"));
+const outlet = document.getElementById("outlet")!;
+const router = new Router(outlet);
 
-router.setRoutes([{ path: "/", component: "index-page" }]);
+router.setRoutes([
+	{ path: "/", component: "index-page" },
+	{ path: "/users", component: "users-page" },
+	{ path: "/user/:id", component: "user-page" },
+]);

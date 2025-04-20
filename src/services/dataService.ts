@@ -63,6 +63,21 @@ export class DataService {
 		throw new Error("Failed to fetch users from server");
 	}
 
+	public async getUserWithHistoricData(userid: string): Promise<User> {
+		const result = await this.get<User>(`users/GetById/${userid}`);
+
+		if (result) {
+			try {
+				UserSchema.parse(result);
+				return result;
+			}
+			catch {
+				throw new Error("Invalid user data received from the API");
+			}
+		}
+		throw new Error("Failed to fetch user from server");
+	}
+
 	private async request<TResponse>(
 		endpoint: string,
 		options: RequestInit,

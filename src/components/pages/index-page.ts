@@ -18,10 +18,12 @@ import { aaDartThrow } from "../aa-dartthrow-cmp.js";
 import { AaCombobox } from "../aa-combobox-cmp.js";
 
 import { getRankDisplayValue, Rank, getRankIcon } from "../../models/rank.js";
+import { UserService } from "../../services/userService.js";
 
 @customElement("index-page")
 export class IndexPage extends LitElement {
 	private dataService: DataService;
+	private userService: UserService;
 	private notificationService: NotificationService;
 	private dialogService: DialogService;
 	@state() private season?: Season;
@@ -40,6 +42,7 @@ export class IndexPage extends LitElement {
 		this.dataService = container.resolve(DataService);
 		this.notificationService = container.resolve(NotificationService);
 		this.dialogService = container.resolve(DialogService);
+		this.userService = container.resolve(UserService);
 	}
 
 	public override async connectedCallback(): Promise<void> {
@@ -65,7 +68,7 @@ export class IndexPage extends LitElement {
 	}
 
 	private async loadUsers(): Promise<void> {
-		const usersPromise = this.dataService.GetAllUsers();
+		const usersPromise = this.userService.getAllUsers();
 		this.notificationService.addNotification("Fetching users..", "info", usersPromise);
 
 		return usersPromise
