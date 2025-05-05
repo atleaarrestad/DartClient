@@ -1,6 +1,7 @@
 import { injectable, container } from "tsyringe";
 import { User } from "../models/schemas.js";
 import { DataService } from "./dataService.js";
+import { UserQueryOptions } from "../api/users.requests.js";
 
 @injectable()
 export class UserService {
@@ -33,7 +34,7 @@ export class UserService {
 		return this.usersPromise;
 	}
 
-	public async getUserWithHistoricData(userId: string): Promise<User> {
-		return this.dataService.getUserWithHistoricData(userId);
+	public async getUserById(userId: string, options: UserQueryOptions): Promise<User> {
+		return this.dataService.getUserById(userId, options);
 	}
 }

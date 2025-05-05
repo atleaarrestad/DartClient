@@ -5,12 +5,13 @@ import { LitElement } from "lit";
 import { NotificationService } from "../../services/notificationService.js";
 import { DialogService } from "../../services/dialogService.js";
 import { container } from "tsyringe";
-import { User } from "../../models/schemas.js";
-import { getRankDisplayValue, getRankIcon } from "../../models/rank.js";
+import { User, SeasonStatistics } from "../../models/schemas.js";
+import { getRankDisplayValue, getRankIcon, Rank } from "../../models/rank.js";
 import { SeasonService } from "../../services/seasonService.js";
 import { UserService } from "../../services/userService.js";
 import { Season } from "../../models/schemas.js";
 import type { Location } from "@vaadin/router"; // ← import the type
+import { UserQueryOptions } from "../../api/users.requests.js";
 
 @customElement("user-page")
 export class UserPage extends LitElement {
@@ -20,7 +21,9 @@ export class UserPage extends LitElement {
 	private userService: UserService;
 	private user?: User;
 	@state() private userId!: string;
-	@state() private season?: Season;
+	@state() private currentSeason?: Season;
+	@state() private seasons: Season[];
+	@state() private selectedSeason?: Season;
 
 	@property({ type: Array }) users: User[] = [];
 
@@ -38,68 +41,114 @@ export class UserPage extends LitElement {
 
 	public override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
-		this.user = await this.userService.getUserWithHistoricData(this.userId);
-		this.season = await this.seasonService.getCurrentSeason();
+		const options: UserQueryOptions = {
+			includeSeasonStatistics: true,
+			includeHitCounts: true,
+			includeMatchSnapshots: true,
+			includeFinishCounts: true,
+		};
+
+		this.user = await this.userService.getUserById(this.userId, options);
+		this.currentSeason = await this.seasonService.getCurrentSeason();
+		this.seasons = await this.seasonService.getAll();
+		this.selectedSeason = this.seasons.find(s => s.id === this.currentSeason!.id) || this.seasons[0];
+	}
+
+	private handleSeasonChange(e: Event) {
+		const select = e.target as HTMLSelectElement;
+		const seasonId = select.value;
+		this.selectedSeason = this.seasons.find(s => s.id === seasonId);
 	}
 
 	private editUser(user: User): void {
 		// TODO: implement the edit dialog or navigation
-		this.dialogService.open("editUserTemplate", { user });
+		// this.dialogService.open("editUserTemplate", { user });
+	}
+
+	private getStatsForSeason(season: Season): SeasonStatistics {
+		const defaultStats: SeasonStatistics = {
+			id: 0,
+			userId: this.user?.id ?? "",
+			seasonId: season.id,
+			currentRank: 0,
+			highestAchievedRank: 0,
+			mmr: 0,
+			matchSnapshots: [],
+			hitCounts: [],
+		};
+		if (!this.user?.seasonStatistics?.length) return defaultStats;
+		const match = this.user.seasonStatistics.find(ss => ss.seasonId === season.id);
+		return match || defaultStats;
 	}
 
 	override render() {
-		if (!this.season || this.user === undefined) {
+		if (!this.user || !this.seasons.length || !this.selectedSeason) {
 			return html`<p>Loading data…</p>`;
 		}
 
+		const stats = this.getStatsForSeason(this.selectedSeason);
+
 		return html`
-      		is loaded yo
-    `;
+		  <section class="user-header">
+			<h2>${this.user.name} (@${this.user.alias})</h2>
+	
+			<label>
+			  Season:
+			  <select @change=${this.handleSeasonChange}>
+				${this.seasons.map(
+					s => html`<option
+					value=${s.id}
+					?selected=${s.id === this.selectedSeason!.id}
+				  >
+					${s.name}
+				  </option>`,
+				)}
+			  </select>
+			</label>
+	
+			<div class="cards-container">
+			  <aa-info-card label="Current Rank" value=${getRankDisplayValue(stats.currentRank)} imageSrc=${getRankIcon(stats.currentRank)} imageAlt=${getRankDisplayValue(stats.currentRank)}  .rank=${stats.currentRank}></aa-info-card>
+			  <aa-info-card label="Highest Rank" value=${getRankDisplayValue(stats.highestAchievedRank)} imageSrc=${getRankIcon(stats.highestAchievedRank)} imageAlt=${getRankDisplayValue(stats.highestAchievedRank)}  .rank=${stats.highestAchievedRank}></aa-info-card>
+			  <aa-info-card label="Highest round score" value=${stats.highestRoundScore} ></aa-info-card>
+			  <aa-info-card label="Highest finishing score" value=${stats.highestRoundScoreForVicory} ></aa-info-card>
+			</div>
+		  </section>
+		  <div class="charts-container">
+			  <aa-match-snapshot-chart .snapshots=${stats.matchSnapshots}></aa-match-snapshot-chart>
+			  <aa-hit-count-chart .hits=${stats.hitCounts}></aa-hit-count-chart>
+			  <aa-finish-count-chart .finishCounts=${stats.finishCount}></aa-finish-count-chart>
+		  </div>
+		   
+		`;
 	}
 
 	static override styles = [
 		sharedStyles,
 		css`
-      .users-table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-      .users-table th,
-      .users-table td {
-        padding: 0.5rem;
-        border: 1px solid var(--border-color, #ccc);
-        text-align: left;
-      }
-	  .users-table th:nth-child(4),
-      .users-table td:nth-child(4) {
-        text-align: center;
+			.charts-container {
+				display: flex;
+				gap: 1rem;
+				margin-top: 1rem;
+				max-height: 40vh;
+			}
+			.user-header {
+				padding: 1rem;
+				border-bottom: 1px solid #ccc;
+			}
+			.user-header label {
+				margin-left: 1rem;
+				font-size: 0.9rem;
+			}
+			.user-header select {
+				margin-left: 0.5rem;
+			}
+			.cards-container {
+				display: grid;
+				grid-template-columns: 1fr 1fr 1fr 1fr;
+				gap: 1rem;
+				margin-top: 1rem;
+			}
 
-      }
-      .users-table img {
-        width: 1.5rem;
-        height: 1.5rem;
-      }
-      button {
-        padding: 0.25rem 0.5rem;
-        border: none;
-        background-color: var(--button-bg, #007bff);
-        color: white;
-        border-radius: 0.25rem;
-        cursor: pointer;
-      }
-      button:hover {
-        background-color: var(--button-bg-hover, #0056b3);
-      }
-	  .users-table tbody tr:nth-child(even) {
-		  background-color: var(--row-even-bg, #f9f9f9);
-		}
-		.users-table tbody tr:hover {
-		  background-color: #e5fbe7;
-		}
-	  .users-table tbody tr {
-        cursor: pointer;
-      }
-	  
-    `,
+		`,
 	];
 }

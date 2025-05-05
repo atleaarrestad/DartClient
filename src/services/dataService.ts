@@ -2,6 +2,7 @@ import { injectable } from "tsyringe";
 import { GameResult, GameResultSchema, RoundSchema, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
 import { GameSubmission, Round } from "src/models/schemas.js";
 import { z } from "zod";
+import { UserQueryOptions, buildGetUserByIdUrl } from "../api/users.requests.js";
 
 @injectable()
 export class DataService {
@@ -31,6 +32,20 @@ export class DataService {
 			}
 		}
 		throw new Error("Failed to fetch latest season from server");
+	}
+
+	public async GetAllSeasons(): Promise<Season[]> {
+		const result = await this.get<Season[]>("season/all");
+
+		if (result) {
+			try {
+				return result.map(season => SeasonSchema.parse(season));
+			}
+			catch {
+				throw new Error("Not able to parse season from server");
+			}
+		}
+		throw new Error("Failed to fetch all seasons from server");
 	}
 
 	public async SubmitGame(GameSubmission: GameSubmission): Promise<GameResult> {
@@ -63,8 +78,12 @@ export class DataService {
 		throw new Error("Failed to fetch users from server");
 	}
 
-	public async getUserWithHistoricData(userid: string): Promise<User> {
-		const result = await this.get<User>(`users/GetById/${userid}`);
+	public async getUserById(
+		userId: string,
+		options?: UserQueryOptions,
+	): Promise<User> {
+		const url = buildGetUserByIdUrl(userId, options);
+		const result = await this.get<User>(url);
 
 		if (result) {
 			try {
@@ -75,6 +94,7 @@ export class DataService {
 				throw new Error("Invalid user data received from the API");
 			}
 		}
+
 		throw new Error("Failed to fetch user from server");
 	}
 

@@ -1,0 +1,96 @@
+import { html, css, LitElement } from "lit";
+import { customElement, property, query } from "lit/decorators.js";
+import Chart from "chart.js/auto";
+import type { FinishCount } from "../models/schemas.js";
+
+@customElement("aa-finish-count-chart")
+export class FinishCountChart extends LitElement {
+	/**
+   * Array of FinishCount objects with { roundNumber: number, count: number }
+   */
+	@property({ type: Array }) finishCounts: FinishCount[] = [];
+
+	@query("canvas") private _canvas!: HTMLCanvasElement;
+	private _chart?: Chart;
+
+	static override styles = css`
+    :host {
+      display: block;
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+  `;
+
+	override render() {
+		return html`<canvas></canvas>`;
+	}
+
+	override firstUpdated() {
+		this._renderChart();
+	}
+
+	override updated(changed: Map<string, any>) {
+		if (changed.has("finishCounts")) {
+			this._renderChart();
+		}
+	}
+
+	private _renderChart() {
+		if (!this._canvas) return;
+
+		const labels = Array.from({ length: 15 }, (_, i) => String(i + 1));
+		const data = labels.map((label) => {
+			const num = parseInt(label, 10);
+			const entry = this.finishCounts.find(fc => fc.roundNumber === num);
+			return entry ? entry.count : 0;
+		});
+
+		if (this._chart) {
+			this._chart.data.labels = labels;
+			this._chart.data.datasets[0].data = data;
+			this._chart.update();
+			return;
+		}
+
+		const ctx = this._canvas.getContext("2d");
+		if (!ctx) return;
+
+		this._chart = new Chart(ctx, {
+			type: "bar",
+			data: {
+				labels,
+				datasets: [{
+					label: "Wins by Round",
+					data,
+					borderWidth: 1,
+				}],
+			},
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				scales: {
+					x: {
+						title: { display: true, text: "Round Number" },
+					},
+					y: {
+						beginAtZero: true,
+						title: { display: true, text: "Win Count" },
+						ticks: { stepSize: 1 },
+					},
+				},
+				plugins: {
+					tooltip: {
+						callbacks: {
+							label: context => `${context.dataset.label || ""}: ${context.parsed.y}`,
+						},
+					},
+				},
+			},
+		});
+	}
+}

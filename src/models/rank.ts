@@ -55,12 +55,6 @@ export function getRankDisplayValue(rank: Rank | undefined): string {
 }
 
 export function getRankIcon(rank: Rank | undefined): string {
-	function randomIntInRange(min: number, max: number) {
-		const array = new Uint32Array(1);
-		crypto.getRandomValues(array);
-		return min + (array[0]! % (max - min));
-	}
-	rank = randomIntInRange(0, 20);
 	switch (rank) {
 		case Rank.Bronze1:
 			return "/icons/bronze_1.png";

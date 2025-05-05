@@ -36,8 +36,9 @@ export class AaNavigationbar extends LitElement {
 
 				<ul class="nav-links">
 					<li><a href="/users">Users</a></li>
-					<li><a href="/leaderboards">Leaderboards</a></li>
-					<li><a href="/gamelog">Gamelog</a></li>
+					<li><a href="#" class="disabled">Leaderboards</a></li>
+  					<li><a href="#" class="disabled">Gamelog</a></li>	
+					<li><a href="#" class="disabled">Seasons</a></li>	
 				</ul>
 			</nav>
 		`;
@@ -53,6 +54,12 @@ export class AaNavigationbar extends LitElement {
 			box-shadow: 4px 4px 0 #000;
 			font-family: 'Bitter', serif;
 		}
+		.nav-links a.disabled {
+			color: #999;
+			pointer-events: none;
+			cursor: default;
+			text-decoration: none;
+			}
 
 		.center {
 			place-content: center;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RoundStatus, WinCondition, ScoreModifier } from "./enums.js";
+import { RoundStatus, WinCondition, ScoreModifier, ThrowType } from "./enums.js";
 import { DartThrowSchema } from "./dartThrowSchema.js";
 import { Rank } from "./rank.js";
 
@@ -32,14 +32,40 @@ export const PlayerResultSchema = z.object({
 	oldRank: z.nativeEnum(Rank),
 	newRank: z.nativeEnum(Rank),
 });
+export const MatchSnapshotSchema = z.object({
+	id: z.number(),
+	seasonStatisticsId: z.number(),
+	date: z.string().transform(str => new Date(str)),
+	mmr: z.number(),
+	rank: z.nativeEnum(Rank),
+	playerCount: z.number(),
+});
 
+export const HitCountSchema = z.object({
+	id: z.number(),
+	throwType: z.nativeEnum(ThrowType),
+	hitLocation: z.number(),
+	count: z.number(),
+	seasonStatisticsId: z.number(),
+});
+export const FinishCountSchema = z.object({
+	id: z.number(),
+	roundNumber: z.number(),
+	count: z.number(),
+	seasonStatisticsId: z.number(),
+});
 export const SeasonStatisticsSchema = z.object({
 	id: z.number(),
 	userId: z.string().uuid(),
 	seasonId: z.string().uuid(),
 	currentRank: z.nativeEnum(Rank),
 	highestAchievedRank: z.nativeEnum(Rank),
+	highestRoundScore: z.number(),
+	highestRoundScoreForVicory: z.number(),
 	mmr: z.number(),
+	matchSnapshots: z.array(MatchSnapshotSchema),
+	hitCounts: z.array(HitCountSchema),
+	finishCount: z.array(FinishCountSchema),
 });
 
 export const UserSchema = z.object({
@@ -85,6 +111,9 @@ export type PlayerRounds = z.infer<typeof PlayerRoundsScema>;
 export type GameSubmission = z.infer<typeof GameSubmissionSchema>;
 export type PlayerResult = z.infer<typeof PlayerResultSchema>;
 export type SeasonStatistics = z.infer<typeof SeasonStatisticsSchema>;
+export type MatchSnapshot = z.infer<typeof MatchSnapshotSchema>;
+export type HitCount = z.infer<typeof HitCountSchema>;
+export type FinishCount = z.infer<typeof FinishCountSchema>;
 
 export type User = z.infer<typeof UserSchema>;
 

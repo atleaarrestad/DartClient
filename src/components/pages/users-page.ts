@@ -75,9 +75,7 @@ export class UsersPage extends LitElement {
 					cmp = (a.stats.mmr ?? 0) - (b.stats.mmr ?? 0);
 					break;
 				case "rank":
-					const ra = a.stats.currentRank ?? 0;
-					const rb = b.stats.currentRank ?? 0;
-					cmp = ra - rb;
+					cmp = (a.stats.currentRank ?? 0) - (b.stats.currentRank ?? 0);
 					break;
 			}
 			return this.sortAsc ? cmp : -cmp;
