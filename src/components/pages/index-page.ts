@@ -19,6 +19,7 @@ import { AaCombobox } from "../aa-combobox-cmp.js";
 
 import { getRankDisplayValue, Rank, getRankIcon } from "../../models/rank.js";
 import { UserService } from "../../services/userService.js";
+import { GameService } from "../../services/gameService.js";
 
 @customElement("index-page")
 export class IndexPage extends LitElement {
@@ -26,8 +27,10 @@ export class IndexPage extends LitElement {
 	private userService: UserService;
 	private notificationService: NotificationService;
 	private dialogService: DialogService;
+	private gameService: GameService;
 	@state() private season?: Season;
 	@state() private loading: boolean = true;
+	private gameIdFromLocalStorage: string | undefined = undefined;
 
 	protected selectedId?: string;
 	@property({ type: Array }) users: User[] = [];
@@ -43,6 +46,7 @@ export class IndexPage extends LitElement {
 		this.notificationService = container.resolve(NotificationService);
 		this.dialogService = container.resolve(DialogService);
 		this.userService = container.resolve(UserService);
+		this.gameService = container.resolve(GameService);
 	}
 
 	public override async connectedCallback(): Promise<void> {
@@ -51,6 +55,7 @@ export class IndexPage extends LitElement {
 			this.healthCheckServer(),
 			this.loadUsers(),
 			this.GetLatestSeason(),
+
 		]);
 
 		this.loading = false;
@@ -86,7 +91,7 @@ export class IndexPage extends LitElement {
 	}
 
 	private async GetLatestSeason(): Promise<void> {
-		const season = await this.dataService.GetCurrentSeason();
+		const season = await this.dataService.getCurrentSeason();
 		this.season = season;
 	}
 
@@ -464,6 +469,7 @@ export class IndexPage extends LitElement {
 		if (this.loading || !this.season) {
 			return html`<p>Loading...</p>`;
 		}
+
 		return html`
 			<div class="player-container">
 				${this.players.map((player, playerIndex) => {

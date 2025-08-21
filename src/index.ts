@@ -24,9 +24,13 @@ import { NotificationService } from "./services/notificationService.js";
 import { DialogService } from "./services/dialogService.js";
 import { SeasonService } from "./services/seasonService.js";
 import { UserService } from "./services/userService.js";
+import { CacheService } from "./services/cacheService.js";
+import { GameService } from "./services/gameService.js";
 
 container.register(DataService, { useClass: DataService });
 container.register(NotificationService, { useClass: NotificationService });
 container.register(DialogService, { useClass: DialogService });
 container.register(SeasonService, { useClass: SeasonService });
 container.register(UserService, { useClass: UserService });
+container.register(CacheService, { useClass: CacheService });
+container.register(GameService, { useClass: GameService });

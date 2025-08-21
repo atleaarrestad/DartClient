@@ -1,8 +1,11 @@
 import { injectable } from "tsyringe";
-import { GameResult, GameResultSchema, RoundSchema, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
-import { GameSubmission, Round } from "src/models/schemas.js";
-import { z } from "zod";
+import { GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
+import { GameSubmission } from "src/models/schemas.js";
 import { UserQueryOptions, buildGetUserByIdUrl } from "../api/users.requests.js";
+
+export type ApiResponse<T> =
+	| { ok: true; data: T }
+	| { ok: false; status: number; statusText: string; body: unknown };
 
 @injectable()
 export class DataService {
@@ -12,40 +15,96 @@ export class DataService {
 
 	public async Ping(): Promise<string> {
 		const result = await this.get<string>("ping");
-		if (result === undefined || result === null) {
-			throw new Error("Unable to reach server");
+		if (result.ok) {
+			return result.data;
 		}
 		else {
-			return result;
+			throw new Error("Unable to reach server");
 		}
 	}
 
-	public async GetCurrentSeason(): Promise<Season> {
-		const result = await this.get<Season>("season/latest");
+	public async RequestNewGame(): Promise<string> {
+		const result = await this.get<string>("games/sessions/new");
+		if (result.ok) {
+			return result.data;
+		}
+		else {
+			throw new Error("Failed to create new game");
+		}
+	}
 
-		if (result) {
+	public async getActiveGame(
+		gameId: string,
+	): Promise<GameTracker | undefined> {
+		const resp = await this.get<GameTracker>(`games/sessions/${gameId}`);
+
+		if (!resp.ok && resp.status === 404) {
+			return undefined;
+		}
+
+		if (!resp.ok) {
+			throw new Error(
+				`Failed to fetch active game: ${resp.status} ${resp.statusText}`,
+			);
+		}
+
+		try {
+			return GameTrackerSchema.parse(resp.data);
+		}
+		catch {
+			throw new Error("Invalid game tracker data received from the API");
+		}
+	}
+
+	public async AddPlayerToGame(gameId: string, playerId: string): Promise<GameTracker> {
+		const result = await this.get<GameTracker>(`games/sessions/${gameId}/player/${playerId}`);
+		if (!result.ok) {
+			throw new Error(
+				`Failed to add player to active game: ${result.status} ${result.statusText}`,
+			);
+		}
+		else {
 			try {
-				return SeasonSchema.parse(result);
+				return GameTrackerSchema.parse(result.data);
 			}
 			catch {
-				throw new Error("Not able to parse season from server");
+				throw new Error("Invalid game tracker data received from the API");
 			}
 		}
-		throw new Error("Failed to fetch latest season from server");
+	}
+
+	public async getCurrentSeason(): Promise<Season> {
+		const resp = await this.get<Season>("season/latest");
+
+		if (!resp.ok) {
+			throw new Error(
+				`Failed to fetch latest season from server: ${resp.status} ${resp.statusText}`,
+			);
+		}
+
+		try {
+			return SeasonSchema.parse(resp.data);
+		}
+		catch {
+			throw new Error("Not able to parse season from server");
+		}
 	}
 
 	public async GetAllSeasons(): Promise<Season[]> {
-		const result = await this.get<Season[]>("season/all");
+		const resp = await this.get<Season[]>("season/all");
 
-		if (result) {
-			try {
-				return result.map(season => SeasonSchema.parse(season));
-			}
-			catch {
-				throw new Error("Not able to parse season from server");
-			}
+		if (!resp.ok) {
+			throw new Error(
+				`Failed to fetch all seasons from server: ${resp.status} ${resp.statusText}`,
+			);
 		}
-		throw new Error("Failed to fetch all seasons from server");
+
+		try {
+			return resp.data.map(season => SeasonSchema.parse(season));
+		}
+		catch {
+			throw new Error("Not able to parse season from server");
+		}
 	}
 
 	public async SubmitGame(GameSubmission: GameSubmission): Promise<GameResult> {
@@ -59,105 +118,108 @@ export class DataService {
 		}
 	}
 
-	public async ValidateRounds(rounds: Round[]): Promise<Round[]> {
-		const result = await this.post<Round[], Round[]>("validate/player/rounds", rounds);
-		return z.array(RoundSchema).parse(result);
-	}
+	public async getAllUsers(): Promise<User[]> {
+		const resp = await this.get<User[]>("users/getall");
 
-	public async GetAllUsers(): Promise<User[]> {
-		const result = await this.get<User[]>("users/getall");
-
-		if (result) {
-			try {
-				return result.map(user => UserSchema.parse(user));
-			}
-			catch {
-				throw new Error("Invalid user data received from the API");
-			}
+		if (!resp.ok) {
+			throw new Error(
+				`Failed to fetch users from server: ${resp.status} ${resp.statusText}`,
+			);
 		}
-		throw new Error("Failed to fetch users from server");
+
+		try {
+			return resp.data.map(u => UserSchema.parse(u));
+		}
+		catch {
+			throw new Error("Invalid user data received from the API");
+		}
 	}
 
 	public async getUserById(
 		userId: string,
 		options?: UserQueryOptions,
-	): Promise<User> {
+	): Promise<User | null> {
 		const url = buildGetUserByIdUrl(userId, options);
-		const result = await this.get<User>(url);
+		const resp = await this.get<User>(url);
 
-		if (result) {
-			try {
-				UserSchema.parse(result);
-				return result;
-			}
-			catch {
-				throw new Error("Invalid user data received from the API");
-			}
-		}
-
-		throw new Error("Failed to fetch user from server");
-	}
-
-	private async request<TResponse>(
-		endpoint: string,
-		options: RequestInit,
-	): Promise<TResponse | null> {
-		try {
-			const response = await fetch(`${this.baseUrl}${endpoint}`, {
-				...options,
-				headers: {
-					"Content-Type": "application/json",
-					...options.headers,
-				},
-				signal: this.createTimeoutSignal(this.abortTimeout),
-			});
-
-			if (!response.ok) {
-				console.error(
-					`${options.method} request to ${endpoint} failed with status: ${response.status}`,
-				);
-				return null;
-			}
-
-			const data: TResponse = await response.json();
-			return data;
-		}
-		catch (error) {
-			console.error(`${options.method} request to ${endpoint} failed:`, error);
+		if (!resp.ok && resp.status === 404) {
 			return null;
 		}
+
+		if (!resp.ok) {
+			throw new Error(
+				`Failed to fetch user from server: ${resp.status} ${resp.statusText}`,
+			);
+		}
+
+		try {
+			return UserSchema.parse(resp.data);
+		}
+		catch {
+			throw new Error("Invalid user data received from the API");
+		}
 	}
 
-	private async post<TRequest, TResponse>(
+	private async request<T>(
 		endpoint: string,
-		body: TRequest,
-	): Promise<TResponse | null> {
-		return this.request<TResponse>(endpoint, {
+		options: RequestInit,
+	): Promise<ApiResponse<T>> {
+		const res = await fetch(`${this.baseUrl}${endpoint}`, {
+			...options,
+			headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+			signal: this.createTimeoutSignal(this.abortTimeout),
+		});
+
+		const text = await res.text();
+		let body: unknown;
+		try {
+			body = JSON.parse(text);
+		}
+		catch {
+			body = text;
+		}
+
+		if (!res.ok) {
+			return {
+				ok: false,
+				status: res.status,
+				statusText: res.statusText,
+				body,
+			};
+		}
+
+		return {
+			ok: true,
+			data: body as T,
+		};
+	}
+
+	public async post<Req, Res>(
+		endpoint: string,
+		body: Req,
+	): Promise<ApiResponse<Res>> {
+		return this.request<Res>(endpoint, {
 			method: "POST",
 			body: JSON.stringify(body),
 		});
 	}
 
-	private async get<TResponse>(endpoint: string): Promise<TResponse | null> {
-		return this.request<TResponse>(endpoint, {
-			method: "GET",
-		});
+	public async get<T>(endpoint: string): Promise<ApiResponse<T>> {
+		return this.request<T>(endpoint, { method: "GET" });
 	}
 
-	private async put<TRequest, TResponse>(
+	public async put<Req, Res>(
 		endpoint: string,
-		body: TRequest,
-	): Promise<TResponse | null> {
-		return this.request<TResponse>(endpoint, {
+		body: Req,
+	): Promise<ApiResponse<Res>> {
+		return this.request<Res>(endpoint, {
 			method: "PUT",
 			body: JSON.stringify(body),
 		});
 	}
 
-	private async delete<TResponse>(endpoint: string): Promise<TResponse | null> {
-		return this.request<TResponse>(endpoint, {
-			method: "DELETE",
-		});
+	public async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
+		return this.request<T>(endpoint, { method: "DELETE" });
 	}
 
 	private createTimeoutSignal(timeout: number): AbortSignal {

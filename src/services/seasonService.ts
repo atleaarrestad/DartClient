@@ -23,7 +23,7 @@ export class SeasonService {
 			return this.currentlyActiveSeasonPromise;
 		}
 
-		this.currentlyActiveSeasonPromise = this.dataService.GetCurrentSeason()
+		this.currentlyActiveSeasonPromise = this.dataService.getCurrentSeason()
 			.then((season) => {
 				this.currentlyActiveSeason = season;
 				return season;

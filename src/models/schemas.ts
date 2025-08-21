@@ -32,6 +32,13 @@ export const PlayerResultSchema = z.object({
 	oldRank: z.nativeEnum(Rank),
 	newRank: z.nativeEnum(Rank),
 });
+
+export const GameTrackerSchema = z.object({
+	id: z.string().uuid(),
+	started: z.string().transform(str => new Date(str)),
+	playersRounds: z.array(PlayerRoundsScema),
+});
+
 export const MatchSnapshotSchema = z.object({
 	id: z.number(),
 	seasonStatisticsId: z.number(),
@@ -114,6 +121,7 @@ export type SeasonStatistics = z.infer<typeof SeasonStatisticsSchema>;
 export type MatchSnapshot = z.infer<typeof MatchSnapshotSchema>;
 export type HitCount = z.infer<typeof HitCountSchema>;
 export type FinishCount = z.infer<typeof FinishCountSchema>;
+export type GameTracker = z.infer<typeof GameTrackerSchema>;
 
 export type User = z.infer<typeof UserSchema>;
 
