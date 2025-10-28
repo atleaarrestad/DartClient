@@ -1,7 +1,8 @@
 import { injectable } from "tsyringe";
-import { GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
+import { GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds, PlayerRoundsScema, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
 import { GameSubmission } from "src/models/schemas.js";
 import { UserQueryOptions, buildGetUserByIdUrl } from "../api/users.requests.js";
+import { DartThrow } from "../models/dartThrowSchema.js";
 
 export type ApiResponse<T> =
 	| { ok: true; data: T }
@@ -24,16 +25,17 @@ export class DataService {
 	}
 
 	public async RequestNewGame(): Promise<string> {
-		const result = await this.get<string>("games/sessions/new");
+		const result = await this.post<undefined, string>("games/sessions/new", undefined);
 		if (result.ok) {
 			return result.data;
 		}
 		else {
+			debugger;
 			throw new Error("Failed to create new game");
 		}
 	}
 
-	public async getActiveGame(
+	public async getActiveGameSession(
 		gameId: string,
 	): Promise<GameTracker | undefined> {
 		const resp = await this.get<GameTracker>(`games/sessions/${gameId}`);
@@ -56,8 +58,46 @@ export class DataService {
 		}
 	}
 
-	public async AddPlayerToGame(gameId: string, playerId: string): Promise<GameTracker> {
-		const result = await this.get<GameTracker>(`games/sessions/${gameId}/player/${playerId}`);
+	public async AddPlayerToGameSession(gameId: string, playerId: string): Promise<GameTracker> {
+		const result = await this.post<undefined, GameTracker>(`games/sessions/${gameId}/player/${playerId}`, undefined);
+		if (!result.ok) {
+			throw new Error(
+				`Failed to add player to active game: ${result.status} ${result.statusText}`,
+			);
+		}
+		else {
+			try {
+				return GameTrackerSchema.parse(result.data);
+			}
+			catch {
+				throw new Error("Invalid game tracker data received from the API");
+			}
+		}
+	}
+
+	public async removePlayerFromGameSession(gameId: string, playerId: string): Promise<GameTracker> {
+		const result = await this.delete<GameTracker>(`games/sessions/${gameId}/player/${playerId}`);
+		if (!result.ok) {
+			throw new Error(
+				`Failed to delete player from active game: ${result.status} ${result.statusText}`,
+			);
+		}
+		else {
+			try {
+				return GameTrackerSchema.parse(result.data);
+			}
+			catch {
+				throw new Error("Invalid game tracker data received from the API");
+			}
+		}
+	}
+
+	public async AddDartThrowToGameSession(gameId: string, playerId: string, roundNumber: number, dartThrow: DartThrow): Promise<GameTracker>{
+		const request = {
+			HitLocation: dartThrow.hitLocation,
+			ThrowType: dartThrow.throwType
+		}
+		const result = await this.post<object, PlayerRounds>(`games/sessions/${gameId}/player/${playerId}/round/${roundNumber}/throw/${dartThrow.throwIndex}`, request);
 		if (!result.ok) {
 			throw new Error(
 				`Failed to add player to active game: ${result.status} ${result.statusText}`,

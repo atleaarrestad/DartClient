@@ -4,7 +4,7 @@ import { TemplateResult, render } from "lit";
 
 @injectable()
 export class DialogService {
-	open(content: HTMLElement | string | TemplateResult): Promise<void> {
+	open<T = void>(content: HTMLElement | string | TemplateResult): Promise<T | undefined> {
 		return new Promise((resolve) => {
 			const dialog = document.createElement("aa-dialog") as AaDialog;
 
@@ -20,9 +20,10 @@ export class DialogService {
 				dialog.appendChild(fragment);
 			}
 
-			dialog.addEventListener("dialog-closed", () => {
+			dialog.addEventListener("dialog-closed", (e: Event) => {
+				const customEvent = e as CustomEvent<{ result?: T }>;
 				dialog.remove();
-				resolve();
+				resolve(customEvent.detail?.result);
 			});
 
 			document.body.appendChild(dialog);

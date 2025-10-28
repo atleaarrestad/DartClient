@@ -7,10 +7,10 @@ import { LitElement } from "lit";
 import { DataService } from "../../services/dataService.js";
 import { NotificationService } from "../../services/notificationService.js";
 import { DialogService } from "../../services/dialogService.js";
-import { postGameTemplate, gameResultDummyData } from "../../templates/dialogTemplates.js";
+import { postGameTemplate, gameResultDummyData, selectUserTemplate } from "../../templates/dialogTemplates.js";
 import { container } from "tsyringe";
 
-import { User, Round, SeasonStatistics, PlayerRounds, GameResult, Season } from "../../models/schemas.js";
+import { User, Round, SeasonStatistics, PlayerRounds, GameResult, Season, GameTracker } from "../../models/schemas.js";
 import { ThrowType, RoundStatus } from "../../models/enums.js";
 
 import "../aa-button-cmp.js";
@@ -20,10 +20,12 @@ import { AaCombobox } from "../aa-combobox-cmp.js";
 import { getRankDisplayValue, Rank, getRankIcon } from "../../models/rank.js";
 import { UserService } from "../../services/userService.js";
 import { GameService } from "../../services/gameService.js";
+import { SeasonService } from "../../services/seasonService.js";
 
 @customElement("index-page")
 export class IndexPage extends LitElement {
 	private dataService: DataService;
+	private seasonService: SeasonService;
 	private userService: UserService;
 	private notificationService: NotificationService;
 	private dialogService: DialogService;
@@ -35,14 +37,12 @@ export class IndexPage extends LitElement {
 	protected selectedId?: string;
 	@property({ type: Array }) users: User[] = [];
 
-	@property({ type: Array }) players: PlayerRounds[] = [
-		this.getEmptyPlayerObject(15),
-		this.getEmptyPlayerObject(15),
-	];
+	@property({ type: Array }) players: PlayerRounds[] = [];
 
 	constructor() {
 		super();
 		this.dataService = container.resolve(DataService);
+		this.seasonService = container.resolve(SeasonService);
 		this.notificationService = container.resolve(NotificationService);
 		this.dialogService = container.resolve(DialogService);
 		this.userService = container.resolve(UserService);
@@ -51,12 +51,18 @@ export class IndexPage extends LitElement {
 
 	public override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
-		await Promise.all([
-			this.healthCheckServer(),
-			this.loadUsers(),
-			this.GetLatestSeason(),
+		await this.healthCheckServer();
+		await this.loadUsers();
+		await this.GetLatestSeason();
 
-		]);
+		var locallyCachedGameSessionId = this.gameService.getCachedGameId()
+		if (locallyCachedGameSessionId !== undefined){
+			const gameTracker = await this.gameService.getActiveGame(locallyCachedGameSessionId);
+			if (gameTracker){
+				this.gameIdFromLocalStorage = locallyCachedGameSessionId;
+				this.updateGameState(gameTracker);
+			}
+		}
 
 		this.loading = false;
 		// await this.dialogService.open(postGameTemplate(gameResultDummyData, this.users));
@@ -91,67 +97,30 @@ export class IndexPage extends LitElement {
 	}
 
 	private async GetLatestSeason(): Promise<void> {
-		const season = await this.dataService.getCurrentSeason();
+		const season = await this.seasonService.getCurrentSeason();
 		this.season = season;
 	}
 
-	private createRound(roundNumber: number): Round {
-		return {
-			roundNumber,
-			dartThrows: [
-				{ throwIndex: 0, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
-				{ throwIndex: 1, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
-				{ throwIndex: 2, hitLocation: 0, throwType: ThrowType.Single, finalPoints: 0, activatedModifiers: [] },
-			],
-			cumulativePoints: 0,
-			roundStatus: RoundStatus.Unplayed,
-		};
-	}
 
-	private handleThrowUpdated(updatedThrow: Round["dartThrows"][number], playerIndex: number, roundIndex: number) {
+	private async handleThrowUpdated(updatedThrow: Round["dartThrows"][number], playerIndex: number, roundIndex: number) {
 		if (!this.players[playerIndex]) {
 			return;
 		}
-
-		const updatedRounds = [...this.players[playerIndex].rounds];
-
-		updatedRounds[roundIndex] = {
-			...updatedRounds[roundIndex]!,
-			dartThrows: updatedRounds[roundIndex]!.dartThrows.map((dartThrow, index) =>
-				index === updatedThrow.throwIndex ? { ...dartThrow, ...updatedThrow } : dartThrow,
-			),
-		};
-
-		const updatedPlayer = { ...this.players[playerIndex], rounds: updatedRounds };
-
-		this.players = [
-			...this.players.slice(0, playerIndex),
-			updatedPlayer,
-			...this.players.slice(playerIndex + 1),
-		];
-
-		this.dataService.ValidateRounds(updatedRounds).then((response: Round[]) => {
-			updatedPlayer.rounds = [...response];
-
-			this.players = [
-				...this.players.slice(0, playerIndex),
-				updatedPlayer,
-				...this.players.slice(playerIndex + 1),
-			];
-		});
-	}
-
-	private handleUserselected(user: User, playerIndex: number) {
-		this.players[playerIndex]!.playerId = user.id;
-		this.reorderPlayersByMMR();
-		this.requestUpdate();
+		const playerId = this.getUserFromPlayerIndex(playerIndex)?.id;
+		try {
+			const gameTracker = await this.gameService.addDartThrowToGame(this.gameIdFromLocalStorage!, playerId!, roundIndex, updatedThrow);
+			this.updateGameState(gameTracker);
+		} catch (error) {
+		}
 	}
 
 	private handleKeyDown(event: KeyboardEvent) {
 		if (event.shiftKey) {
 			switch (event.key) {
 				case "+":
-					this.addNewPlayer();
+					if (this.players.length > 0){
+						this.addNewPlayer();
+					}
 					event.preventDefault();
 					break;
 
@@ -164,6 +133,17 @@ export class IndexPage extends LitElement {
 					this.moveFocus("backward");
 					event.preventDefault();
 					break;
+
+				case "n":
+				case "N":
+					(async () => {
+						this.players = [];
+						await this.requestNewGame();
+						await this.addNewPlayer();
+					})();
+					event.preventDefault();
+					break;
+
 
 				case "s":
 				case "S":
@@ -190,6 +170,7 @@ export class IndexPage extends LitElement {
 							this.notificationService.addNotification(errorMessage, "danger");
 						}
 					})();
+					event.preventDefault();
 					break;
 			}
 		}
@@ -204,12 +185,7 @@ export class IndexPage extends LitElement {
 	}
 
 	private resetGameData() {
-		for (let i = 0; i < this.players.length; i++) {
-			const id = this.players[i]!.playerId;
-			const newPlayer = this.getEmptyPlayerObject(15);
-			newPlayer.playerId = id;
-			this.players[i] = newPlayer;
-		}
+
 	}
 
 	private moveFocus(direction: "forward" | "backward") {
@@ -217,20 +193,9 @@ export class IndexPage extends LitElement {
 		const playerCount = this.players.length;
 
 		if (selectedElementDetails.type === "nothing") {
-			this.focusCombobox(0);
+			this.focusDartThrow(0, 0, 0);
 		}
 
-		else if (selectedElementDetails.type === "combobox") {
-			const nextComboboxIndex = this.getNextFocusForCombobox(direction, selectedElementDetails.playerIndex!);
-			if (nextComboboxIndex !== undefined) {
-				this.focusCombobox(nextComboboxIndex);
-			}
-			else {
-				if (direction === "forward") {
-					this.focusDartThrow(0, 0, 0);
-				}
-			}
-		}
 		else if (selectedElementDetails.type === "throw") {
 			const nextThrow = this.getNextFocusForDartthrow(direction,
 				selectedElementDetails.playerIndex!,
@@ -241,45 +206,45 @@ export class IndexPage extends LitElement {
 			if (nextThrow) {
 				this.focusDartThrow(nextThrow.nextPlayerIndex, nextThrow.nextRoundIndex, nextThrow.nextThrowIndex);
 			}
-			else if (direction == "backward") {
-				this.focusCombobox(playerCount - 1);
-			}
 		}
 	}
 
-	private removeLastPlayer() {
-		if (this.players.length > 1) {
-			this.players.pop();
-			this.players = [...this.players];
+	private async removeLastPlayer() {
+		const playerId = this.players.at(-1)?.playerId;
+		if (playerId && this.gameIdFromLocalStorage){
+			const gameTracker = await this.gameService.removePlayer(this.gameIdFromLocalStorage, playerId);
+			this.updateGameState(gameTracker);
 		}
 	}
 
-	private addNewPlayer() {
-		const playerWithMostRounds = this.players.reduce((prev, current) => {
-			return prev!.rounds.length > current.rounds.length ? prev : current;
-		}, this.players[0]);
-
-		const roundsPlayed = playerWithMostRounds!.rounds.length;
-		const newPlayer = this.getEmptyPlayerObject(roundsPlayed);
-		this.players = [...this.players, newPlayer];
-
-		setTimeout(() => {
-			this.renderRoot.querySelector<AaCombobox>(`#combobox-${this.players.length - 1}`)?.focus();
-		}, 100);
+	private async requestNewGame(): Promise<string>{
+		const newGameID = await this.gameService.requestNewGame();
+		if (newGameID){
+			this.gameIdFromLocalStorage = newGameID;
+		}
+		return newGameID;
 	}
 
-	private getEmptyPlayerObject(roundCount: number): PlayerRounds {
-		return {
-			playerId: "",
-			rounds: Array.from({ length: roundCount }, (_, index) => this.createRound(index + 1)),
-		};
+	private updateGameState(gameTracker: GameTracker){
+		this.players = [...gameTracker.playersRounds];
+		this.reorderPlayersByMMR();
+		this.requestUpdate();
 	}
 
-	private handleComboboxFocused(event: FocusEvent) {
-		this.selectedId = (event.target as AaCombobox).id;
+	private async addNewPlayer() {
+		const filteredUsers = this.users.filter(
+			user => !this.players.some(player => player.playerId === user.id)
+		);
+		const user = await this.dialogService.open<User>(selectUserTemplate(filteredUsers))
+
+		if (this.gameIdFromLocalStorage && user){
+			const gameTracker = await this.gameService.addPlayerToGame(this.gameIdFromLocalStorage, user.id);
+			this.updateGameState(gameTracker);
+
+		}
 	}
 
-	private getSelectedElementDetails(): { type: "combobox" | "throw" | "nothing"; playerIndex?: number; rowIndex?: number; throwIndex?: number } {
+	private getSelectedElementDetails(): { type: "throw" | "nothing"; playerIndex?: number; rowIndex?: number; throwIndex?: number } {
 		const result = { type: "nothing", playerIndex: undefined, rowIndex: undefined, throwIndex: undefined };
 		if (!this.selectedId) {
 			return result;
@@ -288,10 +253,7 @@ export class IndexPage extends LitElement {
 		const idParts = this.selectedId!.split("-");
 		result.type = idParts[0]!;
 
-		if (result.type === "combobox") {
-			result.playerIndex = parseInt(idParts.pop(), 10);
-		}
-		else if (result.type === "throw") {
+		if (result.type === "throw") {
 			result.throwIndex = parseInt(idParts.pop(), 10);
 			result.rowIndex = parseInt(idParts.pop(), 10);
 			result.playerIndex = parseInt(idParts.pop(), 10);
@@ -339,19 +301,6 @@ export class IndexPage extends LitElement {
 		return undefined;
 	}
 
-	private getNextFocusForCombobox(direction: "forward" | "backward", playerIndex: number): number | undefined {
-		const playerCount = this.players.length;
-
-		if (direction === "forward" && playerIndex < playerCount - 1) {
-			return playerIndex + 1;
-		}
-
-		if (direction === "backward" && playerIndex > 0) {
-			return playerIndex - 1;
-		}
-
-		return undefined;
-	}
 
 	private getNextFocusForDartthrow(
 		direction: "forward" | "backward",
@@ -413,23 +362,25 @@ export class IndexPage extends LitElement {
 		return null;
 	}
 
-	private getCumulativePoints(player: PlayerRounds): number | undefined {
-		for (let i = player.rounds.length - 1; i >= 0; i--) {
+	private getCumulativePoints(player: PlayerRounds): number {
+		for (let i = player.rounds.length - 1; i > 0 ; i--) {
 			const round = player.rounds[i];
-			if (round!.roundStatus === RoundStatus.Valid || round!.roundStatus === RoundStatus.Victory) {
+			if (round?.roundStatus !== RoundStatus.Unplayed){
 				return round!.cumulativePoints;
 			}
 		}
-		return undefined;
+		return 0;
+	}
+
+	private getRoundSum(round: Round): number{
+		return round.dartThrows.reduce(
+			(total, t) => total + t.finalPoints,
+			0
+		);
 	}
 
 	private getDifferenceFromBase(player: PlayerRounds): number | undefined {
-		const lastRound = player.rounds[player.rounds.length - 1];
-		return lastRound ? -this.season!.goal + lastRound.cumulativePoints : undefined;
-	}
-
-	private getCumulativePointsForRound(round: Round): number {
-		return round.dartThrows.reduce((sum, dartThrow) => sum + (dartThrow.finalPoints || 0), 0);
+		return this.getCumulativePoints(player) - this.season!.goal;
 	}
 
 	private getLatestSeasonStatsForPlayer(playerIndex: number): SeasonStatistics | undefined {
@@ -466,8 +417,17 @@ export class IndexPage extends LitElement {
 	}
 
 	override render() {
+		console.log(this.players.length);
 		if (this.loading || !this.season) {
 			return html`<p>Loading...</p>`;
+		}
+		if (this.players.length === 0){
+			return html`
+				<div class="centered offsetY">
+					<div class="shortcut">[SHIFT + N]</div>
+					<div class="subtitle">to start a new game!</div>
+				</div>
+			`
 		}
 
 		return html`
@@ -480,13 +440,7 @@ export class IndexPage extends LitElement {
 
 					return html`
 						<article class="player">
-							<aa-combobox
-								id="combobox-${playerIndex}"
-								.selectedUser=${this.users.find(user => user.id === player.playerId) || null}
-								@user-selected=${(e: CustomEvent) => this.handleUserselected(e.detail, playerIndex)}
-								@focus=${(e: FocusEvent) => this.handleComboboxFocused(e)}
-								.users=${this.users}>
-							</aa-combobox>
+							<span class="player-name"> ${this.getUserFromPlayerIndex(playerIndex)?.alias ?? "Hackerman"}</span>
 							<span class="total-sum">${this.getCumulativePoints(player)} (${this.getDifferenceFromBase(player)})</span>
 							<div class="round-labels-container round-grid">
 								<span class="border-right">N</span>
@@ -507,12 +461,12 @@ export class IndexPage extends LitElement {
 													<aa-dartthrow
 														id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
 														.dartThrow=${dartThrow}
-														@throw-updated=${(e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
+														@throw-updated=${async (e: CustomEvent) => this.handleThrowUpdated(e.detail.dartThrow, playerIndex, roundIndex)}
 														@focus=${(e: FocusEvent) => this.handleDartthrowFocused(e)}>
 													</aa-dartthrow>
 												`)}
 											</div>
-											<div class="cumulative-points-round">${this.getCumulativePointsForRound(round)}</div>
+											<div class="cumulative-points-round">${this.getRoundSum(round)}</div>
 										</div>
 									</div>
 								`)}
@@ -532,6 +486,27 @@ export class IndexPage extends LitElement {
 	}
 
 	static override styles = [sharedStyles, css`
+
+		.player-name{
+			padding: 8px;
+			text-align: center;
+			font-size: 1.5rem
+		}
+
+		.shortcut {
+			font-size: 2rem;
+			font-weight: bold;
+			margin-bottom: 0.5rem;
+		}
+
+		.subtitle {
+			font-size: 1.2rem;
+			opacity: 0.8;
+		}
+		.offsetY {
+			padding-top: 40vh;
+		
+		}
 
 		.victory {
 			background-color: var(--color-victory);

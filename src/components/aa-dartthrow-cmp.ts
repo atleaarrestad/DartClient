@@ -1,6 +1,6 @@
 import { html, css, LitElement } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
-import { ThrowType } from "../models/enums.js";
+import { ScoreModifier, ThrowType } from "../models/enums.js";
 import { DartThrow } from "../models/dartThrowSchema.js";
 import { sharedStyles } from "../../styles.js";
 
@@ -10,19 +10,23 @@ export class aaDartThrow extends LitElement {
 	@state() isReadOnly: boolean = false;
 	@query("input") inputElement: HTMLInputElement;
 	@state() oldValue: number = 0;
+	@state() oldThrowType: ThrowType = ThrowType.Single;
 
 	override focus(options?: FocusOptions): void {
 		this.shadowRoot?.querySelector("input")?.focus(options);
 	}
 
 	private handleBlur() {
-		if (this.oldValue === this.dartThrow.hitLocation) {
+		if (	this.oldValue === this.dartThrow.hitLocation
+			&& 	this.oldThrowType === this.dartThrow.throwType){
+
 			return;
 		}
+
 		if (
-			[0, 25, 50].includes(this.dartThrow.hitLocation)
-			&& (this.dartThrow.throwType === ThrowType.Double || this.dartThrow.throwType === ThrowType.Triple)
-		) {
+				[0, 25, 50].includes(this.dartThrow.hitLocation)
+			&& 	(this.dartThrow.throwType === ThrowType.Double || this.dartThrow.throwType === ThrowType.Triple)) {
+
 			this.dartThrow.throwType = ThrowType.Single;
 		}
 
@@ -34,6 +38,7 @@ export class aaDartThrow extends LitElement {
 
 		this.dispatchEvent(event);
 		this.oldValue = this.dartThrow.hitLocation;
+		this.oldThrowType = this.dartThrow.throwType;
 	}
 
 	private renderMultiplier() {

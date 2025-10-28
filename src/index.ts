@@ -15,6 +15,7 @@ import "./components/aa-info-card.js";
 import "./components/aa-match-snapshot-chart.js";
 import "./components/aa-heatmap-chart.js";
 import "./components/aa-finish-count-chart.js";
+import "./components/aa-user-picker.js";
 
 import "./components/aa-dialog.js";
 

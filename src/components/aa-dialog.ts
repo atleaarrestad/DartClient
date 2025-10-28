@@ -47,7 +47,11 @@ export class AaDialog extends LitElement {
     `;
 	}
 
-	close() {
-		this.dispatchEvent(new CustomEvent("dialog-closed", { bubbles: true, composed: true }));
+	close(result?: unknown) {
+		this.dispatchEvent(new CustomEvent("dialog-closed", {
+			bubbles: true,
+			composed: true,
+			detail: { result }
+		}));
 	}
 }

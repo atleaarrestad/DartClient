@@ -9,6 +9,26 @@ const getOrdinal = (n: number): string => {
 	return n + (s[(v - 20) % 10] || s[v] || s[0]!);
 };
 
+export const selectUserTemplate = (users: User[]): TemplateResult => {
+	const handleUserselected = (e: CustomEvent, user: User) => {
+		const dialog = (e.currentTarget as HTMLElement).closest("aa-dialog") as any;
+		dialog?.close(user);
+	};
+
+	return html`
+	<style>
+		:host{
+			height: 70vh;
+		}
+    </style>
+
+	 <aa-user-picker
+		.users=${users}
+		@user-selected=${(e: CustomEvent<User>) => handleUserselected(e, e.detail)}
+  ></aa-user-picker>
+	`
+}
+
 export const postGameTemplate = (gameResult: GameResult, users: User[]): TemplateResult => {
 	const sortedPlayerResults = [...gameResult.playerResults].sort((a, b) => {
 		if (a.placement === 0 && b.placement !== 0) return 1;
