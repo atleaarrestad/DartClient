@@ -30,7 +30,6 @@ export class DataService {
 			return result.data;
 		}
 		else {
-			debugger;
 			throw new Error("Failed to create new game");
 		}
 	}
@@ -53,7 +52,8 @@ export class DataService {
 		try {
 			return GameTrackerSchema.parse(resp.data);
 		}
-		catch {
+		catch(e) {
+			debugger;
 			throw new Error("Invalid game tracker data received from the API");
 		}
 	}
@@ -147,13 +147,17 @@ export class DataService {
 		}
 	}
 
-	public async SubmitGame(GameSubmission: GameSubmission): Promise<GameResult> {
-		const result = await this.post<GameSubmission, GameResult>("games/add", GameSubmission);
+	public async SubmitGame(gameId: string): Promise<GameResult> {
+		const response = await this.post<undefined, GameResult>(`games/sessions/${gameId}`, undefined);
+		if (!response.ok){
+			throw new Error(
+				`Failed to submit game! ${response.status} ${response.statusText}`,
+			);
+		}
 		try	{
-			return GameResultSchema.parse(result);
+			return GameResultSchema.parse(response.data);
 		}
 		catch (error) {
-			console.log(error);
 			throw new Error("Unable to parse game result from server");
 		}
 	}

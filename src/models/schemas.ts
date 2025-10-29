@@ -4,7 +4,7 @@ import { DartThrowSchema } from "./dartThrowSchema.js";
 import { Rank } from "./rank.js";
 
 export const RoundSchema = z.object({
-	roundNumber: z.number().int().min(0),
+	roundIndex: z.number().int().min(0),
 	dartThrows: z.array(DartThrowSchema).min(1).max(3),
 	cumulativePoints: z.number().min(0),
 	roundStatus: z.nativeEnum(RoundStatus),

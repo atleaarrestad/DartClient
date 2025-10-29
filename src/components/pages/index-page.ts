@@ -61,6 +61,7 @@ export class IndexPage extends LitElement {
 			if (gameTracker){
 				this.gameIdFromLocalStorage = locallyCachedGameSessionId;
 				this.updateGameState(gameTracker);
+
 			}
 		}
 
@@ -102,13 +103,13 @@ export class IndexPage extends LitElement {
 	}
 
 
-	private async handleThrowUpdated(updatedThrow: Round["dartThrows"][number], playerIndex: number, roundIndex: number) {
+	private async handleThrowUpdated(updatedThrow: Round["dartThrows"][number], playerIndex: number, roundNumber: number) {
 		if (!this.players[playerIndex]) {
 			return;
 		}
 		const playerId = this.getUserFromPlayerIndex(playerIndex)?.id;
 		try {
-			const gameTracker = await this.gameService.addDartThrowToGame(this.gameIdFromLocalStorage!, playerId!, roundIndex, updatedThrow);
+			const gameTracker = await this.gameService.addDartThrowToGame(this.gameIdFromLocalStorage!, playerId!, roundNumber, updatedThrow);
 			this.updateGameState(gameTracker);
 		} catch (error) {
 		}
@@ -149,21 +150,23 @@ export class IndexPage extends LitElement {
 				case "S":
 					(async () => {
 						try {
+							if (!this.gameIdFromLocalStorage){
+								return;
+							}
 							const isValidGame = this.validateGameCanBeSubmitted();
 							if (!isValidGame) {
 								this.notificationService.addNotification("Cannot submit game! Play atleast one round and select user for all players", "info");
 								return;
 							}
-							const gameResult: GameResult = await this.dataService.SubmitGame({ playerRoundsList: this.players });
-
-							this.resetGameData();
+							const gameResult: GameResult = await this.dataService.SubmitGame(this.gameIdFromLocalStorage);
 
 							await this.loadUsers(); // make sure this finishes before continuing
 
 							this.reorderPlayersByMMR();
 							this.requestUpdate();
 
-							this.dialogService.open(postGameTemplate(gameResult, this.users));
+							await this.dialogService.open(postGameTemplate(gameResult, this.users));
+							this.gameIdFromLocalStorage = undefined;
 						}
 						catch (error) {
 							const errorMessage = (error as Error).message;
@@ -184,9 +187,6 @@ export class IndexPage extends LitElement {
 		}
 	}
 
-	private resetGameData() {
-
-	}
 
 	private moveFocus(direction: "forward" | "backward") {
 		const selectedElementDetails = this.getSelectedElementDetails();
@@ -507,14 +507,15 @@ export class IndexPage extends LitElement {
 			padding-top: 40vh;
 		
 		}
-
+		.overshoot {
+			background-color: #ed817f89;
+		}
+			
 		.victory {
 			background-color: var(--color-victory);
 		}
 
-		.overshoot {
-			background-color: #ed817f89 !important;
-		}
+		
 		
 
 		.centered {
