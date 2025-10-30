@@ -106,25 +106,25 @@ export class AaUserPicker extends LitElement {
   }
 
   static override styles = [
-    // keep your shared styles if you have them; else remove `sharedStyles,`
-    // @ts-ignore
     (globalThis as any).sharedStyles ?? css``,
     css`
       :host {
         display: block;
         position: relative;
-        width: 200px; /* adjust as needed */
+        width: 400px;
+		font-size: 1.5em;
+
       }
 
       .field {
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.5em;
       }
 
       input[type="search"] {
         width: 100%;
         box-sizing: border-box;
-        padding: 0.5rem 0.75rem;
-        font-size: 1rem;
+        padding: 0.5em 0.75em;
+        font-size: 1em;
         border: 2px solid black;
         border-right-width: 3px;
         border-bottom-width: 3px;
@@ -136,7 +136,7 @@ export class AaUserPicker extends LitElement {
         list-style: none;
         margin: 0;
         padding: 0;
-        max-height: 50vh; /* keeps it usable in dialogs */
+        max-height: 50vh;
         overflow: auto;
         border: 1px solid #ddd;
         border-radius: 8px;
@@ -154,14 +154,14 @@ export class AaUserPicker extends LitElement {
         width: 100%;
         display: flex;
         justify-content: space-between;
-        gap: 0.5rem;
+        gap: 0.5em;
         align-items: center;
-        padding: 0.5rem 0.75rem;
+        padding: 0.5em 0.75em;
         text-align: left;
         background: transparent;
         border: 0;
         cursor: pointer;
-        font-size: 0.95rem;
+        font-size: 0.95em;
       }
 
       .row:hover,
@@ -171,11 +171,11 @@ export class AaUserPicker extends LitElement {
 
       .alias {
         opacity: 0.7;
-        font-size: 0.9rem;
+        font-size: 0.9em;
       }
 
       .empty {
-        padding: 0.75rem;
+        padding: 0.75em;
         color: #666;
         border: 1px solid #ddd;
         border-radius: 8px;
