@@ -159,14 +159,14 @@ export class IndexPage extends LitElement {
 								return;
 							}
 							const gameResult: GameResult = await this.dataService.SubmitGame(this.gameIdFromLocalStorage);
+							this.gameIdFromLocalStorage = undefined;
 
 							await this.loadUsers(); // make sure this finishes before continuing
 
-							this.reorderPlayersByMMR();
+							this.players = [];
 							this.requestUpdate();
 
 							await this.dialogService.open(postGameTemplate(gameResult, this.users));
-							this.gameIdFromLocalStorage = undefined;
 						}
 						catch (error) {
 							const errorMessage = (error as Error).message;
