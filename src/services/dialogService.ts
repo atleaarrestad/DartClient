@@ -5,7 +5,13 @@ import { TemplateResult, render } from "lit";
 @injectable()
 export class DialogService {
 	open<T = void>(content: HTMLElement | string | TemplateResult): Promise<T | undefined> {
-		return new Promise((resolve) => {
+		return new Promise((resolve, reject) => {
+			if (document.querySelector("aa-dialog")) {
+				if (document.querySelector("aa-dialog")) {
+					reject(new Error("A dialog is already open"));
+					return;
+				}
+			}
 			const dialog = document.createElement("aa-dialog") as AaDialog;
 
 			if (typeof content === "string") {
