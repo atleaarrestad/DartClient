@@ -26,11 +26,11 @@ export class AaNavigationbar extends LitElement {
 		return html`
 			<nav class="navbar">
 				<a class="logo" href="/">
-					<img class="logo-icon" src="icons/home.png" alt="Home" />
+					<img class="logo-icon" src="/icons/home.png" alt="Home" />
 					<span>Play</span>
 				</a>
 				<a class="logo center" href=${`/season?id=${this.season?.id}`}>
-					<img class="logo-icon" src="icons/season_alpha.png" alt="Logo" />
+					<img class="logo-icon" src="/icons/season_alpha.png" alt="Logo" />
 					<span class="fit-content">Season ${this.season?.name}</span>
 				</a>
 
