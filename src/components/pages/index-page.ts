@@ -165,7 +165,6 @@ export class IndexPage extends LitElement {
 
 							this.players = [];
 							this.requestUpdate();
-
 							await this.dialogService.open(postGameTemplate(gameResult, this.users));
 						}
 						catch (error) {
@@ -417,7 +416,6 @@ export class IndexPage extends LitElement {
 	}
 
 	override render() {
-		console.log(this.players.length);
 		if (this.loading || !this.season) {
 			return html`<p>Loading...</p>`;
 		}

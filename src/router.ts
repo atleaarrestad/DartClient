@@ -7,4 +7,5 @@ router.setRoutes([
 	{ path: "/", component: "index-page" },
 	{ path: "/users", component: "users-page" },
 	{ path: "/user/:id", component: "user-page" },
+	{ path: "/season/:id", component: "season-page"}
 ]);

@@ -1,11 +1,13 @@
 import "reflect-metadata";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
-import "./router";
+import "./router.js";
 import "./components/navigationbar-cmp.js";
 import "./components/pages/index-page.js";
 import "./components/pages/users-page.js";
 import "./components/pages/user-page.js";
+import "./components/pages/season-page.js"
+
 import "./components/aa-notification-cmp.js";
 import "./components/aa-notification-container-cmp.js";
 
