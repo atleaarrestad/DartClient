@@ -53,7 +53,6 @@ export class DataService {
 			return GameTrackerSchema.parse(resp.data);
 		}
 		catch(e) {
-			debugger;
 			throw new Error("Invalid game tracker data received from the API");
 		}
 	}

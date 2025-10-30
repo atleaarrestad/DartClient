@@ -15,7 +15,6 @@ export class GameService {
 	}
 
 	public async requestNewGame(): Promise<string> {
-		debugger;
 		const gameId = await this.dataService.RequestNewGame();
 		this.cacheService.SetGameId(gameId);
 
