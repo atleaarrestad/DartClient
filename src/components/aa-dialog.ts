@@ -5,6 +5,22 @@ import { customElement, property } from "lit/decorators.js";
 export class AaDialog extends LitElement {
 	@property({ type: Object })
 	contentTemplate?: TemplateResult;
+	override connectedCallback() {
+		super.connectedCallback();
+		window.addEventListener("keydown", this.onKeyDown);
+	}
+
+	override disconnectedCallback() {
+		super.disconnectedCallback();
+		window.removeEventListener("keydown", this.onKeyDown);
+	}
+
+	private onKeyDown = (e: KeyboardEvent) => {
+		if (e.key === "Escape") {
+			e.preventDefault();
+			this.close();
+		}
+	};
 
 	static override styles = css`
     :host {
@@ -29,8 +45,8 @@ export class AaDialog extends LitElement {
     }
     .close-btn {
       position: absolute;
-      top: 0px;
-      right: 0px;
+      top: -5px;
+      right: -5px;
       cursor: pointer;
       background: none;
       border: none;
