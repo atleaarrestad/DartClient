@@ -39,8 +39,10 @@ export class SeasonPage extends LitElement {
 		this.requestUpdate();
 	}
 	private renderRuleCode(code: string) {
-		const htmlCode = hljs.highlight(code, { language: "csharp" }).value;
-		return html`<pre><code class="hljs csharp">${unsafeHTML(htmlCode)}</code></pre>`;
+		const highlighted = hljs.highlight(code, { language: "csharp" }).value;
+		return html`
+			<pre class="hljs"><code class="language-csharp">${unsafeHTML(highlighted)}</code></pre>
+		`;
 	}
 	private getStatsForCurrentSeason(user: User): SeasonStatistics {
 		if (!user.seasonStatistics || user.seasonStatistics.length === 0) {
@@ -280,7 +282,8 @@ export class SeasonPage extends LitElement {
 
       /* Clickable card using <details> for native toggle */
       .rule-card {
-        width: clamp(220px, 28vw, 320px);
+	  	min-width: 250px;
+        width: fit-content;
         border: 2px solid black;
         border-right-width: 3px;
         border-bottom-width: 3px;
@@ -324,6 +327,9 @@ export class SeasonPage extends LitElement {
       .rule-sub {
         font-size: 0.9rem;
         opacity: 0.85;
+		max-width: 250px;
+		white-space: normal;
+		word-break: break-word;
       }
 
       .rule-body {
@@ -332,6 +338,7 @@ export class SeasonPage extends LitElement {
         font-size: 0.95rem;
         line-height: 1.35;
       }
+		
 
 	  .mmr, .alias, .rank-label, .player{
 		height: fit-content; 
