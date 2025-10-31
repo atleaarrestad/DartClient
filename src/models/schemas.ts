@@ -112,6 +112,17 @@ export const GameResultSchema = z.object({
 	goal: z.number().int(),
 });
 
+export const RuleDefinitionSchema = z.object({
+	value: z.number().int(),
+	name: z.string(),
+	description: z.string(),
+	codeImplementation: z.string(),
+});
+export const RuleDefinitionsResponseSchema = z.object({
+	scoreModifiers: z.array(RuleDefinitionSchema),
+	winConditions: z.array(RuleDefinitionSchema),
+});
+
 export type Round = z.infer<typeof RoundSchema>;
 export type PlayerRounds = z.infer<typeof PlayerRoundsScema>;
 
@@ -129,3 +140,5 @@ export type Season = z.infer<typeof SeasonSchema>;
 export type GameResult = z.infer<typeof GameResultSchema>;
 export type WinConditionRule = z.infer<typeof WinConditionRuleSchema>;
 export type ScoreModifierRule = z.infer<typeof ScoreModifierRuleSchema>;
+export type RuleDefinition = z.infer<typeof RuleDefinitionSchema>;
+export type RuleDefinitionsResponse = z.infer<typeof RuleDefinitionsResponseSchema>;

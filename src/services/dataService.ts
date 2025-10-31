@@ -1,6 +1,6 @@
 import { injectable } from "tsyringe";
-import { GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds, PlayerRoundsScema, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
-import { GameSubmission } from "src/models/schemas.js";
+import { GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds, PlayerRoundsScema, RuleDefinitionSchema, RuleDefinitionsResponseSchema, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
+import { GameSubmission, RuleDefinitionsResponse } from "src/models/schemas.js";
 import { UserQueryOptions, buildGetUserByIdUrl } from "../api/users.requests.js";
 import { DartThrow } from "../models/dartThrowSchema.js";
 
@@ -21,6 +21,22 @@ export class DataService {
 		}
 		else {
 			throw new Error("Unable to reach server");
+		}
+	}
+	public async GetRuleDefinitions(): Promise<RuleDefinitionsResponse>{
+		const resp = await this.get<RuleDefinitionsResponse>(`rule/definitions`);
+
+		if (!resp.ok) {
+			throw new Error(
+				`Failed to fetch ruledefinitions: ${resp.status} ${resp.statusText}`,
+			);
+		}
+
+		try {
+			return RuleDefinitionsResponseSchema.parse(resp.data);
+		}
+		catch(e) {
+			throw new Error("Invalid rule-definition data received from the API");
 		}
 	}
 
