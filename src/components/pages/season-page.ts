@@ -2,38 +2,46 @@ import { html, css } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { sharedStyles } from "../../../styles.js";
 import { LitElement } from "lit";
-import { NotificationService } from "../../services/notificationService.js";
-import { DialogService } from "../../services/dialogService.js";
 import { container } from "tsyringe";
-import { User, SeasonStatistics, Season } from "../../models/schemas.js";
+import { User, SeasonStatistics, Season, RuleDefinition, ScoreModifierRule, WinConditionRule } from "../../models/schemas.js";
 import { getRankDisplayValue, getRankIcon } from "../../models/rank.js";
 import { SeasonService } from "../../services/seasonService.js";
 import { UserService } from "../../services/userService.js";
+import { RuleService } from "../../services/ruleService.js";
+
+import hljs from "highlight.js/lib/core";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
 
 @customElement("season-page")
 export class SeasonPage extends LitElement {
-	private notificationService: NotificationService;
-	private dialogService: DialogService;
+	private ruleService: RuleService;
 	private seasonService: SeasonService;
 	private userService: UserService;
-
+	private winConditions: RuleDefinition[] = [];
+	private scoreModifiers: RuleDefinition[] = [];
 	@state() private season?: Season;
 	@state() private users: User[] = [];
 
 	constructor() {
 		super();
 		this.userService = container.resolve(UserService);
-		this.notificationService = container.resolve(NotificationService);
 		this.seasonService = container.resolve(SeasonService);
-		this.dialogService = container.resolve(DialogService);
+		this.ruleService = container.resolve(RuleService);
 	}
-
+	
 	public override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
 		this.season = await this.seasonService.getCurrentSeason();
 		this.users = await this.userService.getAllUsers();
+		var ruleDefinitions = await this.ruleService.GetDefinitions();
+		this.winConditions = ruleDefinitions.winConditions;
+		this.scoreModifiers = ruleDefinitions.scoreModifiers;
+		this.requestUpdate();
 	}
-
+	private renderRuleCode(code: string) {
+		const htmlCode = hljs.highlight(code, { language: "csharp" }).value;
+		return html`<pre><code class="hljs csharp">${unsafeHTML(htmlCode)}</code></pre>`;
+	}
 	private getStatsForCurrentSeason(user: User): SeasonStatistics {
 		if (!user.seasonStatistics || user.seasonStatistics.length === 0) {
 			return {
@@ -84,36 +92,29 @@ export class SeasonPage extends LitElement {
 			</div>
 		`;
 	}
-	private renderRuleRow<T>(
-    title: string,
-    items: T[],
-    renderLabel: (item: T, i: number) => string,
-    renderSubLabel?: (item: T) => string | undefined
-	) {
-		if (!items?.length) return html``;
+	private renderRuleRow(
+		title: string,
+		items: {value: number, execOrder?: number}[],
+		definitions: RuleDefinition[]){
 
+		if (!items?.length) return html``;
 		return html`
 		<section class="rules-section">
 			<h3 class="rules-title">${title}</h3>
 			<div class="rules-row">
-			${items.map((it, i) => {
-				const label = renderLabel(it, i);
-				const sub = renderSubLabel?.(it);
+			${items.map((item) => {
+				const ruleDefinition = definitions.find(def => def.value === item.value)!
 				return html`
 				<details class="rule-card">
 					<summary class="rule-summary">
 					<div class="rule-title">
-						<span class="rule-pill">#${i}</span>
-						<span>${label}</span>
+						${item.execOrder != undefined ? html`<span class="rule-pill">Order #${item.execOrder}</span>` : null}
+						<span>${ruleDefinition.name}</span>
 					</div>
-					${sub ? html`<div class="rule-sub">${sub}</div>` : null}
+					<div class="rule-sub">${ruleDefinition.description}</div>
 					</summary>
 					<div class="rule-body">
-					<p>
-						Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non
-						risus. Suspendisse lectus tortor, dignissim sit amet, adipiscing
-						nec, ultricies sed, dolor. Cras elementum ultrices diam.
-					</p>
+						${this.renderRuleCode(ruleDefinition.codeImplementation)}
 					</div>
 				</details>
 				`;
@@ -147,27 +148,35 @@ export class SeasonPage extends LitElement {
                   <div class="step step-3"></div>
                 </div>
               </div>
-            `}
-
-        <!-- NEW: Rules sections -->
-        ${this.season
-          ? html`
-              ${this.renderRuleRow(
-                "Score modifiers",
-                this.season.scoreModifierRules ?? [],
-                (r: any) => `Score Modifier ${r.scoreModifier}`,
-                (r: any) =>
-                  typeof r.executionOrder === "number"
-                    ? `Order: ${r.executionOrder}`
-                    : undefined
-              )}
-              ${this.renderRuleRow(
-                "Win conditions",
-                this.season.winConditionRules ?? [],
-                (r: any) => `Win Condition ${r.winCondition}`
-              )}
             `
-          : null}
+		}
+		${this.season && Array.isArray(this.scoreModifiers) && this.scoreModifiers.length
+			? html`
+				${this.renderRuleRow(
+					"Score modifiers",
+					(this.season.scoreModifierRules ?? []).map(r => ({
+						value: r.scoreModifier,
+						execOrder: r.executionOrder,
+					})),
+					this.scoreModifiers
+				)}
+				`
+			: html``}
+
+		${this.season && Array.isArray(this.winConditions) && this.winConditions.length
+			? html`
+				${this.renderRuleRow(
+					"Win conditions",
+					(this.season.winConditionRules ?? []).map(r => ({
+						value: r.winCondition,
+						execOrder: undefined,
+					})),
+					this.winConditions,
+				)}
+				`
+			: html``}
+
+        
       </section>
     `;
   }
@@ -192,7 +201,6 @@ export class SeasonPage extends LitElement {
         font-weight: 800;
       }
 
-      /* Podium (unchanged aside from your latest version) */
       .podium {
         display: grid;
         grid-template-columns: 1fr 1fr 1fr;
@@ -206,7 +214,7 @@ export class SeasonPage extends LitElement {
         flex-direction: column;
         align-items: center;
         justify-content: flex-end;
-        gap: 1rem;
+
       }
       .step {
         width: 100%;
@@ -215,15 +223,14 @@ export class SeasonPage extends LitElement {
         background: #f3f3f3;
         box-shadow: inset 0 4px 6px rgba(0, 0, 0, 0.1);
       }
-      .step-1 { height: 200px; background: #fffbe6; }
-      .step-2 { height: 140px; background: #f0f4ff; }
-      .step-3 { height: 110px; background: #fff3ec; }
+      .step-1 { height: 200px; background: #f2d14eff;}
+      .step-2 { height: 140px; background: #C0C0C0; }
+      .step-3 { height: 110px; background: #CD7F32; }
 
       .player {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 0.5rem;
       }
       .alias { font-weight: 800; font-size: 1.25rem; }
       .rank-icon {
@@ -251,8 +258,6 @@ export class SeasonPage extends LitElement {
         .podium { grid-template-columns: 1fr; }
         .step-1, .step-2, .step-3 { height: 120px; }
       }
-
-      /* ---------- NEW: Rules sections ---------- */
 
       .rules-section {
         max-width: 1000px;
@@ -327,6 +332,76 @@ export class SeasonPage extends LitElement {
         font-size: 0.95rem;
         line-height: 1.35;
       }
+
+	  .mmr, .alias, .rank-label, .player{
+		height: fit-content; 
+	  }
+		/* ====== Highlight.js light theme ====== */
+		pre.hljs {
+			display: block;
+			overflow-x: auto;
+			padding: 1rem;
+			border-radius: 12px;
+			background: #f6f8fa;
+			color: #24292e;
+			line-height: 1.45;
+			font-family: "Cascadia Code","Consolas",monospace;
+			font-size: 0.9rem;
+			margin: 0;
+			border: 1px solid #d0d7de;
+		}
+
+		.hljs-comment,
+		.hljs-quote {
+			color: #6a737d;
+			font-style: italic;
+		}
+
+		.hljs-keyword,
+		.hljs-selector-tag,
+		.hljs-literal,
+		.hljs-name {
+			color: #d73a49;
+		}
+
+		.hljs-variable,
+		.hljs-template-variable,
+		.hljs-attribute {
+			color: #005cc5;
+		}
+
+		.hljs-string,
+		.hljs-doctag,
+		.hljs-title,
+		.hljs-section,
+		.hljs-type {
+			color: #032f62;
+		}
+
+		.hljs-number,
+		.hljs-symbol,
+		.hljs-bullet {
+			color: #005cc5;
+		}
+
+		.hljs-built_in,
+		.hljs-builtin-name,
+		.hljs-class .hljs-title {
+			color: #6f42c1;
+		}
+
+		.hljs-meta {
+			color: #22863a;
+		}
+
+		.hljs-emphasis {
+			font-style: italic;
+		}
+
+		.hljs-strong {
+			font-weight: 700;
+		}
+		
     `,
   ];
 }
