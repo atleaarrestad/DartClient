@@ -65,14 +65,20 @@ export const newUserTemplate = (options: {
 };
 
 export const postGameTemplate = (gameResult: GameResult, users: User[]): TemplateResult => {
-	const sortedPlayerResults = [...gameResult.playerResults].sort((a, b) => {
-		if (a.placement === 0 && b.placement !== 0) return 1;
-		if (b.placement === 0 && a.placement !== 0) return -1;
-		return a.placement - b.placement;
-	});
+  const sortedPlayerResults = [...gameResult.playerResults].sort((a, b) => {
+    if (a.placement === 0 && b.placement !== 0) return 1;
+    if (b.placement === 0 && a.placement !== 0) return -1;
+    return a.placement - b.placement;
+  });
 
-	return html`
+  return html`
     <style>
+      .scroll-viewport {
+        max-height: 80vh;
+        overflow-y: auto;
+        scrollbar-gutter: stable; 
+      }
+
       .big-container {
         font-size: 2rem;
       }
@@ -104,46 +110,48 @@ export const postGameTemplate = (gameResult: GameResult, users: User[]): Templat
         margin: 0 20px;
       }
     </style>
-    <div class="big-container">
-      ${sortedPlayerResults.map((pr) => {
-			const mmrDiff = pr.newMMR - pr.oldMMR;
-			const user = users.find(u => u.id === pr.userId);
-			return html`
-          <div class="player-summary">
-            <div class="header">
-              <span>
-                ${user ? user.name : pr.userId}
-                <span style="color: ${mmrDiff > 0 ? "green" : mmrDiff < 0 ? "red" : "inherit"}">
-                  ${mmrDiff > 0 ? "+" : ""}${mmrDiff}
+
+    <div class="scroll-viewport">
+      <div class="big-container">
+        ${sortedPlayerResults.map((pr) => {
+          const mmrDiff = pr.newMMR - pr.oldMMR;
+          const user = users.find(u => u.id === pr.userId);
+          return html`
+            <div class="player-summary">
+              <div class="header">
+                <span>
+                  ${user ? user.name : pr.userId}
+                  <span style="color: ${mmrDiff > 0 ? "green" : mmrDiff < 0 ? "red" : "inherit"}">
+                    ${mmrDiff > 0 ? "+" : ""}${mmrDiff}
+                  </span>
+                  <span class="mmr-history">(${pr.oldMMR} → ${pr.newMMR})</span>
                 </span>
-                <span class="mmr-history">(${pr.oldMMR} → ${pr.newMMR})</span>
-              </span>
-              <span>
-                ${pr.placement === 0 ? "DNF" : `${getOrdinal(pr.placement)} Place`}
-              </span>
+                <span>
+                  ${pr.placement === 0 ? "DNF" : `${getOrdinal(pr.placement)} Place`}
+                </span>
+              </div>
+              <div class="secondary">
+                ${pr.oldRank !== pr.newRank
+                  ? html`${getRankDisplayValue(pr.oldRank)} → ${getRankDisplayValue(pr.newRank)}`
+                  : getRankDisplayValue(pr.oldRank)}
+              </div>
+              <div class="secondary">
+                <span>Total Score: ${pr.totalScore}</span>
+                <span class="separator">|</span>
+                <span>Rounds: ${pr.roundsPlayed}</span>
+                <span class="separator">|</span>
+                <span>Overshoots: ${pr.overShoots}</span>
+                <span class="separator">|</span>
+                <span>avg: ${pr.averageScore}</span>
+              </div>
             </div>
-            <div class="secondary">
-              Rank: ${
-					pr.oldRank !== pr.newRank
-						? html`${getRankDisplayValue(pr.oldRank)} → ${getRankDisplayValue(pr.newRank)}`
-						: getRankDisplayValue(pr.oldRank)
-				}
-            </div>
-            <div class="secondary">
-              <span>Total Score: ${pr.totalScore}</span>
-              <span class="separator">|</span>
-              <span>Rounds: ${pr.roundsPlayed}</span>
-              <span class="separator">|</span>
-              <span>Overshoots: ${pr.overShoots}</span>
-              <span class="separator">|</span>
-              <span>avg: ${pr.averageScore}</span>
-            </div>
-          </div>
-        `;
-		})}
+          `;
+        })}
+      </div>
     </div>
   `;
 };
+
 
 export const gameResultDummyData: GameResult = {
 	date: new Date("2025-03-24T01:14:58.205118Z"),
@@ -165,6 +173,123 @@ export const gameResultDummyData: GameResult = {
 		{
 			id: 26,
 			userId: "9c94fabb-f322-450b-a345-235c814afb8e",
+			placement: 0,
+			totalScore: 240,
+			averageScore: 40,
+			overShoots: 1,
+			roundsPlayed: 6,
+			oldMMR: 2350,
+			newMMR: 2330,
+			oldRank: 5,
+			newRank: 5,
+		},
+		{
+			id: 26,
+			userId: "9c94fabb-f322-450b-a345-235c814afb81",
+			placement: 0,
+			totalScore: 240,
+			averageScore: 40,
+			overShoots: 1,
+			roundsPlayed: 6,
+			oldMMR: 2350,
+			newMMR: 2330,
+			oldRank: 5,
+			newRank: 5,
+		},
+		{
+			id: 26,
+			userId: "9c94fabb-f322-450b-a345-235c814afb82",
+			placement: 0,
+			totalScore: 240,
+			averageScore: 40,
+			overShoots: 1,
+			roundsPlayed: 6,
+			oldMMR: 2350,
+			newMMR: 2330,
+			oldRank: 5,
+			newRank: 5,
+		},
+		{
+			id: 26,
+			userId: "9c94fabb-f322-450b-a345-235c814afb83",
+			placement: 0,
+			totalScore: 240,
+			averageScore: 40,
+			overShoots: 1,
+			roundsPlayed: 6,
+			oldMMR: 2350,
+			newMMR: 2330,
+			oldRank: 5,
+			newRank: 5,
+		},
+		{
+			id: 26,
+			userId: "9c94fabb-f322-450b-a345-235c814afb84",
+			placement: 0,
+			totalScore: 240,
+			averageScore: 40,
+			overShoots: 1,
+			roundsPlayed: 6,
+			oldMMR: 2350,
+			newMMR: 2330,
+			oldRank: 5,
+			newRank: 5,
+		},
+		{
+			id: 26,
+			userId: "9c94fabb-f322-450b-a345-235c814afb85",
+			placement: 0,
+			totalScore: 240,
+			averageScore: 40,
+			overShoots: 1,
+			roundsPlayed: 6,
+			oldMMR: 2350,
+			newMMR: 2330,
+			oldRank: 5,
+			newRank: 5,
+		},
+		{
+			id: 26,
+			userId: "9c94fabb-f322-450b-a345-235c814afb86",
+			placement: 0,
+			totalScore: 240,
+			averageScore: 40,
+			overShoots: 1,
+			roundsPlayed: 6,
+			oldMMR: 2350,
+			newMMR: 2330,
+			oldRank: 5,
+			newRank: 5,
+		},
+		{
+			id: 26,
+			userId: "9c94fabb-f322-450b-a345-235c814afb87",
+			placement: 0,
+			totalScore: 240,
+			averageScore: 40,
+			overShoots: 1,
+			roundsPlayed: 6,
+			oldMMR: 2350,
+			newMMR: 2330,
+			oldRank: 5,
+			newRank: 5,
+		},
+		{
+			id: 26,
+			userId: "9c94fabb-f322-450b-a345-235c814afb88",
+			placement: 0,
+			totalScore: 240,
+			averageScore: 40,
+			overShoots: 1,
+			roundsPlayed: 6,
+			oldMMR: 2350,
+			newMMR: 2330,
+			oldRank: 5,
+			newRank: 5,
+		},
+		{
+			id: 26,
+			userId: "9c94fabb-f322-450b-a345-235c814afb89",
 			placement: 0,
 			totalScore: 240,
 			averageScore: 40,
