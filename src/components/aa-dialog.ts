@@ -39,7 +39,6 @@ export class AaDialog extends LitElement {
       position: relative;
       max-width: 90%;
       max-height: 90%;
-      overflow: auto;
 	  padding: 1rem;
 	  box-shadow: 3px 3px 0px 0px black;
     }

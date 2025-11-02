@@ -10,7 +10,6 @@ import { getRankDisplayValue, getRankIcon, Rank } from "../../models/rank.js";
 import { SeasonService } from "../../services/seasonService.js";
 import { UserService } from "../../services/userService.js";
 import { Season } from "../../models/schemas.js";
-import type { Location } from "@vaadin/router"; // ← import the type
 import { UserQueryOptions } from "../../api/users.requests.js";
 
 @customElement("user-page")
@@ -75,6 +74,9 @@ export class UserPage extends LitElement {
 			mmr: 0,
 			matchSnapshots: [],
 			hitCounts: [],
+			highestRoundScore: 0,
+			highestRoundScoreForVicory: 0,
+			finishCount: []
 		};
 		if (!this.user?.seasonStatistics?.length) return defaultStats;
 		const match = this.user.seasonStatistics.find(ss => ss.seasonId === season.id);

@@ -13,4 +13,8 @@ export class CacheService {
 		const id = window.localStorage.getItem(this.gameIdKey);
 		return id ?? undefined;
 	}
+
+	public removeGameId(){
+		window.localStorage.removeItem(this.gameIdKey);
+	}
 }

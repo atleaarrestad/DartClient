@@ -131,7 +131,7 @@ export class SeasonPage extends LitElement {
 
     return html`
       <section class="wrap">
-        <h2 class="title">Season Podium</h2>
+        <h2 class="title">${this.season?.name} Podium</h2>
 
         ${p.length === 0
           ? html`<div class="empty">No players found for this season.</div>`

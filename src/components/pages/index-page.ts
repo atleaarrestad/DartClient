@@ -61,12 +61,14 @@ export class IndexPage extends LitElement {
 			if (gameTracker){
 				this.gameIdFromLocalStorage = locallyCachedGameSessionId;
 				this.updateGameState(gameTracker);
-
+			}
+			else{
+				this.gameIdFromLocalStorage = undefined;
+				this.gameService.removeCachedGameId();
 			}
 		}
 
 		this.loading = false;
-		// await this.dialogService.open(postGameTemplate(gameResultDummyData, this.users));
 		window.addEventListener("keydown", event => this.handleKeyDown(event));
 	}
 

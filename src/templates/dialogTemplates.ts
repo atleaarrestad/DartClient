@@ -1,8 +1,8 @@
 import { html, TemplateResult } from "lit";
 import { GameResult, User } from "../models/schemas.js";
 import { getRankDisplayValue } from "../models/rank.js";
+import { createRef, ref } from "lit/directives/ref.js";
 
-// Helper to format placement as an ordinal (e.g., 1st, 2nd, 3rd)
 const getOrdinal = (n: number): string => {
 	const s = ["th", "st", "nd", "rd"],
 		v = n % 100;
@@ -28,6 +28,41 @@ export const selectUserTemplate = (users: User[]): TemplateResult => {
   ></aa-user-picker>
 	`
 }
+
+export const newUserTemplate = (options: {
+  onSave: (name: string, alias: string) => void;
+}): TemplateResult => {
+  const nameRef = createRef<HTMLInputElement>();
+  const aliasRef = createRef<HTMLInputElement>();
+
+  const handleSave = () => {
+	const name = nameRef.value?.value.trim() ?? "";
+	const alias = aliasRef.value?.value.trim() ?? "";
+	options.onSave(name, alias);
+	const dialog = (nameRef as HTMLElement).closest("aa-dialog") as any;
+	dialog?.close();
+  };
+
+  return html`
+    <div class="dialog-content">
+      <h3>Add New User</h3>
+
+      <label>
+        Name:
+        <input type="text" ${ref(nameRef)} autofocus />
+      </label>
+
+      <label>
+        Alias:
+        <input type="text" ${ref(aliasRef)} />
+      </label>
+
+      <div class="actions">
+        <button @click=${handleSave}>Save</button>
+      </div>
+    </div>
+  `;
+};
 
 export const postGameTemplate = (gameResult: GameResult, users: User[]): TemplateResult => {
 	const sortedPlayerResults = [...gameResult.playerResults].sort((a, b) => {

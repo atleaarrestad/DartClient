@@ -41,4 +41,8 @@ export class UserService {
 	): Promise<User | null> {
 		return this.dataService.getUserById(userId, options);
 	}
+
+	public async addUser(name: string, alias: string){
+		return this.dataService.addUser(name, alias);
+	}
 }

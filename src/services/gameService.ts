@@ -44,4 +44,7 @@ export class GameService {
 	public setCachedGameId(gameId: string): void {
 		return this.cacheService.SetGameId(gameId)
 	}
+	public removeCachedGameId(): void {
+		return this.cacheService.removeGameId();
+	}
 }

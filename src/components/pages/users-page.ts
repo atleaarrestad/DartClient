@@ -10,6 +10,7 @@ import { getRankDisplayValue, getRankIcon } from "../../models/rank.js";
 import { SeasonService } from "../../services/seasonService.js";
 import { UserService } from "../../services/userService.js";
 import { Router } from "@vaadin/router";
+import { newUserTemplate } from "../../templates/dialogTemplates.js";
 
 export type SortKey = "name" | "alias" | "mmr" | "rank";
 
@@ -92,12 +93,34 @@ export class UsersPage extends LitElement {
 		Router.go(`/user/${user.id}`);
 	}
 
+	private onNewUserButtonClicked() {
+		this.dialogService.open(
+			newUserTemplate({
+				onSave: (name, alias) => {
+					this.userService.addUser(name, alias)
+						.then(() => {
+							this.userService.getAllUsers()
+								.then((users: User[]) => {
+									this.users = users;
+									this.requestUpdate();
+								})
+						})
+						.catch((e) => this.notificationService.addNotification(e.message, "danger"))
+				},
+			})
+		);
+	}
+
 	override render() {
 		if (!this.season || this.users.length === 0) {
 			return html`<p>Loading data…</p>`;
 		}
 
 		return html`
+
+		<h2>Users</h2>
+		
+	
       <table class="users-table">
         <thead>
           <tr>
@@ -126,6 +149,7 @@ export class UsersPage extends LitElement {
 			})}
         </tbody>
       </table>
+	  <aa-button  @click=${() => this.onNewUserButtonClicked()}>+ Add User</aa-button>
     `;
 	}
 

@@ -176,7 +176,17 @@ export class DataService {
 			throw new Error("Unable to parse game result from server");
 		}
 	}
+	public async addUser(name: string, alias: string): Promise<void>{
+		const request = {name: name, alias: alias}
+		const resp = await this.post<object, undefined>("users/add", request);
 
+		if (!resp.ok){
+			if (resp.status == 409){
+				throw new Error("A user with same name/alias already exists")
+			}
+			throw new Error("An error occured when creating a new user")
+		}
+	} 
 	public async getAllUsers(): Promise<User[]> {
 		const resp = await this.get<User[]>("users/getall");
 
