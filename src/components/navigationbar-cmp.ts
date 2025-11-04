@@ -4,7 +4,8 @@ import { sharedStyles } from "../../styles.js";
 import { LitElement } from "lit";
 import { Season } from "../models/schemas.js";
 import { SeasonService } from "../services/seasonService.js";
-const base = import.meta.env.BASE_URL;
+import { getAbsoluteBase } from '../getAbsoluteBase.js';
+const base = getAbsoluteBase();
 
 import { container } from "tsyringe";
 

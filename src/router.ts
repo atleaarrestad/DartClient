@@ -1,11 +1,13 @@
-import { Router } from "@vaadin/router";
+import { Router } from '@vaadin/router';
+import { getAbsoluteBase } from './getAbsoluteBase.js';
 
-const outlet = document.getElementById("outlet")!;
-const router = new Router(outlet, { baseUrl: import.meta.env.BASE_URL });
+const outlet = document.getElementById('outlet')!;
+const base = getAbsoluteBase();
 
+const router = new Router(outlet, { baseUrl: base });
 router.setRoutes([
-  { path: "/", component: "index-page" },
-  { path: "/users", component: "users-page" },
-  { path: "/user/:id", component: "user-page" },
-  { path: "/season/:id", component: "season-page" },
+  { path: '/', component: 'index-page' },
+  { path: '/users', component: 'users-page' },
+  { path: '/user/:id', component: 'user-page' },
+  { path: '/season/:id', component: 'season-page' },
 ]);
