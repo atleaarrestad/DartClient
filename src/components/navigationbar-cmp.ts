@@ -4,6 +4,7 @@ import { sharedStyles } from "../../styles.js";
 import { LitElement } from "lit";
 import { Season } from "../models/schemas.js";
 import { SeasonService } from "../services/seasonService.js";
+const base = import.meta.env.BASE_URL;
 
 import { container } from "tsyringe";
 
@@ -25,21 +26,22 @@ export class AaNavigationbar extends LitElement {
 	override render() {
 		return html`
 			<nav class="navbar">
-				<a class="logo" href="">
-					<img class="logo-icon" src="./icons/home.png" alt="Home" />
-					<span>Play</span>
-				</a>
-				<a class="logo center" href=${`season/${this.season?.id}`}>
-					<img class="logo-icon" src="./icons/season_alpha.png" alt="Logo" />
-					<span class="fit-content">Season ${this.season?.name}</span>
-				</a>
+			<a class="logo" href=${base}>
+				<img class="logo-icon" src=${`${base}icons/home.png`} alt="Home" />
+				<span>Play</span>
+			</a>
 
-				<ul class="nav-links">
-					<li><a href="users">Users</a></li>
-					<li><a href="#" class="disabled">Leaderboards</a></li>
-  					<li><a href="#" class="disabled">Gamelog</a></li>	
-					<li><a href="#" class="disabled">Seasons</a></li>	
-				</ul>
+			<a class="logo center" href=${`${base}season/${this.season?.id}`}>
+				<img class="logo-icon" src=${`${base}icons/season_alpha.png`} alt="Logo" />
+				<span class="fit-content">Season ${this.season?.name}</span>
+			</a>
+
+			<ul class="nav-links">
+				<li><a href=${`${base}users`}>Users</a></li>
+				<li><a href="#" class="disabled">Leaderboards</a></li>
+				<li><a href="#" class="disabled">Gamelog</a></li>
+				<li><a href="#" class="disabled">Seasons</a></li>
+			</ul>
 			</nav>
 		`;
 	}
