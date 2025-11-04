@@ -231,38 +231,47 @@ export class DataService {
 	}
 
 	private async request<T>(
-		endpoint: string,
-		options: RequestInit,
-	): Promise<ApiResponse<T>> {
-		const res = await fetch(`${this.baseUrl}${endpoint}`, {
-			...options,
-			headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-			signal: this.createTimeoutSignal(this.abortTimeout),
-		});
+	endpoint: string,
+	options: RequestInit,
+): Promise<ApiResponse<T>> {
 
-		const text = await res.text();
-		let body: unknown;
-		try {
-			body = JSON.parse(text);
-		}
-		catch {
-			body = text;
-		}
+	// Build headers conditionally (MINIMAL CHANGE)
+	const hasBody = options.body !== undefined && options.body !== null;
+	const headers = {
+		...(hasBody ? { "Content-Type": "application/json" } : {}),
+		...(options.headers || {}),
+	};
 
-		if (!res.ok) {
-			return {
-				ok: false,
-				status: res.status,
-				statusText: res.statusText,
-				body,
-			};
-		}
+	const res = await fetch(`${this.baseUrl}${endpoint}`, {
+		...options,
+		headers,
+		signal: this.createTimeoutSignal(this.abortTimeout),
+	});
 
+	const text = await res.text();
+	let body: unknown;
+	try {
+		body = JSON.parse(text);
+	}
+	catch {
+		body = text;
+	}
+
+	if (!res.ok) {
 		return {
-			ok: true,
-			data: body as T,
+			ok: false,
+			status: res.status,
+			statusText: res.statusText,
+			body,
 		};
 	}
+
+	return {
+		ok: true,
+		data: body as T,
+	};
+}
+
 
 	public async post<Req, Res>(
 		endpoint: string,
