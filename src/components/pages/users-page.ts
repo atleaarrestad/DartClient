@@ -11,6 +11,8 @@ import { SeasonService } from "../../services/seasonService.js";
 import { UserService } from "../../services/userService.js";
 import { Router } from "@vaadin/router";
 import { newUserTemplate } from "../../templates/dialogTemplates.js";
+import { getAbsoluteBase } from '../../getAbsoluteBase.js';
+const base = getAbsoluteBase();
 
 export type SortKey = "name" | "alias" | "mmr" | "rank";
 
@@ -90,7 +92,7 @@ export class UsersPage extends LitElement {
 	}
 
 	private onRowClick(user: User): void {
-		Router.go(`/user/${user.id}`);
+  		Router.go(`${base}user/${user.id}`);
 	}
 
 	private onNewUserButtonClicked() {
@@ -135,17 +137,17 @@ export class UsersPage extends LitElement {
 				const stats = this.getStatsForCurrentSeason(user);
 				const rankValue = stats.currentRank;
 				return html`
-              <tr  @click="${() => this.onRowClick(user)}">
-                <td>${user.name}</td>
-                <td>${user.alias}</td>
-                <td>${stats.mmr}</td>
-                <td>
-                  ${rankValue !== undefined
-						? html`<img src="${getRankIcon(rankValue)}" alt="${getRankDisplayValue(rankValue)}" title="${getRankDisplayValue(rankValue)}" />`
-						: html`-`}
-                </td>
-              </tr>
-            `;
+					<tr  @click="${() => this.onRowClick(user)}">
+						<td>${user.name}</td>
+						<td>${user.alias}</td>
+						<td>${stats.mmr}</td>
+						<td>
+						${rankValue !== undefined
+								? html`<img src="${getRankIcon(rankValue)}" alt="${getRankDisplayValue(rankValue)}" title="${getRankDisplayValue(rankValue)}" />`
+								: html`-`}
+						</td>
+					</tr>
+				`;
 			})}
         </tbody>
       </table>
