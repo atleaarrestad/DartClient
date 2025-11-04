@@ -25,17 +25,17 @@ export class AaNavigationbar extends LitElement {
 	override render() {
 		return html`
 			<nav class="navbar">
-				<a class="logo" href="/">
+				<a class="logo" href="">
 					<img class="logo-icon" src="./icons/home.png" alt="Home" />
 					<span>Play</span>
 				</a>
-				<a class="logo center" href=${`/season/${this.season?.id}`}>
+				<a class="logo center" href=${`season/${this.season?.id}`}>
 					<img class="logo-icon" src="./icons/season_alpha.png" alt="Logo" />
 					<span class="fit-content">Season ${this.season?.name}</span>
 				</a>
 
 				<ul class="nav-links">
-					<li><a href="/users">Users</a></li>
+					<li><a href="users">Users</a></li>
 					<li><a href="#" class="disabled">Leaderboards</a></li>
   					<li><a href="#" class="disabled">Gamelog</a></li>	
 					<li><a href="#" class="disabled">Seasons</a></li>	
