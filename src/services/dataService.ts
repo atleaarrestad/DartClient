@@ -10,8 +10,9 @@ export type ApiResponse<T> =
 
 @injectable()
 export class DataService {
-	private baseUrl = "https://localhost:7117/api/";// NOT DOCKER BACKEND
+	// private baseUrl = "https://localhost:7117/api/";// NOT DOCKER BACKEND
 	// private baseUrl = "http://localhost:8080/api/"; // DOCKER BACKEND
+	private baseUrl = "https://atulling.net/api/";// Production backend
 	private abortTimeout = 500000;
 
 	public async Ping(): Promise<string> {

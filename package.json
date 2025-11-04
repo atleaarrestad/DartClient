@@ -6,7 +6,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
-		"lint:fix": "eslint --fix"
+		"lint:fix": "eslint --fix",
+		"build": "vite build && node scripts/copy-404.js"
 	},
 	"dependencies": {
 		"@fortawesome/fontawesome-free": "^6.7.2",
