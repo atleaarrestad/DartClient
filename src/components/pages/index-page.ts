@@ -364,7 +364,7 @@ export class IndexPage extends LitElement {
 	}
 
 	private getCumulativePoints(player: PlayerRounds): number {
-		for (let i = player.rounds.length - 1; i => 0 ; i--) {
+		for (let i = player.rounds.length - 1; i <= 0 ; i--) {
 			const round = player.rounds[i];
 			if (round?.roundStatus !== RoundStatus.Unplayed){
 				return round!.cumulativePoints;
@@ -407,7 +407,7 @@ export class IndexPage extends LitElement {
 			const mmrA = userA?.seasonStatistics?.[userA.seasonStatistics.length - 1]?.mmr ?? 0;
 			const mmrB = userB?.seasonStatistics?.[userB.seasonStatistics.length - 1]?.mmr ?? 0;
 
-			return mmrB - mmrA;
+			return mmrA - mmrB;
 		});
 	}
 
@@ -474,7 +474,10 @@ export class IndexPage extends LitElement {
 							<div class="centered">
 								<div class="rank-container">
 									<img class="rank-icon" src="${getRankIcon(rank)}" alt="${getRankDisplayValue(rank)}" />
-									<span class="rank">${getRankDisplayValue(rank)}</span>
+									<div class="rank-text-container">
+										<span class="rank">${getRankDisplayValue(rank)}</span>
+										<span>${mmr}</span>
+									</div>
 								</div>
 							</div>
 
@@ -486,7 +489,10 @@ export class IndexPage extends LitElement {
 	}
 
 	static override styles = [sharedStyles, css`
-
+		.rank-text-container{
+			display: flex;
+			flex-direction: column;
+		}
 		.player-name{
 			padding: 8px;
 			text-align: center;
