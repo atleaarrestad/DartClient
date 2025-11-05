@@ -364,7 +364,7 @@ export class IndexPage extends LitElement {
 	}
 
 	private getCumulativePoints(player: PlayerRounds): number {
-		for (let i = player.rounds.length - 1; i > 0 ; i--) {
+		for (let i = player.rounds.length - 1; i => 0 ; i--) {
 			const round = player.rounds[i];
 			if (round?.roundStatus !== RoundStatus.Unplayed){
 				return round!.cumulativePoints;
