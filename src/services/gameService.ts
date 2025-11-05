@@ -36,6 +36,9 @@ export class GameService {
 	public async getActiveGame(gameId: string): Promise<GameTracker | undefined> {
 		return await this.dataService.getActiveGameSession(gameId);
 	}
+	public async getActiveGames(): Promise<GameTracker[] | undefined> {
+		return this.dataService.getActiveGameSessions();
+	}
 
 	public getCachedGameId(): string | undefined {
 		return this.cacheService.GetGameId()

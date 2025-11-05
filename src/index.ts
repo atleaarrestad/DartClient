@@ -7,6 +7,7 @@ import "./components/pages/index-page.js";
 import "./components/pages/users-page.js";
 import "./components/pages/user-page.js";
 import "./components/pages/season-page.js"
+import "./components/pages/sessions-page.js"
 
 import "./components/aa-notification-cmp.js";
 import "./components/aa-notification-container-cmp.js";

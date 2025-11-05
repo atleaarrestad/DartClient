@@ -39,6 +39,7 @@ export class AaNavigationbar extends LitElement {
 
 			<ul class="nav-links">
 				<li><a href=${`${base}users`}>Users</a></li>
+				<li><a href=${`${base}sessions`}>Active games</a></li>
 				<li><a href="#" class="disabled">Leaderboards</a></li>
 				<li><a href="#" class="disabled">Gamelog</a></li>
 				<li><a href="#" class="disabled">Seasons</a></li>

@@ -3,6 +3,7 @@ import { GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRou
 import { GameSubmission, RuleDefinitionsResponse } from "src/models/schemas.js";
 import { UserQueryOptions, buildGetUserByIdUrl } from "../api/users.requests.js";
 import { DartThrow } from "../models/dartThrowSchema.js";
+import { z } from "zod";
 
 export type ApiResponse<T> =
 	| { ok: true; data: T }
@@ -68,6 +69,28 @@ export class DataService {
 
 		try {
 			return GameTrackerSchema.parse(resp.data);
+		}
+		catch(e) {
+			throw new Error("Invalid game tracker data received from the API");
+		}
+	}
+
+	public async getActiveGameSessions(
+	): Promise<GameTracker[] | undefined> {
+		const resp = await this.get<GameTracker[]>(`games/sessions`);
+
+		if (!resp.ok && resp.status === 404) {
+			return undefined;
+		}
+
+		if (!resp.ok) {
+			throw new Error(
+				`Failed to fetch active games: ${resp.status} ${resp.statusText}`,
+			);
+		}
+
+		try {
+			return z.array(GameTrackerSchema).parse(resp.data);
 		}
 		catch(e) {
 			throw new Error("Invalid game tracker data received from the API");

@@ -10,4 +10,5 @@ router.setRoutes([
   { path: '/users', component: 'users-page' },
   { path: '/user/:id', component: 'user-page' },
   { path: '/season/:id', component: 'season-page' },
+  { path: '/sessions', component: 'sessions-page' },
 ]);
