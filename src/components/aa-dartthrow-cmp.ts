@@ -151,6 +151,7 @@ export class aaDartThrow extends LitElement {
 					@input=${this.handleInputChanged}
 					@keydown=${this.handleKeyDown}
 					@blur=${this.handleBlur}
+					class="${this.dartThrow.activatedModifiers.length > 0 ? 'scoreModifierActivated' : ''}"
 				>
 				${this.renderMultiplier()}
 			</div>
@@ -158,6 +159,10 @@ export class aaDartThrow extends LitElement {
 	}
 
 	static override styles = [sharedStyles, css`
+		.scoreModifierActivated {
+			color: rgba(247, 33, 226, 1);
+			font-weight: bolder;
+		}
 		input[type="text"] {
 			position: relative;
 			text-align: center;
