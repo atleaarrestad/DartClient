@@ -476,7 +476,7 @@ export class IndexPage extends LitElement {
 									<img class="rank-icon" src="${getRankIcon(rank)}" alt="${getRankDisplayValue(rank)}" />
 									<div class="rank-text-container">
 										<span class="rank">${getRankDisplayValue(rank)}</span>
-										<span>${mmr}</span>
+										<span class="mmr">${mmr}</span>
 									</div>
 								</div>
 							</div>
@@ -492,6 +492,9 @@ export class IndexPage extends LitElement {
 		.rank-text-container{
 			display: flex;
 			flex-direction: column;
+		}
+		.mmr {
+			font-size: 0.75rem;
 		}
 		.player-name{
 			padding: 8px;
