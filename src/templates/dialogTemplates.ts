@@ -46,8 +46,6 @@ export const newUserTemplate = (options: {
 
   return html`
     <div class="dialog-content">
-      <h3>Add New User</h3>
-
       <label>
         Name:
         <input type="text" ${ref(nameRef)} autofocus />
@@ -74,77 +72,131 @@ export const postGameTemplate = (gameResult: GameResult, users: User[]): Templat
 
   return html`
     <style>
-      .scroll-viewport {
-        max-height: 80vh;
-        overflow-y: auto;
-        scrollbar-gutter: stable; 
+      .postgame * { width: auto; height: auto; box-sizing: border-box; }
+
+      .list {
+        display: grid;
+        gap: 1rem;
+        padding: 0.25rem 0;
       }
 
-      .big-container {
-        font-size: 2rem;
+      .player-row {
+        display: grid;
+        gap: 0.35rem;
       }
-      .player-summary {
-        margin-bottom: 1rem;
-        padding: 2rem;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        width: fit-content;
-        min-width: 1100px;
-      }
-      .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        font-size: 2.4rem;
-        font-weight: 600;
-      }
-      .mmr-history {
-        font-weight: normal;
-        margin-left: 1rem;
-      }
-      .secondary {
-        font-size: 1.7rem;
-        color: #666;
+
+      .divider {
+        border-bottom: 2px dashed #000;
+        opacity: 0.35;
         margin-top: 0.5rem;
       }
-      .separator {
-        margin: 0 20px;
+
+      .header-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .name-line {
+        font-size: 1.15rem;
+        font-weight: 800;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .mmr {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-weight: 800;
+        background: #fff;
+        border: 2px solid #000;
+        border-radius: 999px;
+        padding: 0.15rem 0.6rem;
+        line-height: 1.2;
+      }
+      .mmr .delta.up { color: #008000; }
+      .mmr .delta.down { color: #cc0000; }
+      .mmr .delta.flat { opacity: 0.65; }
+
+      .placement {
+        background: #e8f0ff;
+        border: 2px solid #000;
+        border-radius: 14px;
+        padding: 0.2rem 0.6rem;
+        font-weight: 800;
+      }
+
+      .rankline {
+        font-size: 0.95rem;
+        opacity: 0.85;
+      }
+
+      .stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+      }
+
+      .pill {
+        background: #fff;
+        border: 2px solid #000;
+        border-radius: 14px;
+        padding: 0.35rem 0.55rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 700;
+      }
+
+      .pill .label { opacity: 0.7; }
+
+      @media (min-width: 900px) {
+        .name-line { font-size: 1.25rem; }
       }
     </style>
 
-    <div class="scroll-viewport">
-      <div class="big-container">
-        ${sortedPlayerResults.map((pr) => {
+    <div class="postgame">
+      <div class="list">
+        ${sortedPlayerResults.map((pr, index) => {
           const mmrDiff = pr.newMMR - pr.oldMMR;
           const user = users.find(u => u.id === pr.userId);
+          const deltaClass = mmrDiff > 0 ? "up" : mmrDiff < 0 ? "down" : "flat";
+
           return html`
-            <div class="player-summary">
-              <div class="header">
-                <span>
-                  ${user ? user.name : pr.userId}
-                  <span style="color: ${mmrDiff > 0 ? "green" : mmrDiff < 0 ? "red" : "inherit"}">
-                    ${mmrDiff > 0 ? "+" : ""}${mmrDiff}
+            <div class="player-row">
+              <div class="header-row">
+                <div class="name-line">
+                  <span>${user ? user.name : pr.userId}</span>
+                  <span class="mmr">
+                    <span class="delta ${deltaClass}">${mmrDiff > 0 ? "+" : ""}${mmrDiff}</span>
+                    <span>(${pr.oldMMR} → ${pr.newMMR})</span>
                   </span>
-                  <span class="mmr-history">(${pr.oldMMR} → ${pr.newMMR})</span>
-                </span>
-                <span>
+                </div>
+                <span class="placement">
                   ${pr.placement === 0 ? "DNF" : `${getOrdinal(pr.placement)} Place`}
                 </span>
               </div>
-              <div class="secondary">
+
+              <div class="rankline">
                 ${pr.oldRank !== pr.newRank
                   ? html`${getRankDisplayValue(pr.oldRank)} → ${getRankDisplayValue(pr.newRank)}`
                   : getRankDisplayValue(pr.oldRank)}
               </div>
-              <div class="secondary">
-                <span>Total Score: ${pr.totalScore}</span>
-                <span class="separator">|</span>
-                <span>Rounds: ${pr.roundsPlayed}</span>
-                <span class="separator">|</span>
-                <span>Overshoots: ${pr.overShoots}</span>
-                <span class="separator">|</span>
-                <span>avg: ${pr.averageScore}</span>
+
+              <div class="stats">
+                <div class="pill"><span class="label">Total</span> ${pr.totalScore}</div>
+                <div class="pill"><span class="label">Rounds</span> ${pr.roundsPlayed}</div>
+                <div class="pill"><span class="label">Overshoots</span> ${pr.overShoots}</div>
+                <div class="pill"><span class="label">Avg</span> ${pr.averageScore}</div>
               </div>
+
+              ${index < sortedPlayerResults.length - 1
+                ? html`<div class="divider"></div>`
+                : ""}
             </div>
           `;
         })}
@@ -152,6 +204,9 @@ export const postGameTemplate = (gameResult: GameResult, users: User[]): Templat
     </div>
   `;
 };
+
+
+
 
 
 export const gameResultDummyData: GameResult = {

@@ -110,7 +110,7 @@ export class UsersPage extends LitElement {
 						.catch((e) => this.notificationService.addNotification(e.message, "danger"))
 				},
 			})
-		);
+		, { title: "Create new user" });
 	}
 
 	override render() {

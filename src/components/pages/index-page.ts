@@ -181,7 +181,7 @@ export class IndexPage extends LitElement {
 
 							this.players = [];
 							this.requestUpdate();
-							await this.dialogService.open(postGameTemplate(gameResult, this.users));
+							await this.dialogService.open(postGameTemplate(gameResult, this.users), { title: "Game Summary" });
 						}
 						catch (error) {
 							const errorMessage = (error as Error).message;
@@ -250,7 +250,7 @@ export class IndexPage extends LitElement {
 		const filteredUsers = this.users.filter(
 			user => !this.players.some(player => player.playerId === user.id)
 		);
-		const user = await this.dialogService.open<User>(selectUserTemplate(filteredUsers))
+		const user = await this.dialogService.open<User>(selectUserTemplate(filteredUsers), { title: "Select User" })
 
 		if (this.gameIdFromLocalStorage && user){
 			const gameTracker = await this.gameService.addPlayerToGame(this.gameIdFromLocalStorage, user.id);
