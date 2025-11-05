@@ -2,6 +2,7 @@ import { html, TemplateResult } from "lit";
 import { GameResult, User } from "../models/schemas.js";
 import { getRankDisplayValue } from "../models/rank.js";
 import { createRef, ref } from "lit/directives/ref.js";
+import { AaDialog } from "../components/aa-dialog.js";
 
 const getOrdinal = (n: number): string => {
 	const s = ["th", "st", "nd", "rd"],
@@ -39,7 +40,7 @@ export const newUserTemplate = (options: {
 	const name = nameRef.value?.value.trim() ?? "";
 	const alias = aliasRef.value?.value.trim() ?? "";
 	options.onSave(name, alias);
-	const dialog = (nameRef as HTMLElement).closest("aa-dialog") as any;
+	const dialog = document.querySelector("aa-dialog") as AaDialog || undefined;
 	dialog?.close();
   };
 
