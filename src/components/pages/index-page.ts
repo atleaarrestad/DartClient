@@ -34,6 +34,10 @@ export class IndexPage extends LitElement {
 	@state() private loading: boolean = true;
 	private gameIdFromLocalStorage: string | undefined = undefined;
 
+	private onKeyDown = (event: KeyboardEvent) => this.handleKeyDown(event);
+
+  	private creatingGame = false;
+
 	protected selectedId?: string;
 	@property({ type: Array }) users: User[] = [];
 
@@ -69,12 +73,12 @@ export class IndexPage extends LitElement {
 		}
 
 		this.loading = false;
-		window.addEventListener("keydown", event => this.handleKeyDown(event));
+		window.addEventListener("keydown", this.onKeyDown);
 	}
 
 	override disconnectedCallback(): void {
-		window.removeEventListener("keydown", this.handleKeyDown);
-		super.disconnectedCallback();
+		window.removeEventListener("keydown", this.onKeyDown);
+    	super.disconnectedCallback();
 	}
 
 	private async healthCheckServer(): Promise<void> {
@@ -119,6 +123,7 @@ export class IndexPage extends LitElement {
 
 	private handleKeyDown(event: KeyboardEvent) {
 		if (event.shiftKey) {
+			if (event.repeat) return;
 			switch (event.key) {
 				case "+":
 					if (this.players.length > 0){
@@ -140,9 +145,18 @@ export class IndexPage extends LitElement {
 				case "n":
 				case "N":
 					(async () => {
-						this.players = [];
-						await this.requestNewGame();
-						await this.addNewPlayer();
+						if (this.creatingGame){
+							return;
+						}
+							
+						this.creatingGame = true;
+						try {
+							this.players = [];
+							await this.requestNewGame();
+							await this.addNewPlayer();
+						} finally {
+							this.creatingGame = false;
+						}
 					})();
 					event.preventDefault();
 					break;
