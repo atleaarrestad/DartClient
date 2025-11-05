@@ -517,7 +517,7 @@ export class IndexPage extends LitElement {
 		
 		}
 		.overshoot {
-			background-color: #ed817f89;
+			background-color: #ed817f89 !important;
 		}
 			
 		.victory {
