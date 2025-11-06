@@ -5,9 +5,6 @@ import type { FinishCount } from "../models/schemas.js";
 
 @customElement("aa-finish-count-chart")
 export class FinishCountChart extends LitElement {
-	/**
-   * Array of FinishCount objects with { roundNumber: number, count: number }
-   */
 	@property({ type: Array }) finishCounts: FinishCount[] = [];
 
 	@query("canvas") private _canvas!: HTMLCanvasElement;
@@ -44,6 +41,7 @@ export class FinishCountChart extends LitElement {
 		if (!this._canvas) return;
 
 		const labels = Array.from({ length: 15 }, (_, i) => String(i + 1));
+		labels[14] = ">14";
 		const data = labels.map((label) => {
 			const num = parseInt(label, 10);
 			const entry = this.finishCounts.find(fc => fc.roundNumber === num);
@@ -65,7 +63,7 @@ export class FinishCountChart extends LitElement {
 			data: {
 				labels,
 				datasets: [{
-					label: "Wins by Round",
+					label: "Finish by Round",
 					data,
 					borderWidth: 1,
 				}],
@@ -79,7 +77,7 @@ export class FinishCountChart extends LitElement {
 					},
 					y: {
 						beginAtZero: true,
-						title: { display: true, text: "Win Count" },
+						title: { display: true, text: "Finish Count" },
 						ticks: { stepSize: 1 },
 					},
 				},
