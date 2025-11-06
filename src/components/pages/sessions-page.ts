@@ -12,6 +12,8 @@ import { GameService } from "../../services/gameService.js";
 import { map } from "lit/directives/map.js";
 import { RoundStatus } from "../../models/enums.js";
 import { Router } from "@vaadin/router";
+import { getAbsoluteBase } from '../../getAbsoluteBase.js';
+const base = getAbsoluteBase();
 
 @customElement("sessions-page")
 export class SessionsPage extends LitElement {
@@ -82,7 +84,7 @@ export class SessionsPage extends LitElement {
 
 	private handleOnGameSelected(gameTracker: GameTracker): void {
 		this.gameService.setCachedGameId(gameTracker.id)
-		Router.go("");
+		Router.go(base);
 	}
 
 	private onCardKeydown(e: KeyboardEvent, tracker: GameTracker) {
