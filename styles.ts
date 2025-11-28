@@ -1,5 +1,5 @@
-import { css, unsafeCSS } from "lit";
-import fontAwesomeStyles from "@fortawesome/fontawesome-free/css/all.css?inline";
+import fontAwesomeStyles from '@fortawesome/fontawesome-free/css/all.css?inline';
+import { css, unsafeCSS } from 'lit';
 
 export const sharedStyles = css`
   * {
@@ -15,5 +15,5 @@ export const sharedStyles = css`
   input {
     font-size: 1rem;
   }
-  ${unsafeCSS(fontAwesomeStyles)}
+  ${ unsafeCSS(fontAwesomeStyles) }
 `;

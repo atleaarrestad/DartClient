@@ -1,38 +1,40 @@
-import { LitElement, html, css } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { css, html, LitElement } from 'lit';
+import { customElement, property } from 'lit/decorators.js';
 
-@customElement("aa-dialog")
+@customElement('aa-dialog')
 export class AaDialog extends LitElement {
-  @property({ type: String }) override title: string = "";
-  @property({ type: Boolean, reflect: true }) closeOnBackdrop = true;
-  private _prevOverflow?: string;
 
-  override connectedCallback() {
-    super.connectedCallback();
-    window.addEventListener("keydown", this.onKeyDown);
-    this._prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    queueMicrotask(() => this.shadowRoot?.getElementById("dialog")?.focus());
-  }
+	@property({ type: String }) override title: string = '';
+	@property({ type: Boolean, reflect: true }) closeOnBackdrop = true;
+	private _prevOverflow?:                     string;
 
-  override disconnectedCallback() {
-    window.removeEventListener("keydown", this.onKeyDown);
-    document.body.style.overflow = this._prevOverflow ?? "";
-    super.disconnectedCallback();
-  }
+	override connectedCallback() {
+		super.connectedCallback();
+		window.addEventListener('keydown', this.onKeyDown);
+		this._prevOverflow = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+		queueMicrotask(() => this.shadowRoot?.getElementById('dialog')?.focus());
+	}
 
-  private onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      this.close();
-    }
-  };
+	override disconnectedCallback() {
+		window.removeEventListener('keydown', this.onKeyDown);
+		document.body.style.overflow = this._prevOverflow ?? '';
+		super.disconnectedCallback();
+	}
 
-  private onBackdropClick = () => {
-    if (this.closeOnBackdrop) this.close();
-  };
+	private onKeyDown = (e: KeyboardEvent) => {
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			this.close();
+		}
+	};
 
-  static override styles = css`
+	private onBackdropClick = () => {
+		if (this.closeOnBackdrop)
+			this.close();
+	};
+
+	static override styles = css`
     :host {
       position: fixed;
       inset: 0;
@@ -121,56 +123,58 @@ export class AaDialog extends LitElement {
     }
   `;
 
-  override render() {
-    return html`
+	override render() {
+		return html`
       <div
         id="dialog"
         class="dialog"
         role="dialog"
         aria-modal="true"
         tabindex="-1"
-        @click=${(e: Event) => e.stopPropagation()}
+        @click=${ (e: Event) => e.stopPropagation() }
       >
-        <slot name="header" @slotchange=${this.requestUpdate}></slot>
-        ${this.hasAssigned("header")
+        <slot name="header" @slotchange=${ this.requestUpdate }></slot>
+        ${ this.hasAssigned('header')
           ? null
           : html`
               <div class="bar">
                 <div class="title">
-                  <slot name="title">${this.title}</slot>
+                  <slot name="title">${ this.title }</slot>
                 </div>
-                <button class="btn close-btn" @click=${this.close} aria-label="Close dialog">×</button>
+                <button class="btn close-btn" @click=${ this.close } aria-label="Close dialog">×</button>
               </div>
-            `}
+            ` }
 
-        <div class="content" @click=${(e: Event) => e.stopPropagation()}>
+        <div class="content" @click=${ (e: Event) => e.stopPropagation() }>
           <slot></slot>
         </div>
 
-        <slot name="footer" @slotchange=${this.requestUpdate}></slot>
-        ${this.hasAssigned("footer")
+        <slot name="footer" @slotchange=${ this.requestUpdate }></slot>
+        ${ this.hasAssigned('footer')
           ? null
-          : html``}
+          : html`` }
       </div>
     `;
-  }
+	}
 
-  override firstUpdated() {
-    this.addEventListener("click", this.onBackdropClick);
-  }
+	override firstUpdated() {
+		this.addEventListener('click', this.onBackdropClick);
+	}
 
-  private hasAssigned(name: string): boolean {
-    const slot = this.shadowRoot?.querySelector(`slot[name="${name}"]`) as HTMLSlotElement | null;
-    return !!slot && slot.assignedNodes({ flatten: true }).length > 0;
-  }
+	private hasAssigned(name: string): boolean {
+		const slot = this.shadowRoot?.querySelector(`slot[name="${ name }"]`) as HTMLSlotElement | null;
 
-  close(result?: unknown) {
-    this.dispatchEvent(
-      new CustomEvent("dialog-closed", {
-        bubbles: true,
-        composed: true,
-        detail: { result },
-      }),
-    );
-  }
+		return !!slot && slot.assignedNodes({ flatten: true }).length > 0;
+	}
+
+	close(result?: unknown) {
+		this.dispatchEvent(
+			new CustomEvent('dialog-closed', {
+				bubbles:  true,
+				composed: true,
+				detail:   { result },
+			}),
+		);
+	}
+
 }

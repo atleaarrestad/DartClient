@@ -1,17 +1,3 @@
-import globals from "globals";
-import pluginJs from "@eslint/js";
-import tseslint from "typescript-eslint";
-import stylistic from "@stylistic/eslint-plugin";
+import configs from '@arcmantle/eslint-config';
 
-/** @type {import('eslint').Linter.Config[]} */
-export default [
-	{ files: ["**/*.{js,mjs,cjs,ts}"] },
-	{ languageOptions: { globals: globals.browser } },
-	pluginJs.configs.recommended,
-	...tseslint.configs.recommended,
-	stylistic.configs.customize({
-		quotes: "double",
-		indent: "tab",
-		semi: true,
-	}),
-];
+export default [ ...configs.lit ];

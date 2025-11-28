@@ -1,26 +1,27 @@
-import { html, css } from "lit";
-import { customElement, state } from "lit/decorators.js";
-import { sharedStyles } from "../../../styles.js";
-import { LitElement } from "lit";
-import { container } from "tsyringe";
-import { User, SeasonStatistics, Season, RuleDefinition, ScoreModifierRule, WinConditionRule } from "../../models/schemas.js";
-import { getRankDisplayValue, getRankIcon } from "../../models/rank.js";
-import { SeasonService } from "../../services/seasonService.js";
-import { UserService } from "../../services/userService.js";
-import { RuleService } from "../../services/ruleService.js";
+import hljs from 'highlight.js/lib/core';
+import { css, html } from 'lit';
+import { LitElement } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { container } from 'tsyringe';
 
-import hljs from "highlight.js/lib/core";
-import { unsafeHTML } from "lit/directives/unsafe-html.js";
+import { sharedStyles } from '../../../styles.js';
+import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
+import { RuleDefinition, Season, SeasonStatistics, User } from '../../models/schemas.js';
+import { RuleService } from '../../services/ruleService.js';
+import { SeasonService } from '../../services/seasonService.js';
+import { UserService } from '../../services/userService.js';
 
-@customElement("season-page")
+@customElement('season-page')
 export class SeasonPage extends LitElement {
-	private ruleService: RuleService;
-	private seasonService: SeasonService;
-	private userService: UserService;
-	private winConditions: RuleDefinition[] = [];
-	private scoreModifiers: RuleDefinition[] = [];
+
+	private ruleService:      RuleService;
+	private seasonService:    SeasonService;
+	private userService:      UserService;
+	private winConditions:    RuleDefinition[] = [];
+	private scoreModifiers:   RuleDefinition[] = [];
 	@state() private season?: Season;
-	@state() private users: User[] = [];
+	@state() private users:   User[] = [];
 
 	constructor() {
 		super();
@@ -28,164 +29,179 @@ export class SeasonPage extends LitElement {
 		this.seasonService = container.resolve(SeasonService);
 		this.ruleService = container.resolve(RuleService);
 	}
-	
-	public override async connectedCallback(): Promise<void> {
+
+	override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
 		this.season = await this.seasonService.getCurrentSeason();
 		this.users = await this.userService.getAllUsers();
-		var ruleDefinitions = await this.ruleService.GetDefinitions();
+		const ruleDefinitions = await this.ruleService.GetDefinitions();
 		this.winConditions = ruleDefinitions.winConditions;
 		this.scoreModifiers = ruleDefinitions.scoreModifiers;
 		this.requestUpdate();
 	}
+
 	private renderRuleCode(code: string) {
-		const highlighted = hljs.highlight(code, { language: "csharp" }).value;
+		const highlighted = hljs.highlight(code, { language: 'csharp' }).value;
+
 		return html`
-			<pre class="hljs"><code class="language-csharp">${unsafeHTML(highlighted)}</code></pre>
+			<pre class="hljs"><code class="language-csharp">${ unsafeHTML(highlighted) }</code></pre>
 		`;
 	}
+
 	private getStatsForCurrentSeason(user: User): SeasonStatistics {
 		if (!user.seasonStatistics || user.seasonStatistics.length === 0) {
 			return {
-				id: 0,
-				userId: user.id,
-				seasonId: "",
-				currentRank: undefined,
+				id:                  0,
+				userId:              user.id,
+				seasonId:            '',
+				currentRank:         undefined,
 				highestAchievedRank: undefined,
-				mmr: 0,
+				mmr:                 0,
 			} as unknown as SeasonStatistics;
 		}
 		if (this.season) {
 			const match = user.seasonStatistics.find(
-				(s) => s.seasonId === this.season!.id
+				(s) => s.seasonId === this.season!.id,
 			);
-			if (match) return match;
+			if (match)
+				return match;
 		}
+
 		return user.seasonStatistics.reduce((prev, curr) =>
-			curr.id > prev.id ? curr : prev
-		);
+			curr.id > prev.id ? curr : prev);
 	}
 
 	private get podium() {
 		const rows = this.users
 			.map((u) => {
 				const s = this.getStatsForCurrentSeason(u);
+
 				return { user: u, mmr: s?.mmr ?? 0, rank: s?.currentRank };
 			})
 			.sort((a, b) => (b.mmr ?? 0) - (a.mmr ?? 0))
 			.slice(0, 3);
 
-		if (rows.length === 3) return [rows[1], rows[0], rows[2]];
-		if (rows.length === 2) return [rows[1], rows[0]];
+		if (rows.length === 3)
+			return [ rows[1], rows[0], rows[2] ];
+		if (rows.length === 2)
+			return [ rows[1], rows[0] ];
+
 		return rows;
 	}
 
-	private podiumCell(entry?: { user: User; rank: any; mmr: number }) {
-		if (!entry) return html``;
+	private podiumCell(entry?: { user: User; rank: any; mmr: number; }) {
+		if (!entry)
+			return html``;
+
 		const alias = entry.user.alias ?? entry.user.name;
 		const icon = getRankIcon(entry.rank);
 		const label = getRankDisplayValue(entry.rank);
+
 		return html`
 			<div class="player">
-				<div class="alias">${alias}</div>
-				<img class="rank-icon" src=${icon} alt=${label} />
-				<div class="rank-label">${label}</div>
-				<div class="mmr">MMR ${entry.mmr}</div>
+				<div class="alias">${ alias }</div>
+				<img class="rank-icon" src=${ icon } alt=${ label } />
+				<div class="rank-label">${ label }</div>
+				<div class="mmr">MMR ${ entry.mmr }</div>
 			</div>
 		`;
 	}
+
 	private renderRuleRow(
 		title: string,
-		items: {value: number, execOrder?: number}[],
-		definitions: RuleDefinition[]){
+		items: { value: number; execOrder?: number; }[],
+		definitions: RuleDefinition[],
+	) {
+		if (!items?.length)
+			return html``;
 
-		if (!items?.length) return html``;
 		return html`
 		<section class="rules-section">
-			<h3 class="rules-title">${title}</h3>
+			<h3 class="rules-title">${ title }</h3>
 			<div class="rules-row">
-			${items.map((item) => {
-				const ruleDefinition = definitions.find(def => def.value === item.value)!
+			${ items.map((item) => {
+				const ruleDefinition = definitions.find(def => def.value === item.value)!;
+
 				return html`
 				<details class="rule-card">
 					<summary class="rule-summary">
 					<div class="rule-title">
-						${item.execOrder != undefined ? html`<span class="rule-pill">Order #${item.execOrder}</span>` : null}
-						<span>${ruleDefinition.name}</span>
+						${ item.execOrder != undefined ? html`<span class="rule-pill">Order #${ item.execOrder }</span>` : null }
+						<span>${ ruleDefinition.name }</span>
 					</div>
-					<div class="rule-sub">${ruleDefinition.description}</div>
+					<div class="rule-sub">${ ruleDefinition.description }</div>
 					</summary>
 					<div class="rule-body">
-						${this.renderRuleCode(ruleDefinition.codeImplementation)}
+						${ this.renderRuleCode(ruleDefinition.codeImplementation) }
 					</div>
 				</details>
 				`;
-			})}
+			}) }
 			</div>
 		</section>
 		`;
 	}
 
 	override render() {
-    const p = this.podium;
+		const p = this.podium;
 
-    return html`
+		return html`
       <section class="wrap">
-        <h2 class="title">${this.season?.name} Podium</h2>
+        <h2 class="title">${ this.season?.name } Podium</h2>
 
-        ${p.length === 0
+        ${ p.length === 0
           ? html`<div class="empty">No players found for this season.</div>`
           : html`
               <div class="podium">
                 <div class="column second">
-                  ${this.podiumCell(p[0])}
+                  ${ this.podiumCell(p[0]) }
                   <div class="step step-2"></div>
                 </div>
                 <div class="column first">
-                  ${this.podiumCell(p[1] ?? p[0])}
+                  ${ this.podiumCell(p[1] ?? p[0]) }
                   <div class="step step-1"></div>
                 </div>
                 <div class="column third">
-                  ${this.podiumCell(p[2])}
+                  ${ this.podiumCell(p[2]) }
                   <div class="step step-3"></div>
                 </div>
               </div>
             `
 		}
-		${this.season && Array.isArray(this.scoreModifiers) && this.scoreModifiers.length
+		${ this.season && Array.isArray(this.scoreModifiers) && this.scoreModifiers.length
 			? html`
-				${this.renderRuleRow(
-					"Score modifiers",
+				${ this.renderRuleRow(
+					'Score modifiers',
 					(this.season.scoreModifierRules ?? []).map(r => ({
-						value: r.scoreModifier,
+						value:     r.scoreModifier,
 						execOrder: r.executionOrder,
 					})),
-					this.scoreModifiers
-				)}
+					this.scoreModifiers,
+				) }
 				`
-			: html``}
+			: html`` }
 
-		${this.season && Array.isArray(this.winConditions) && this.winConditions.length
+		${ this.season && Array.isArray(this.winConditions) && this.winConditions.length
 			? html`
-				${this.renderRuleRow(
-					"Win conditions",
+				${ this.renderRuleRow(
+					'Win conditions',
 					(this.season.winConditionRules ?? []).map(r => ({
-						value: r.winCondition,
+						value:     r.winCondition,
 						execOrder: undefined,
 					})),
 					this.winConditions,
-				)}
+				) }
 				`
-			: html``}
+			: html`` }
 
-        
+
       </section>
     `;
-  }
+	}
 
-  static override styles = [
-    sharedStyles,
-    css`
+	static override styles = [
+		sharedStyles,
+		css`
       :host {
         display: block;
         height: auto !important;
@@ -338,10 +354,10 @@ export class SeasonPage extends LitElement {
         font-size: 0.95rem;
         line-height: 1.35;
       }
-		
+
 
 	  .mmr, .alias, .rank-label, .player{
-		height: fit-content; 
+		height: fit-content;
 	  }
 		/* ====== Highlight.js light theme ====== */
 		pre.hljs {
@@ -408,7 +424,8 @@ export class SeasonPage extends LitElement {
 		.hljs-strong {
 			font-weight: 700;
 		}
-		
+
     `,
-  ];
+	];
+
 }

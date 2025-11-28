@@ -1,11 +1,13 @@
-import { html, css } from "lit";
-import { customElement } from "lit/decorators.js";
-import { sharedStyles } from "../../styles.js";
-import { LitElement } from "lit";
+import { css, html } from 'lit';
+import { LitElement } from 'lit';
+import { customElement } from 'lit/decorators.js';
 
-@customElement("aa-button")
+import { sharedStyles } from '../../styles.js';
+
+@customElement('aa-button')
 export class aaButton extends LitElement {
-	public override connectedCallback(): void {
+
+	override connectedCallback(): void {
 		super.connectedCallback();
 	}
 
@@ -15,7 +17,8 @@ export class aaButton extends LitElement {
     	`;
 	}
 
-	static override styles = [sharedStyles, css`
+	static override styles = [
+		sharedStyles, css`
 		button {
 			background: var(--button-color-first);
 			color: #000;
@@ -32,5 +35,7 @@ export class aaButton extends LitElement {
 			box-shadow: 2px 2px 0px black;
 			background: orange
 		}
-	`];
+	`,
+	];
+
 }

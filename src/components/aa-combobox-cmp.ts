@@ -1,14 +1,16 @@
-import { html, css, LitElement } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { sharedStyles } from "../../styles.js";
-import { User } from "../models/schemas.js";
+import { css, html, LitElement } from 'lit';
+import { customElement, property } from 'lit/decorators.js';
 
-@customElement("aa-combobox")
+import { sharedStyles } from '../../styles.js';
+import { User } from '../models/schemas.js';
+
+@customElement('aa-combobox')
 export class AaCombobox extends LitElement {
+
 	@property({ type: Array }) users: User[] = [];
 
 	@property({ type: String })
-	searchQuery: string = "";
+	searchQuery: string = '';
 
 	@property({ type: Number })
 	selectedIndex: number = -1;
@@ -20,11 +22,12 @@ export class AaCombobox extends LitElement {
 	isDropdownOpen: boolean = false;
 
 	get filteredUsers() {
-		if (!this.searchQuery) {
+		if (!this.searchQuery)
 			return this.users;
-		}
+
 
 		const query = this.searchQuery.toLowerCase();
+
 		return this.users.filter(
 			user =>
 				user.alias.toLowerCase().includes(query)
@@ -36,40 +39,37 @@ export class AaCombobox extends LitElement {
 		this.selectedUser = user;
 		this.selectedIndex = this.filteredUsers.indexOf(user);
 		this.isDropdownOpen = false;
-		this.dispatchEvent(new CustomEvent("user-selected", { detail: user }));
+		this.dispatchEvent(new CustomEvent('user-selected', { detail: user }));
 	}
 
 	private handleKeyDown(event: KeyboardEvent) {
 		const userCount = this.filteredUsers.length;
-		if (event.key === "ArrowDown") {
+		if (event.key === 'ArrowDown') {
 			this.isDropdownOpen = true;
-			if (this.selectedIndex < userCount - 1) {
+			if (this.selectedIndex < userCount - 1)
 				this.selectedIndex++;
-			}
 		}
-		else if (event.key === "ArrowUp") {
-			if (this.selectedIndex > 0) {
+		else if (event.key === 'ArrowUp') {
+			if (this.selectedIndex > 0)
 				this.selectedIndex--;
-			}
 		}
-		else if (event.key === "Enter") {
-			if (this.selectedIndex >= 0) {
+		else if (event.key === 'Enter') {
+			if (this.selectedIndex >= 0)
 				this.handleUserSelect(this.filteredUsers[this.selectedIndex]!);
-			}
-			else if (userCount === 1) {
+
+			else if (userCount === 1)
 				this.handleUserSelect(this.filteredUsers[0]!);
-			}
 		}
 
 		this.scrollSelectedItemIntoView();
 	}
 
 	private scrollSelectedItemIntoView() {
-		const listItems = this.shadowRoot?.querySelectorAll(".user-option");
+		const listItems = this.shadowRoot?.querySelectorAll('.user-option');
 		if (listItems && listItems[this.selectedIndex]) {
 			(listItems[this.selectedIndex] as HTMLElement).scrollIntoView({
-				behavior: "instant",
-				block: "nearest",
+				behavior: 'instant',
+				block:    'nearest',
 			});
 		}
 	}
@@ -86,13 +86,12 @@ export class AaCombobox extends LitElement {
 	}
 
 	private handleInputBlur() {
-		if (!this.shadowRoot?.activeElement?.closest(".user-list")) {
+		if (!this.shadowRoot?.activeElement?.closest('.user-list'))
 			this.isDropdownOpen = false;
-		}
 	}
 
 	override focus(options?: FocusOptions): void {
-		this.renderRoot.querySelector("input")?.focus(options);
+		this.renderRoot.querySelector('input')?.focus(options);
 	}
 
 	override render() {
@@ -101,33 +100,34 @@ export class AaCombobox extends LitElement {
 				<input
 					type="text"
 					placeholder="Search users..."
-					.value="${this.selectedUser ? `${this.selectedUser.alias}` : this.searchQuery}"
-					@input="${this.handleSearchChange}"
-					@keydown="${this.handleKeyDown}"
-					@focus="${this.handleInputFocus}"
-					@blur="${this.handleInputBlur}"
+					.value="${ this.selectedUser ? `${ this.selectedUser.alias }` : this.searchQuery }"
+					@input="${ this.handleSearchChange }"
+					@keydown="${ this.handleKeyDown }"
+					@focus="${ this.handleInputFocus }"
+					@blur="${ this.handleInputBlur }"
 				/>
-				${this.isDropdownOpen
+				${ this.isDropdownOpen
 					? html`
 					<ul class="user-list" tabindex="-1">
-						${this.filteredUsers.map(
+						${ this.filteredUsers.map(
 							(user, index) => html`
 								<li
-									class="user-option ${this.selectedIndex === index ? "selected" : ""}"
-									@click="${() => this.handleUserSelect(user)}"
+									class="user-option ${ this.selectedIndex === index ? 'selected' : '' }"
+									@click="${ () => this.handleUserSelect(user) }"
 								>
-									${user.alias} ${user.seasonStatistics?.length > 0 ? `- ${user.seasonStatistics.at(-1)?.mmr}` : ""}
+									${ user.alias } ${ user.seasonStatistics?.length > 0 ? `- ${ user.seasonStatistics.at(-1)?.mmr }` : '' }
 								</li>
 						`,
-						)}
+						) }
 					</ul>
 					`
-					: ""}
+					: '' }
 			</div>
     	`;
 	}
 
-	static override styles = [sharedStyles, css`
+	static override styles = [
+		sharedStyles, css`
 		:host {
 			display: block;
 			position: relative;
@@ -181,5 +181,7 @@ export class AaCombobox extends LitElement {
 		.user-option:hover {
 			background-color: #f1f1f1;
 		}
-    `];
+    `,
+	];
+
 }

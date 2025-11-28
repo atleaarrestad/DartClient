@@ -1,27 +1,29 @@
-import { html, css } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
-import { sharedStyles } from "../../../styles.js";
-import { LitElement } from "lit";
-import { NotificationService } from "../../services/notificationService.js";
-import { DialogService } from "../../services/dialogService.js";
-import { container } from "tsyringe";
-import { User, SeasonStatistics } from "../../models/schemas.js";
-import { getRankDisplayValue, getRankIcon, Rank } from "../../models/rank.js";
-import { SeasonService } from "../../services/seasonService.js";
-import { UserService } from "../../services/userService.js";
-import { Season } from "../../models/schemas.js";
-import { UserQueryOptions } from "../../api/users.requests.js";
+import { css, html } from 'lit';
+import { LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { container } from 'tsyringe';
 
-@customElement("user-page")
+import { sharedStyles } from '../../../styles.js';
+import { UserQueryOptions } from '../../api/users.requests.js';
+import { getRankDisplayValue, getRankIcon, Rank } from '../../models/rank.js';
+import { SeasonStatistics, User } from '../../models/schemas.js';
+import { Season } from '../../models/schemas.js';
+import { DialogService } from '../../services/dialogService.js';
+import { NotificationService } from '../../services/notificationService.js';
+import { SeasonService } from '../../services/seasonService.js';
+import { UserService } from '../../services/userService.js';
+
+@customElement('user-page')
 export class UserPage extends LitElement {
-	private seasonService: SeasonService;
-	private notificationService: NotificationService;
-	private dialogService: DialogService;
-	private userService: UserService;
-	private user?: User;
-	@state() private userId!: string;
-	@state() private currentSeason?: Season;
-	@state() private seasons: Season[];
+
+	private seasonService:            SeasonService;
+	private notificationService:      NotificationService;
+	private dialogService:            DialogService;
+	private userService:              UserService;
+	private user?:                    User;
+	@state() private userId!:         string;
+	@state() private currentSeason?:  Season;
+	@state() private seasons:         Season[];
 	@state() private selectedSeason?: Season;
 
 	@property({ type: Array }) users: User[] = [];
@@ -34,17 +36,17 @@ export class UserPage extends LitElement {
 		this.dialogService = container.resolve(DialogService);
 	}
 
-	public onBeforeEnter(location: Location): void {
+	onBeforeEnter(location: Location): void {
 		this.userId = location.params.id!;
 	}
 
-	public override async connectedCallback(): Promise<void> {
+	override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
 		const options: UserQueryOptions = {
 			includeSeasonStatistics: true,
-			includeHitCounts: true,
-			includeMatchSnapshots: true,
-			includeFinishCounts: true,
+			includeHitCounts:        true,
+			includeMatchSnapshots:   true,
+			includeFinishCounts:     true,
 		};
 
 		this.user = await this.userService.getUserById(this.userId, options);
@@ -66,59 +68,62 @@ export class UserPage extends LitElement {
 
 	private getStatsForSeason(season: Season): SeasonStatistics {
 		const defaultStats: SeasonStatistics = {
-			id: 0,
-			userId: this.user?.id ?? "",
-			seasonId: season.id,
-			currentRank: 0,
-			highestAchievedRank: 0,
-			mmr: 0,
-			matchSnapshots: [],
-			hitCounts: [],
-			highestRoundScore: 0,
+			id:                         0,
+			userId:                     this.user?.id ?? '',
+			seasonId:                   season.id,
+			currentRank:                0,
+			highestAchievedRank:        0,
+			mmr:                        0,
+			matchSnapshots:             [],
+			hitCounts:                  [],
+			highestRoundScore:          0,
 			highestRoundScoreForVicory: 0,
-			finishCount: []
+			finishCount:                [],
 		};
-		if (!this.user?.seasonStatistics?.length) return defaultStats;
+		if (!this.user?.seasonStatistics?.length)
+			return defaultStats;
+
 		const match = this.user.seasonStatistics.find(ss => ss.seasonId === season.id);
+
 		return match || defaultStats;
 	}
 
 	override render() {
-		if (!this.user || !this.seasons.length || !this.selectedSeason) {
+		if (!this.user || !this.seasons.length || !this.selectedSeason)
 			return html`<p>Loading data…</p>`;
-		}
+
 
 		const stats = this.getStatsForSeason(this.selectedSeason);
 
 		return html`
 		  <section class="user-header">
-			<h2>${this.user.name} (@${this.user.alias})</h2>
+			<h2>${ this.user.name } (@${ this.user.alias })</h2>
 	
 			<label>
 			  Season:
-			  <select @change=${this.handleSeasonChange}>
-				${this.seasons.map(
+			  <select @change=${ this.handleSeasonChange }>
+				${ this.seasons.map(
 					s => html`<option
-					value=${s.id}
-					?selected=${s.id === this.selectedSeason!.id}
+					value=${ s.id }
+					?selected=${ s.id === this.selectedSeason!.id }
 				  >
-					${s.name}
+					${ s.name }
 				  </option>`,
-				)}
+				) }
 			  </select>
 			</label>
 	
 			<div class="cards-container">
-			  <aa-info-card label="Current Rank" value=${getRankDisplayValue(stats.currentRank)} imageSrc=${getRankIcon(stats.currentRank)} imageAlt=${getRankDisplayValue(stats.currentRank)}  .rank=${stats.currentRank}></aa-info-card>
-			  <aa-info-card label="Highest Rank" value=${getRankDisplayValue(stats.highestAchievedRank)} imageSrc=${getRankIcon(stats.highestAchievedRank)} imageAlt=${getRankDisplayValue(stats.highestAchievedRank)}  .rank=${stats.highestAchievedRank}></aa-info-card>
-			  <aa-info-card label="Highest round score" value=${stats.highestRoundScore} ></aa-info-card>
-			  <aa-info-card label="Highest finishing score" value=${stats.highestRoundScoreForVicory} ></aa-info-card>
+			  <aa-info-card label="Current Rank" value=${ getRankDisplayValue(stats.currentRank) } imageSrc=${ getRankIcon(stats.currentRank) } imageAlt=${ getRankDisplayValue(stats.currentRank) }  .rank=${ stats.currentRank }></aa-info-card>
+			  <aa-info-card label="Highest Rank" value=${ getRankDisplayValue(stats.highestAchievedRank) } imageSrc=${ getRankIcon(stats.highestAchievedRank) } imageAlt=${ getRankDisplayValue(stats.highestAchievedRank) }  .rank=${ stats.highestAchievedRank }></aa-info-card>
+			  <aa-info-card label="Highest round score" value=${ stats.highestRoundScore } ></aa-info-card>
+			  <aa-info-card label="Highest finishing score" value=${ stats.highestRoundScoreForVicory } ></aa-info-card>
 			</div>
 		  </section>
 		  <div class="charts-container">
-			  <aa-match-snapshot-chart .snapshots=${stats.matchSnapshots}></aa-match-snapshot-chart>
-			  <aa-hit-count-chart .hits=${stats.hitCounts}></aa-hit-count-chart>
-			  <aa-finish-count-chart .finishCounts=${stats.finishCount}></aa-finish-count-chart>
+			  <aa-match-snapshot-chart .snapshots=${ stats.matchSnapshots }></aa-match-snapshot-chart>
+			  <aa-hit-count-chart .hits=${ stats.hitCounts }></aa-hit-count-chart>
+			  <aa-finish-count-chart .finishCounts=${ stats.finishCount }></aa-finish-count-chart>
 		  </div>
 		   
 		`;
@@ -153,4 +158,5 @@ export class UserPage extends LitElement {
 
 		`,
 	];
+
 }

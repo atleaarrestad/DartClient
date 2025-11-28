@@ -1,18 +1,20 @@
-import { html, TemplateResult } from "lit";
-import { GameResult, User } from "../models/schemas.js";
-import { getRankDisplayValue } from "../models/rank.js";
-import { createRef, ref } from "lit/directives/ref.js";
-import { AaDialog } from "../components/aa-dialog.js";
+import { html, TemplateResult } from 'lit';
+import { createRef, ref } from 'lit/directives/ref.js';
+
+import { AaDialog } from '../components/aa-dialog.js';
+import { getRankDisplayValue } from '../models/rank.js';
+import { GameResult, User } from '../models/schemas.js';
 
 const getOrdinal = (n: number): string => {
-	const s = ["th", "st", "nd", "rd"],
+	const s = [ 'th', 'st', 'nd', 'rd' ],
 		v = n % 100;
+
 	return n + (s[(v - 20) % 10] || s[v] || s[0]!);
 };
 
 export const selectUserTemplate = (users: User[]): TemplateResult => {
 	const handleUserselected = (e: CustomEvent, user: User) => {
-		const dialog = (e.currentTarget as HTMLElement).closest("aa-dialog") as any;
+		const dialog = (e.currentTarget as HTMLElement).closest('aa-dialog') as any;
 		dialog?.close(user);
 	};
 
@@ -24,53 +26,56 @@ export const selectUserTemplate = (users: User[]): TemplateResult => {
     </style>
 
 	 <aa-user-picker
-		.users=${users}
-		@user-selected=${(e: CustomEvent<User>) => handleUserselected(e, e.detail)}
+		.users=${ users }
+		@user-selected=${ (e: CustomEvent<User>) => handleUserselected(e, e.detail) }
   ></aa-user-picker>
-	`
-}
+	`;
+};
 
 export const newUserTemplate = (options: {
-  onSave: (name: string, alias: string) => void;
+	onSave: (name: string, alias: string) => void;
 }): TemplateResult => {
-  const nameRef = createRef<HTMLInputElement>();
-  const aliasRef = createRef<HTMLInputElement>();
+	const nameRef = createRef<HTMLInputElement>();
+	const aliasRef = createRef<HTMLInputElement>();
 
-  const handleSave = () => {
-	const name = nameRef.value?.value.trim() ?? "";
-	const alias = aliasRef.value?.value.trim() ?? "";
-	options.onSave(name, alias);
-	const dialog = document.querySelector("aa-dialog") as AaDialog || undefined;
-	dialog?.close();
-  };
+	const handleSave = () => {
+		const name = nameRef.value?.value.trim() ?? '';
+		const alias = aliasRef.value?.value.trim() ?? '';
+		options.onSave(name, alias);
+		const dialog = document.querySelector('aa-dialog') as AaDialog || undefined;
+		dialog?.close();
+	};
 
-  return html`
+	return html`
     <div class="dialog-content">
       <label>
         Name:
-        <input type="text" ${ref(nameRef)} autofocus />
+        <input type="text" ${ ref(nameRef) } autofocus />
       </label>
 
       <label>
         Alias:
-        <input type="text" ${ref(aliasRef)} />
+        <input type="text" ${ ref(aliasRef) } />
       </label>
 
       <div class="actions">
-        <button @click=${handleSave}>Save</button>
+        <button @click=${ handleSave }>Save</button>
       </div>
     </div>
   `;
 };
 
 export const postGameTemplate = (gameResult: GameResult, users: User[]): TemplateResult => {
-  const sortedPlayerResults = [...gameResult.playerResults].sort((a, b) => {
-    if (a.placement === 0 && b.placement !== 0) return 1;
-    if (b.placement === 0 && a.placement !== 0) return -1;
-    return a.placement - b.placement;
-  });
+	const sortedPlayerResults = [ ...gameResult.playerResults ].sort((a, b) => {
+		if (a.placement === 0 && b.placement !== 0)
+			return 1;
+		if (b.placement === 0 && a.placement !== 0)
+			return -1;
 
-  return html`
+		return a.placement - b.placement;
+	});
+
+	return html`
     <style>
       .postgame * { width: auto; height: auto; box-sizing: border-box; }
 
@@ -161,210 +166,207 @@ export const postGameTemplate = (gameResult: GameResult, users: User[]): Templat
 
     <div class="postgame">
       <div class="list">
-        ${sortedPlayerResults.map((pr, index) => {
+        ${ sortedPlayerResults.map((pr, index) => {
           const mmrDiff = pr.newMMR - pr.oldMMR;
           const user = users.find(u => u.id === pr.userId);
-          const deltaClass = mmrDiff > 0 ? "up" : mmrDiff < 0 ? "down" : "flat";
+          const deltaClass = mmrDiff > 0 ? 'up' : mmrDiff < 0 ? 'down' : 'flat';
 
           return html`
             <div class="player-row">
               <div class="header-row">
                 <div class="name-line">
-                  <span>${user ? user.name : pr.userId}</span>
+                  <span>${ user ? user.name : pr.userId }</span>
                   <span class="mmr">
-                    <span class="delta ${deltaClass}">${mmrDiff > 0 ? "+" : ""}${mmrDiff}</span>
-                    <span>(${pr.oldMMR} → ${pr.newMMR})</span>
+                    <span class="delta ${ deltaClass }">${ mmrDiff > 0 ? '+' : '' }${ mmrDiff }</span>
+                    <span>(${ pr.oldMMR } → ${ pr.newMMR })</span>
                   </span>
                 </div>
                 <span class="placement">
-                  ${pr.placement === 0 ? "DNF" : `${getOrdinal(pr.placement)} Place`}
+                  ${ pr.placement === 0 ? 'DNF' : `${ getOrdinal(pr.placement) } Place` }
                 </span>
               </div>
 
               <div class="rankline">
-                ${pr.oldRank !== pr.newRank
-                  ? html`${getRankDisplayValue(pr.oldRank)} → ${getRankDisplayValue(pr.newRank)}`
-                  : getRankDisplayValue(pr.oldRank)}
+                ${ pr.oldRank !== pr.newRank
+                  ? html`${ getRankDisplayValue(pr.oldRank) } → ${ getRankDisplayValue(pr.newRank) }`
+                  : getRankDisplayValue(pr.oldRank) }
               </div>
 
               <div class="stats">
-                <div class="pill"><span class="label">Total</span> ${pr.totalScore}</div>
-                <div class="pill"><span class="label">Rounds</span> ${pr.roundsPlayed}</div>
-                <div class="pill"><span class="label">Overshoots</span> ${pr.overShoots}</div>
-                <div class="pill"><span class="label">Avg</span> ${pr.averageScore}</div>
+                <div class="pill"><span class="label">Total</span> ${ pr.totalScore }</div>
+                <div class="pill"><span class="label">Rounds</span> ${ pr.roundsPlayed }</div>
+                <div class="pill"><span class="label">Overshoots</span> ${ pr.overShoots }</div>
+                <div class="pill"><span class="label">Avg</span> ${ pr.averageScore }</div>
               </div>
 
-              ${index < sortedPlayerResults.length - 1
+              ${ index < sortedPlayerResults.length - 1
                 ? html`<div class="divider"></div>`
-                : ""}
+                : '' }
             </div>
           `;
-        })}
+        }) }
       </div>
     </div>
   `;
 };
 
 
-
-
-
 export const gameResultDummyData: GameResult = {
-	date: new Date("2025-03-24T01:14:58.205118Z"),
+	date:             new Date('2025-03-24T01:14:58.205118Z'),
 	playerRoundsList: [],
-	playerResults: [
+	playerResults:    [
 		{
-			id: 25,
-			userId: "0b147800-1282-405f-875b-2687ce257bdf",
-			placement: 1,
-			totalScore: 250,
+			id:           25,
+			userId:       '0b147800-1282-405f-875b-2687ce257bdf',
+			placement:    1,
+			totalScore:   250,
 			averageScore: 50,
-			overShoots: 0,
+			overShoots:   0,
 			roundsPlayed: 5,
-			oldMMR: 2000,
-			newMMR: 2250,
-			oldRank: 4,
-			newRank: 5,
+			oldMMR:       2000,
+			newMMR:       2250,
+			oldRank:      4,
+			newRank:      5,
 		},
 		{
-			id: 26,
-			userId: "9c94fabb-f322-450b-a345-235c814afb8e",
-			placement: 0,
-			totalScore: 240,
+			id:           26,
+			userId:       '9c94fabb-f322-450b-a345-235c814afb8e',
+			placement:    0,
+			totalScore:   240,
 			averageScore: 40,
-			overShoots: 1,
+			overShoots:   1,
 			roundsPlayed: 6,
-			oldMMR: 2350,
-			newMMR: 2330,
-			oldRank: 5,
-			newRank: 5,
+			oldMMR:       2350,
+			newMMR:       2330,
+			oldRank:      5,
+			newRank:      5,
 		},
 		{
-			id: 26,
-			userId: "9c94fabb-f322-450b-a345-235c814afb81",
-			placement: 0,
-			totalScore: 240,
+			id:           26,
+			userId:       '9c94fabb-f322-450b-a345-235c814afb81',
+			placement:    0,
+			totalScore:   240,
 			averageScore: 40,
-			overShoots: 1,
+			overShoots:   1,
 			roundsPlayed: 6,
-			oldMMR: 2350,
-			newMMR: 2330,
-			oldRank: 5,
-			newRank: 5,
+			oldMMR:       2350,
+			newMMR:       2330,
+			oldRank:      5,
+			newRank:      5,
 		},
 		{
-			id: 26,
-			userId: "9c94fabb-f322-450b-a345-235c814afb82",
-			placement: 0,
-			totalScore: 240,
+			id:           26,
+			userId:       '9c94fabb-f322-450b-a345-235c814afb82',
+			placement:    0,
+			totalScore:   240,
 			averageScore: 40,
-			overShoots: 1,
+			overShoots:   1,
 			roundsPlayed: 6,
-			oldMMR: 2350,
-			newMMR: 2330,
-			oldRank: 5,
-			newRank: 5,
+			oldMMR:       2350,
+			newMMR:       2330,
+			oldRank:      5,
+			newRank:      5,
 		},
 		{
-			id: 26,
-			userId: "9c94fabb-f322-450b-a345-235c814afb83",
-			placement: 0,
-			totalScore: 240,
+			id:           26,
+			userId:       '9c94fabb-f322-450b-a345-235c814afb83',
+			placement:    0,
+			totalScore:   240,
 			averageScore: 40,
-			overShoots: 1,
+			overShoots:   1,
 			roundsPlayed: 6,
-			oldMMR: 2350,
-			newMMR: 2330,
-			oldRank: 5,
-			newRank: 5,
+			oldMMR:       2350,
+			newMMR:       2330,
+			oldRank:      5,
+			newRank:      5,
 		},
 		{
-			id: 26,
-			userId: "9c94fabb-f322-450b-a345-235c814afb84",
-			placement: 0,
-			totalScore: 240,
+			id:           26,
+			userId:       '9c94fabb-f322-450b-a345-235c814afb84',
+			placement:    0,
+			totalScore:   240,
 			averageScore: 40,
-			overShoots: 1,
+			overShoots:   1,
 			roundsPlayed: 6,
-			oldMMR: 2350,
-			newMMR: 2330,
-			oldRank: 5,
-			newRank: 5,
+			oldMMR:       2350,
+			newMMR:       2330,
+			oldRank:      5,
+			newRank:      5,
 		},
 		{
-			id: 26,
-			userId: "9c94fabb-f322-450b-a345-235c814afb85",
-			placement: 0,
-			totalScore: 240,
+			id:           26,
+			userId:       '9c94fabb-f322-450b-a345-235c814afb85',
+			placement:    0,
+			totalScore:   240,
 			averageScore: 40,
-			overShoots: 1,
+			overShoots:   1,
 			roundsPlayed: 6,
-			oldMMR: 2350,
-			newMMR: 2330,
-			oldRank: 5,
-			newRank: 5,
+			oldMMR:       2350,
+			newMMR:       2330,
+			oldRank:      5,
+			newRank:      5,
 		},
 		{
-			id: 26,
-			userId: "9c94fabb-f322-450b-a345-235c814afb86",
-			placement: 0,
-			totalScore: 240,
+			id:           26,
+			userId:       '9c94fabb-f322-450b-a345-235c814afb86',
+			placement:    0,
+			totalScore:   240,
 			averageScore: 40,
-			overShoots: 1,
+			overShoots:   1,
 			roundsPlayed: 6,
-			oldMMR: 2350,
-			newMMR: 2330,
-			oldRank: 5,
-			newRank: 5,
+			oldMMR:       2350,
+			newMMR:       2330,
+			oldRank:      5,
+			newRank:      5,
 		},
 		{
-			id: 26,
-			userId: "9c94fabb-f322-450b-a345-235c814afb87",
-			placement: 0,
-			totalScore: 240,
+			id:           26,
+			userId:       '9c94fabb-f322-450b-a345-235c814afb87',
+			placement:    0,
+			totalScore:   240,
 			averageScore: 40,
-			overShoots: 1,
+			overShoots:   1,
 			roundsPlayed: 6,
-			oldMMR: 2350,
-			newMMR: 2330,
-			oldRank: 5,
-			newRank: 5,
+			oldMMR:       2350,
+			newMMR:       2330,
+			oldRank:      5,
+			newRank:      5,
 		},
 		{
-			id: 26,
-			userId: "9c94fabb-f322-450b-a345-235c814afb88",
-			placement: 0,
-			totalScore: 240,
+			id:           26,
+			userId:       '9c94fabb-f322-450b-a345-235c814afb88',
+			placement:    0,
+			totalScore:   240,
 			averageScore: 40,
-			overShoots: 1,
+			overShoots:   1,
 			roundsPlayed: 6,
-			oldMMR: 2350,
-			newMMR: 2330,
-			oldRank: 5,
-			newRank: 5,
+			oldMMR:       2350,
+			newMMR:       2330,
+			oldRank:      5,
+			newRank:      5,
 		},
 		{
-			id: 26,
-			userId: "9c94fabb-f322-450b-a345-235c814afb89",
-			placement: 0,
-			totalScore: 240,
+			id:           26,
+			userId:       '9c94fabb-f322-450b-a345-235c814afb89',
+			placement:    0,
+			totalScore:   240,
 			averageScore: 40,
-			overShoots: 1,
+			overShoots:   1,
 			roundsPlayed: 6,
-			oldMMR: 2350,
-			newMMR: 2330,
-			oldRank: 5,
-			newRank: 5,
+			oldMMR:       2350,
+			newMMR:       2330,
+			oldRank:      5,
+			newRank:      5,
 		},
 	],
 	season: {
-		id: "e0292748-c383-4d32-b1b4-522df3fa85c9",
-		name: "sallanSmud",
-		startDate: new Date("2025-03-20T20:19:01.9651849"),
-		endDate: new Date("2025-06-08T20:19:01.9652317"),
+		id:                 'e0292748-c383-4d32-b1b4-522df3fa85c9',
+		name:               'sallanSmud',
+		startDate:          new Date('2025-03-20T20:19:01.9651849'),
+		endDate:            new Date('2025-06-08T20:19:01.9652317'),
 		scoreModifierRules: [
 			{
-				scoreModifier: 0,
+				scoreModifier:  0,
 				executionOrder: 0,
 			},
 		],

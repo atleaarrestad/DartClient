@@ -1,18 +1,21 @@
-import { html, css } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
-import { sharedStyles } from "../../styles.js";
-import { LitElement } from "lit";
-import { Season } from "../models/schemas.js";
-import { SeasonService } from "../services/seasonService.js";
+import { css, html } from 'lit';
+import { LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { container } from 'tsyringe';
+
+import { sharedStyles } from '../../styles.js';
 import { getAbsoluteBase } from '../getAbsoluteBase.js';
+import { Season } from '../models/schemas.js';
+import { SeasonService } from '../services/seasonService.js';
+
 const base = getAbsoluteBase();
 
-import { container } from "tsyringe";
 
-@customElement("aa-navigationbar")
+@customElement('aa-navigationbar')
 export class AaNavigationbar extends LitElement {
-	private seasonService: SeasonService;
-	@state() private season?: Season;
+
+	private seasonService:             SeasonService;
+	@state() private season?:          Season;
 	@property({ type: Boolean }) test: boolean;
 
 	override connectedCallback(): void {
@@ -27,19 +30,19 @@ export class AaNavigationbar extends LitElement {
 	override render() {
 		return html`
 			<nav class="navbar">
-			<a class="logo" href=${base}>
-				<img class="logo-icon" src=${`${base}icons/home.png`} alt="Home" />
+			<a class="logo" href=${ base }>
+				<img class="logo-icon" src=${ `${ base }icons/home.png` } alt="Home" />
 				<span>Play</span>
 			</a>
 
-			<a class="logo center" href=${`${base}season/${this.season?.id}`}>
-				<img class="logo-icon" src=${`${base}icons/season_alpha.png`} alt="Logo" />
-				<span class="fit-content">Season ${this.season?.name}</span>
+			<a class="logo center" href=${ `${ base }season/${ this.season?.id }` }>
+				<img class="logo-icon" src=${ `${ base }icons/season_alpha.png` } alt="Logo" />
+				<span class="fit-content">Season ${ this.season?.name }</span>
 			</a>
 
 			<ul class="nav-links">
-				<li><a href=${`${base}users`}>Users</a></li>
-				<li><a href=${`${base}sessions`}>Active games</a></li>
+				<li><a href=${ `${ base }users` }>Users</a></li>
+				<li><a href=${ `${ base }sessions` }>Active games</a></li>
 				<li><a href="#" class="disabled">Leaderboards</a></li>
 				<li><a href="#" class="disabled">Gamelog</a></li>
 				<li><a href="#" class="disabled">Seasons</a></li>
@@ -48,7 +51,8 @@ export class AaNavigationbar extends LitElement {
 		`;
 	}
 
-	static override styles = [sharedStyles, css`
+	static override styles = [
+		sharedStyles, css`
 		:host {
 			display: block;
 			width: 100%;
@@ -72,7 +76,7 @@ export class AaNavigationbar extends LitElement {
 		.fit-content {
 			width: fit-content;
 		}
-	
+
 		.navbar {
 			display: flex;
 			align-items: center;
@@ -80,7 +84,7 @@ export class AaNavigationbar extends LitElement {
 			padding: 1rem 2rem;
 			gap: 1rem;
 		}
-	
+
 		.logo {
 			display: flex;
 			align-items: center;
@@ -88,29 +92,29 @@ export class AaNavigationbar extends LitElement {
 			color: #000;
 			gap: 0.5rem;
 		}
-	
+
 		.logo-icon {
 			width: 64px;
 			height: 64px;
 			object-fit: contain;
 		}
-	
+
 		.logo span {
 			font-size: 1.5rem;
 			font-weight: 700;
 		}
-	
+
 		.nav-links {
 			display: flex;
 			gap: 1rem;
 			justify-content: end;
 		}
-	
+
 		.nav-links li {
 			list-style: none;
 			width: fit-content;
 		}
-	
+
 		.nav-links a {
 			text-decoration: none;
 			color: #000;
@@ -123,10 +127,12 @@ export class AaNavigationbar extends LitElement {
 			transition: transform 0.1s ease;
 			white-space: nowrap;
 		}
-	
+
 		.nav-links a:hover {
 			transform: translate(-2px, -2px);
 			box-shadow: 5px 5px 0 #000;
 		}
-	`];
+	`,
+	];
+
 }

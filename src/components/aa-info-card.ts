@@ -1,28 +1,30 @@
-import { html, css, LitElement } from "lit";
-import { customElement, property } from "lit/decorators.js";
-import { sharedStyles } from "../../styles.js";
+import { css, html, LitElement } from 'lit';
+import { customElement, property } from 'lit/decorators.js';
 
-@customElement("aa-info-card")
+import { sharedStyles } from '../../styles.js';
+
+@customElement('aa-info-card')
 export class InfoCard extends LitElement {
+
 	/** Top text */
-	@property({ type: String }) label = "";
+	@property({ type: String }) label = '';
 	/** Middle image URL */
-	@property({ type: String }) imageSrc = "";
+	@property({ type: String }) imageSrc = '';
 	/** Middle image alt text */
-	@property({ type: String }) imageAlt = "";
+	@property({ type: String }) imageAlt = '';
 	/** Bottom text */
-	@property({ type: String }) value = "";
+	@property({ type: String }) value = '';
 
 	override render() {
 		return html`
       <div class="card">
-        <div class="label">${this.label}</div>
+        <div class="label">${ this.label }</div>
         <div class="icon">
-          ${this.imageSrc
-				? html`<img src="${this.imageSrc}" alt="${this.imageAlt}" />`
-				: html``}
+          ${ this.imageSrc
+				? html`<img src="${ this.imageSrc }" alt="${ this.imageAlt }" />`
+				: html`` }
         </div>
-        <div class="value">${this.value}</div>
+        <div class="value">${ this.value }</div>
       </div>
     `;
 	}
@@ -63,4 +65,5 @@ export class InfoCard extends LitElement {
       }
     `,
 	];
+
 }
