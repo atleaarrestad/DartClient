@@ -1,107 +1,108 @@
-import { injectable } from "tsyringe";
-import { GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds, PlayerRoundsScema, RuleDefinitionSchema, RuleDefinitionsResponseSchema, Season, SeasonSchema, User, UserSchema } from "../models/schemas.js";
-import { GameSubmission, RuleDefinitionsResponse } from "src/models/schemas.js";
-import { UserQueryOptions, buildGetUserByIdUrl } from "../api/users.requests.js";
-import { DartThrow } from "../models/dartThrowSchema.js";
-import { z } from "zod";
+import { GameSubmission, RuleDefinitionsResponse } from 'src/models/schemas.js';
+import { injectable } from 'tsyringe';
+import { z } from 'zod';
+
+import { buildGetUserByIdUrl, UserQueryOptions } from '../api/users.requests.js';
+import { DartThrow } from '../models/dartThrowSchema.js';
+import { GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds, PlayerRoundsScema, RuleDefinitionSchema, RuleDefinitionsResponseSchema, Season, SeasonSchema, User, UserSchema } from '../models/schemas.js';
 
 export type ApiResponse<T> =
-	| { ok: true; data: T }
-	| { ok: false; status: number; statusText: string; body: unknown };
+	| { ok: true; data: T; }
+	| { ok: false; status: number; statusText: string; body: unknown; };
 
 @injectable()
 export class DataService {
+
 	// private baseUrl = "https://localhost:7117/api/";// NOT DOCKER BACKEND
-	// private baseUrl = "http://localhost:8080/api/"; // DOCKER BACKEND
-	private baseUrl = "https://atulling.net/api/";// Production backend
+	// private baseUrl = 'http://localhost:8080/api/'; // DOCKER BACKEND
+	private baseUrl = 'https://atulling.net/api/';// Production backend
 	private abortTimeout = 500000;
 
-	public async Ping(): Promise<string> {
-		const result = await this.get<string>("ping");
-		if (result.ok) {
+	async Ping(): Promise<string> {
+		const result = await this.get<string>('ping');
+		if (result.ok)
 			return result.data;
-		}
-		else {
-			throw new Error("Unable to reach server");
-		}
+
+		else
+			throw new Error('Unable to reach server');
 	}
-	public async GetRuleDefinitions(): Promise<RuleDefinitionsResponse>{
+
+	async GetRuleDefinitions(): Promise<RuleDefinitionsResponse> {
 		const resp = await this.get<RuleDefinitionsResponse>(`rule/definitions`);
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch ruledefinitions: ${resp.status} ${resp.statusText}`,
+				`Failed to fetch ruledefinitions: ${ resp.status } ${ resp.statusText }`,
 			);
 		}
 
 		try {
 			return RuleDefinitionsResponseSchema.parse(resp.data);
 		}
-		catch(e) {
-			throw new Error("Invalid rule-definition data received from the API");
+		catch (e) {
+			throw new Error('Invalid rule-definition data received from the API');
 		}
 	}
 
-	public async RequestNewGame(): Promise<string> {
-		const result = await this.post<undefined, string>("games/sessions/new", undefined);
-		if (result.ok) {
+	async RequestNewGame(): Promise<string> {
+		const result = await this.post<undefined, string>('games/sessions/new', undefined);
+		if (result.ok)
 			return result.data;
-		}
-		else {
-			throw new Error("Failed to create new game");
-		}
+
+		else
+			throw new Error('Failed to create new game');
 	}
 
-	public async getActiveGameSession(
+	async getActiveGameSession(
 		gameId: string,
 	): Promise<GameTracker | undefined> {
-		const resp = await this.get<GameTracker>(`games/sessions/${gameId}`);
+		const resp = await this.get<GameTracker>(`games/sessions/${ gameId }`);
 
-		if (!resp.ok && resp.status === 404) {
+		if (!resp.ok && resp.status === 404)
 			return undefined;
-		}
+
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch active game: ${resp.status} ${resp.statusText}`,
+				`Failed to fetch active game: ${ resp.status } ${ resp.statusText }`,
 			);
 		}
 
 		try {
 			return GameTrackerSchema.parse(resp.data);
 		}
-		catch(e) {
-			throw new Error("Invalid game tracker data received from the API");
+		catch (e) {
+			throw new Error('Invalid game tracker data received from the API');
 		}
 	}
 
-	public async getActiveGameSessions(
+	async getActiveGameSessions(
 	): Promise<GameTracker[] | undefined> {
 		const resp = await this.get<GameTracker[]>(`games/sessions`);
 
-		if (!resp.ok && resp.status === 404) {
+		if (!resp.ok && resp.status === 404)
 			return undefined;
-		}
+
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch active games: ${resp.status} ${resp.statusText}`,
+				`Failed to fetch active games: ${ resp.status } ${ resp.statusText }`,
 			);
 		}
 
 		try {
 			return z.array(GameTrackerSchema).parse(resp.data);
 		}
-		catch(e) {
-			throw new Error("Invalid game tracker data received from the API");
+		catch (e) {
+			throw new Error('Invalid game tracker data received from the API');
 		}
 	}
 
-	public async AddPlayerToGameSession(gameId: string, playerId: string): Promise<GameTracker> {
-		const result = await this.post<undefined, GameTracker>(`games/sessions/${gameId}/player/${playerId}`, undefined);
+	async AddPlayerToGameSession(gameId: string, playerId: string): Promise<GameTracker> {
+		const result = await this.post<undefined, GameTracker>(`games/sessions/${ gameId }/player/${ playerId }`, undefined);
 		if (!result.ok) {
 			throw new Error(
-				`Failed to add player to active game: ${result.status} ${result.statusText}`,
+				`Failed to add player to active game: ${ result.status } ${ result.statusText }`,
 			);
 		}
 		else {
@@ -109,16 +110,16 @@ export class DataService {
 				return GameTrackerSchema.parse(result.data);
 			}
 			catch {
-				throw new Error("Invalid game tracker data received from the API");
+				throw new Error('Invalid game tracker data received from the API');
 			}
 		}
 	}
 
-	public async removePlayerFromGameSession(gameId: string, playerId: string): Promise<GameTracker> {
-		const result = await this.delete<GameTracker>(`games/sessions/${gameId}/player/${playerId}`);
+	async removePlayerFromGameSession(gameId: string, playerId: string): Promise<GameTracker> {
+		const result = await this.delete<GameTracker>(`games/sessions/${ gameId }/player/${ playerId }`);
 		if (!result.ok) {
 			throw new Error(
-				`Failed to delete player from active game: ${result.status} ${result.statusText}`,
+				`Failed to delete player from active game: ${ result.status } ${ result.statusText }`,
 			);
 		}
 		else {
@@ -126,20 +127,20 @@ export class DataService {
 				return GameTrackerSchema.parse(result.data);
 			}
 			catch {
-				throw new Error("Invalid game tracker data received from the API");
+				throw new Error('Invalid game tracker data received from the API');
 			}
 		}
 	}
 
-	public async AddDartThrowToGameSession(gameId: string, playerId: string, roundNumber: number, dartThrow: DartThrow): Promise<GameTracker>{
+	async AddDartThrowToGameSession(gameId: string, playerId: string, roundNumber: number, dartThrow: DartThrow): Promise<GameTracker> {
 		const request = {
 			HitLocation: dartThrow.hitLocation,
-			ThrowType: dartThrow.throwType
-		}
-		const result = await this.post<object, PlayerRounds>(`games/sessions/${gameId}/player/${playerId}/round/${roundNumber}/throw/${dartThrow.throwIndex}`, request);
+			ThrowType:   dartThrow.throwType,
+		};
+		const result = await this.post<object, PlayerRounds>(`games/sessions/${ gameId }/player/${ playerId }/round/${ roundNumber }/throw/${ dartThrow.throwIndex }`, request);
 		if (!result.ok) {
 			throw new Error(
-				`Failed to add player to active game: ${result.status} ${result.statusText}`,
+				`Failed to add player to active game: ${ result.status } ${ result.statusText }`,
 			);
 		}
 		else {
@@ -147,17 +148,17 @@ export class DataService {
 				return GameTrackerSchema.parse(result.data);
 			}
 			catch {
-				throw new Error("Invalid game tracker data received from the API");
+				throw new Error('Invalid game tracker data received from the API');
 			}
 		}
 	}
 
-	public async getCurrentSeason(): Promise<Season> {
-		const resp = await this.get<Season>("season/latest");
+	async getCurrentSeason(): Promise<Season> {
+		const resp = await this.get<Season>('season/latest');
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch latest season from server: ${resp.status} ${resp.statusText}`,
+				`Failed to fetch latest season from server: ${ resp.status } ${ resp.statusText }`,
 			);
 		}
 
@@ -165,16 +166,16 @@ export class DataService {
 			return SeasonSchema.parse(resp.data);
 		}
 		catch {
-			throw new Error("Not able to parse season from server");
+			throw new Error('Not able to parse season from server');
 		}
 	}
 
-	public async GetAllSeasons(): Promise<Season[]> {
-		const resp = await this.get<Season[]>("season/all");
+	async GetAllSeasons(): Promise<Season[]> {
+		const resp = await this.get<Season[]>('season/all');
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch all seasons from server: ${resp.status} ${resp.statusText}`,
+				`Failed to fetch all seasons from server: ${ resp.status } ${ resp.statusText }`,
 			);
 		}
 
@@ -182,41 +183,44 @@ export class DataService {
 			return resp.data.map(season => SeasonSchema.parse(season));
 		}
 		catch {
-			throw new Error("Not able to parse season from server");
+			throw new Error('Not able to parse season from server');
 		}
 	}
 
-	public async SubmitGame(gameId: string): Promise<GameResult> {
-		const response = await this.post<undefined, GameResult>(`games/sessions/${gameId}`, undefined);
-		if (!response.ok){
+	async SubmitGame(gameId: string): Promise<GameResult> {
+		const response = await this.post<undefined, GameResult>(`games/sessions/${ gameId }`, undefined);
+		if (!response.ok) {
 			throw new Error(
-				`Failed to submit game! ${response.status} ${response.statusText}`,
+				`Failed to submit game! ${ response.status } ${ response.statusText }`,
 			);
 		}
+
 		try	{
 			return GameResultSchema.parse(response.data);
 		}
 		catch (error) {
-			throw new Error("Unable to parse game result from server");
+			throw new Error('Unable to parse game result from server');
 		}
 	}
-	public async addUser(name: string, alias: string): Promise<void>{
-		const request = {name: name, alias: alias}
-		const resp = await this.post<object, undefined>("users/add", request);
 
-		if (!resp.ok){
-			if (resp.status == 409){
-				throw new Error("A user with same name/alias already exists")
-			}
-			throw new Error("An error occured when creating a new user")
+	async addUser(name: string, alias: string): Promise<void> {
+		const request = { name: name, alias: alias };
+		const resp = await this.post<object, undefined>('users/add', request);
+
+		if (!resp.ok) {
+			if (resp.status == 409)
+				throw new Error('A user with same name/alias already exists');
+
+			throw new Error('An error occured when creating a new user');
 		}
-	} 
-	public async getAllUsers(): Promise<User[]> {
-		const resp = await this.get<User[]>("users/getall");
+	}
+
+	async getAllUsers(): Promise<User[]> {
+		const resp = await this.get<User[]>('users/getall');
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch users from server: ${resp.status} ${resp.statusText}`,
+				`Failed to fetch users from server: ${ resp.status } ${ resp.statusText }`,
 			);
 		}
 
@@ -224,24 +228,24 @@ export class DataService {
 			return resp.data.map(u => UserSchema.parse(u));
 		}
 		catch {
-			throw new Error("Invalid user data received from the API");
+			throw new Error('Invalid user data received from the API');
 		}
 	}
 
-	public async getUserById(
+	async getUserById(
 		userId: string,
 		options?: UserQueryOptions,
 	): Promise<User | null> {
 		const url = buildGetUserByIdUrl(userId, options);
 		const resp = await this.get<User>(url);
 
-		if (!resp.ok && resp.status === 404) {
+		if (!resp.ok && resp.status === 404)
 			return null;
-		}
+
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch user from server: ${resp.status} ${resp.statusText}`,
+				`Failed to fetch user from server: ${ resp.status } ${ resp.statusText }`,
 			);
 		}
 
@@ -249,84 +253,84 @@ export class DataService {
 			return UserSchema.parse(resp.data);
 		}
 		catch {
-			throw new Error("Invalid user data received from the API");
+			throw new Error('Invalid user data received from the API');
 		}
 	}
 
 	private async request<T>(
-	endpoint: string,
-	options: RequestInit,
-): Promise<ApiResponse<T>> {
-
+		endpoint: string,
+		options: RequestInit,
+	): Promise<ApiResponse<T>> {
 	// Build headers conditionally (MINIMAL CHANGE)
-	const hasBody = options.body !== undefined && options.body !== null;
-	const headers = {
-		...(hasBody ? { "Content-Type": "application/json" } : {}),
-		...(options.headers || {}),
-	};
+		const hasBody = options.body !== undefined && options.body !== null;
+		const headers = {
+			...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+			...(options.headers || {}),
+		};
 
-	const res = await fetch(`${this.baseUrl}${endpoint}`, {
-		...options,
-		headers,
-		signal: this.createTimeoutSignal(this.abortTimeout),
-	});
+		const res = await fetch(`${ this.baseUrl }${ endpoint }`, {
+			...options,
+			headers,
+			signal: this.createTimeoutSignal(this.abortTimeout),
+		});
 
-	const text = await res.text();
-	let body: unknown;
-	try {
-		body = JSON.parse(text);
-	}
-	catch {
-		body = text;
-	}
+		const text = await res.text();
+		let body: unknown;
+		try {
+			body = JSON.parse(text);
+		}
+		catch {
+			body = text;
+		}
 
-	if (!res.ok) {
+		if (!res.ok) {
+			return {
+				ok:         false,
+				status:     res.status,
+				statusText: res.statusText,
+				body,
+			};
+		}
+
 		return {
-			ok: false,
-			status: res.status,
-			statusText: res.statusText,
-			body,
+			ok:   true,
+			data: body as T,
 		};
 	}
 
-	return {
-		ok: true,
-		data: body as T,
-	};
-}
-
-
-	public async post<Req, Res>(
+	async post<Req, Res>(
 		endpoint: string,
 		body: Req,
 	): Promise<ApiResponse<Res>> {
 		return this.request<Res>(endpoint, {
-			method: "POST",
-			body: JSON.stringify(body),
+			method: 'POST',
+			body:   JSON.stringify(body),
 		});
 	}
 
-	public async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-		return this.request<T>(endpoint, { method: "GET" });
+	async get<T>(endpoint: string): Promise<ApiResponse<T>> {
+		return this.request<T>(endpoint, { method: 'GET' });
 	}
 
-	public async put<Req, Res>(
+	async put<Req, Res>(
 		endpoint: string,
 		body: Req,
 	): Promise<ApiResponse<Res>> {
 		return this.request<Res>(endpoint, {
-			method: "PUT",
-			body: JSON.stringify(body),
+			method: 'PUT',
+			body:   JSON.stringify(body),
 		});
 	}
 
-	public async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-		return this.request<T>(endpoint, { method: "DELETE" });
+	async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
+		return this.request<T>(endpoint, { method: 'DELETE' });
 	}
 
 	private createTimeoutSignal(timeout: number): AbortSignal {
 		const controller = new AbortController();
 		setTimeout(() => controller.abort(), timeout);
+
 		return controller.signal;
 	}
+
 }
