@@ -102,7 +102,8 @@ export class SessionsPage extends LitElement {
 
 	private handleOnGameSelected(gameTracker: GameTracker): void {
 		this.gameService.setCachedGameId(gameTracker.id);
-		Router.go(base);
+		history.pushState({}, '', `${ base }spectate/${ gameTracker.id }`);
+		window.dispatchEvent(new PopStateEvent('popstate'));
 	}
 
 	private onCardKeydown(e: KeyboardEvent, tracker: GameTracker) {

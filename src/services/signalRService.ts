@@ -1,5 +1,4 @@
 import * as signalR from "@microsoft/signalr";
-import { getCookie } from "../utils/cookie.js"
 import { injectable } from "tsyringe";
 
 @injectable()
@@ -8,15 +7,11 @@ export class signalRService {
 	private hubUrl : string;
 
 	async buildHubConnection(hubUrl: string) {
-		this.hubUrl = hubUrl;
 		
-		const anonymousId = getCookie("anonymous-id");
-		if (!anonymousId) {
-			return;
-		}
+		this.hubUrl = `${import.meta.env.VITE_SERVER_URL}${hubUrl}`;
 
 		this.connection = new signalR.HubConnectionBuilder()
-			.withUrl(`${this.hubUrl}?anonymousId=${encodeURIComponent(anonymousId)}`)
+			.withUrl(this.hubUrl, {withCredentials: true})
 			.withAutomaticReconnect({
 				nextRetryDelayInMilliseconds() {
 					return 5000;
@@ -41,7 +36,7 @@ export class signalRService {
 		}
 	}
 
-	on<T>(method: string, handler: (data: T) => void) {
+	on<T>(method: string, handler: (...args: any[]) => void) {
 		this.connection.on(method, handler);
 	}
 
@@ -50,6 +45,7 @@ export class signalRService {
 	}
 
 	invoke<T>(method: string, ...args: unknown[]): Promise<T> {
+		console.log(this.connection.state);
 		return this.connection.invoke(method, ...args);
 	}
 

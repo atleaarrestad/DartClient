@@ -12,4 +12,5 @@ router.setRoutes([
 	{ path: '/user/:id', component: 'user-page' },
 	{ path: '/season/:id', component: 'season-page' },
 	{ path: '/sessions', component: 'sessions-page' },
+	{ path: '/spectate/:id', component: 'spectate-game-page' },
 ]);

@@ -7,6 +7,7 @@ import './components/pages/users-page.js';
 import './components/pages/user-page.js';
 import './components/pages/season-page.js';
 import './components/pages/sessions-page.js';
+import './components/pages/spectate-game-page.js';
 import './components/aa-notification-cmp.js';
 import './components/aa-notification-container-cmp.js';
 import './components/aa-dart-throw-cmp.js';
@@ -18,7 +19,6 @@ import './components/aa-finish-count-chart.js';
 import './components/aa-user-picker.js';
 import './components/aa-dialog.js';
 import './getAbsoluteBase.js';
-import './utils/cookie.js';
 
 import hljs from 'highlight.js/lib/core';
 import csharp from 'highlight.js/lib/languages/csharp';
