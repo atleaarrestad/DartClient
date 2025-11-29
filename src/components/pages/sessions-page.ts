@@ -170,7 +170,7 @@ export class SessionsPage extends LitElement {
 							</div>
 
 							<div class="cta">
-								<span class="cta__hint">Open session</span>
+								<span class="cta__hint">Spectate game</span>
 								<span class="arrow" aria-hidden="true">➜</span>
 							</div>
 						</li>
