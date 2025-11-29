@@ -55,10 +55,23 @@ export class IndexPage extends GamePage {
 
 	protected onKeyDown = this.handleKeyDown.bind(this);
 	protected handleKeyDown(event: KeyboardEvent): void {
-		if (event.repeat)
-			return;
-
 		if (event.shiftKey) {
+			switch (event.code) {
+			case 'ArrowUp':
+			case 'ArrowLeft':
+			case 'ArrowRight':
+			case 'ArrowDown': {
+				this.moveFreeFocus(event.code);
+
+				event.preventDefault();
+
+				return;
+			}
+			}
+
+			if (event.repeat)
+				return;
+
 			switch (event.code) {
 			case 'Minus':
 			case 'NumpadAdd':
@@ -90,11 +103,49 @@ export class IndexPage extends GamePage {
 			}
 		}
 		else {
+			if (event.repeat)
+				return;
+
 			switch (event.code) {
 			case 'Tab':
 			case 'Enter':
 				this.moveFocus('forward');
 				event.preventDefault();
+			}
+		}
+	}
+
+	protected moveFreeFocus(code: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {
+		const direction
+			= code === 'ArrowUp' ? 'upward'
+				: code === 'ArrowDown' ? 'downward'
+					: code === 'ArrowRight' ? 'forward'
+						: code === 'ArrowLeft' ? 'backward' : '';
+
+		if (!direction)
+			return;
+
+		const selectedElementDetails = this.getSelectedElementDetails();
+
+		if (selectedElementDetails.type === 'nothing') {
+			this.focusDartThrow(0, 0, 0);
+		}
+
+		else if (selectedElementDetails.type === 'throw') {
+			const nextThrow = this.getNextFocusForDartThrow(
+				direction,
+				selectedElementDetails.playerIndex!,
+				selectedElementDetails.rowIndex!,
+				selectedElementDetails.throwIndex!,
+				true,
+			);
+
+			if (nextThrow) {
+				this.focusDartThrow(
+					nextThrow.nextPlayerIndex,
+					nextThrow.nextRoundIndex,
+					nextThrow.nextThrowIndex,
+				);
 			}
 		}
 	}
@@ -113,7 +164,6 @@ export class IndexPage extends GamePage {
 		if (selectedElementDetails.type === 'nothing') {
 			this.focusDartThrow(0, 0, 0);
 		}
-
 		else if (selectedElementDetails.type === 'throw') {
 			const nextThrow = this.getNextFocusForDartThrow(
 				direction,
@@ -142,7 +192,6 @@ export class IndexPage extends GamePage {
 
 		if (!this.selectedId)
 			return result;
-
 
 		const idParts = this.selectedId!.split('-');
 		result.type = idParts[0]! as 'throw' | 'nothing';
@@ -262,48 +311,64 @@ export class IndexPage extends GamePage {
 		element?.focus();
 	}
 
-	protected getNextFocusablePlayer(currentPlayerIndex: number, direction: 'forward' | 'backward'): number | undefined {
+	protected getNextFocusablePlayer(
+		currentPlayerIndex: number,
+		direction: 'forward' | 'backward',
+		ignoreRestrictions = false,
+	): number | undefined {
 		const playerCount = this.players.length;
-
 		if (playerCount <= 1)
-			return undefined;
-
+			return;
 
 		const step = direction === 'forward' ? 1 : -1;
 
-		for (let i = 1; i < playerCount; i++) {
-			const nextPlayerIndex = (currentPlayerIndex + step * i + playerCount) % playerCount;
+		if (ignoreRestrictions) {
+			const nextPlayerIndex = currentPlayerIndex + step;
+			if (nextPlayerIndex < 0 || nextPlayerIndex >= playerCount)
+				return;
 
-			const nextPlayer = this.players[nextPlayerIndex];
-			const nextPlayerHasWon = nextPlayer!.rounds.some(round => round.roundStatus === RoundStatus.Victory);
-			if (nextPlayerHasWon)
-				continue;
-
-			else
-				return nextPlayerIndex;
+			return nextPlayerIndex;
 		}
 
-		return undefined;
+		for (let i = 1; i < playerCount; i++) {
+			const nextPlayerIndex = (currentPlayerIndex + step * i + playerCount) % playerCount;
+			const nextPlayer = this.players[nextPlayerIndex];
+
+			if (!ignoreRestrictions) {
+				const nextPlayerHasWon = nextPlayer!.rounds
+					.some(round => round.roundStatus === RoundStatus.Victory);
+
+				if (nextPlayerHasWon)
+					continue;
+			}
+
+			return nextPlayerIndex;
+		}
+
+		return;
 	}
 
 	protected getNextFocusForDartThrow(
-		direction: 'forward' | 'backward',
+		direction: 'forward' | 'backward' | 'upward' | 'downward',
 		playerIndex: number,
 		roundIndex: number,
 		throwIndex: number,
+		ignoreRestrictions = false,
 	): { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number; } | null {
 		if (direction === 'forward') {
 			if (throwIndex === 2) {
-				const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'forward');
+				const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'forward', ignoreRestrictions);
 
 				// everyone else has won (potentially you also)
-				if (nextFocusablePlayer === undefined)
-					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
+				if (nextFocusablePlayer === undefined) {
+					if (ignoreRestrictions)
+						return null;
 
+					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
+				}
 				// Has looped around
 				if (nextFocusablePlayer < playerIndex)
 					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
-
 				else
 					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
 			}
@@ -311,34 +376,48 @@ export class IndexPage extends GamePage {
 				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
 			}
 		}
-
-		if (direction === 'backward') {
+		else if (direction === 'backward') {
 			if (playerIndex === 0 && roundIndex === 0 && throwIndex === 0)
 				return null;
 
-
 			if (throwIndex === 0) {
-				const prevFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'backward');
+				const prevFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'backward', ignoreRestrictions);
 
 				// everyone else has won (potentially you also)
-				if (prevFocusablePlayer === undefined)
-					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
+				if (prevFocusablePlayer === undefined) {
+					if (ignoreRestrictions)
+						return null;
 
+					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
+				}
 
 				if (roundIndex === 0)
 					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
 
-
 				// If we're not in the first round, move to the previous round
 				if (prevFocusablePlayer > playerIndex)
 					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
-
 				else
 					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
 			}
 			else {
 				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
 			}
+		}
+		else if (direction === 'upward' && ignoreRestrictions) {
+			if (roundIndex === 0)
+				return null;
+
+			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex - 1, nextThrowIndex: throwIndex };
+		}
+		else if (direction === 'downward' && ignoreRestrictions) {
+			const currentPlayer = this.players[playerIndex];
+			const lastRoundIndex = currentPlayer!.rounds.length - 1;
+
+			if (roundIndex >= lastRoundIndex)
+				return null;
+
+			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: throwIndex };
 		}
 
 		return null;

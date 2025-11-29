@@ -91,6 +91,9 @@ export class aaDartThrow extends LitElement {
 	}
 
 	private handleKeyDown(event: KeyboardEvent) {
+		if (event.shiftKey)
+			return;
+
 		const keyActions: Record<string, () => void> = {
 			ArrowUp: () => this.adjustThrowType('up'),
 			Up:      () => this.adjustThrowType('up'),
