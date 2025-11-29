@@ -1,6 +1,3 @@
-import { getAbsoluteBase } from '../getAbsoluteBase.js';
-
-const base = getAbsoluteBase();
 export enum Rank {
 	Bronze = 0,
 	Bronze1 = 1,
@@ -53,63 +50,60 @@ export function getRankDisplayValue(rank: Rank | undefined): string {
 	if (rank == undefined)
 		return 'Unranked';
 
-
 	return RankDisplayValues[rank];
 }
 
 export function getRankIcon(rank: Rank | undefined): string {
-	const base = './';
-
 	switch (rank) {
 	case Rank.Bronze1:
-		return `${ base }icons/bronze_1.png`;
+		return './icons/bronze_1.png';
 	case Rank.Bronze2:
-		return `${ base }icons/bronze_2.png`;
+		return './icons/bronze_2.png';
 	case Rank.Bronze3:
-		return `${ base }icons/bronze_3.png`;
+		return './icons/bronze_3.png';
 	case Rank.Bronze:
-		return `${ base }icons/bronze.png`;
+		return './icons/bronze.png';
 
 	case Rank.Silver1:
-		return `${ base }icons/silver_1.png`;
+		return './icons/silver_1.png';
 	case Rank.Silver2:
-		return `${ base }icons/silver_2.png`;
+		return './icons/silver_2.png';
 	case Rank.Silver3:
-		return `${ base }icons/silver_3.png`;
+		return './icons/silver_3.png';
 	case Rank.Silver:
-		return `${ base }icons/silver.png`;
+		return './icons/silver.png';
 
 	case Rank.Gold1:
-		return `${ base }icons/gold_1.png`;
+		return './icons/gold_1.png';
 	case Rank.Gold2:
-		return `${ base }icons/gold_2.png`;
+		return './icons/gold_2.png';
 	case Rank.Gold3:
-		return `${ base }icons/gold_3.png`;
+		return './icons/gold_3.png';
 	case Rank.Gold:
-		return `${ base }icons/gold.png`;
+		return './icons/gold.png';
 
 	case Rank.Platinum1:
-		return `${ base }icons/platinum_1.png`;
+		return './icons/platinum_1.png';
 	case Rank.Platinum2:
-		return `${ base }icons/platinum_2.png`;
+		return './icons/platinum_2.png';
 	case Rank.Platinum3:
-		return `${ base }icons/platinum_3.png`;
+		return './icons/platinum_3.png';
 	case Rank.Platinum:
-		return `${ base }icons/platinum.png`;
+		return './icons/platinum.png';
 
 	case Rank.Diamond1:
-		return `${ base }icons/diamond_1.png`;
+		return './icons/diamond_1.png';
 	case Rank.Diamond2:
-		return `${ base }icons/diamond_2.png`;
+		return './icons/diamond_2.png';
 	case Rank.Diamond3:
-		return `${ base }icons/diamond_3.png`;
+		return './icons/diamond_3.png';
 	case Rank.Diamond:
-		return `${ base }icons/diamond.png`;
+		return './icons/diamond.png';
 
 	case Rank.Grandmaster:
-		return `${ base }icons/grandmaster.png`;
+		return './icons/grandmaster.png';
 
 	default:
-		return `${ base }icons/rank_unranked.png`;
+		return './icons/rank_unranked.png';
 	}
 }
