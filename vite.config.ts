@@ -1,4 +1,6 @@
 import { defineConfig } from 'vite';
 
 
-export default defineConfig({});
+export default defineConfig({
+	base: './',
+});
