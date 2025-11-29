@@ -34,16 +34,18 @@ export class AaNavigationbar extends LitElement {
 
 	override render(): unknown {
 		return html`
-			<nav class="navbar">
-			<a class="logo" href=${ base }>
-				<img class="logo-icon" src=${ `${ base }icons/home.png` } alt="Home" />
-				<span>Play</span>
-			</a>
+		<nav class="navbar">
+			<s-logo-wrapper>
+				<a class="logo" href=${ base }>
+					<img class="logo-icon" src=${ `${ base }icons/home.png` } alt="Home" />
+					<span>Play</span>
+				</a>
 
-			<a class="logo center" href=${ `${ base }season/${ this.season?.id }` }>
-				<img class="logo-icon" src=${ `${ base }icons/season_alpha.png` } alt="Logo" />
-				<span class="fit-content">Season ${ this.season?.name }</span>
-			</a>
+				<a class="logo center" href=${ `${ base }season/${ this.season?.id }` }>
+					<img class="logo-icon" src=${ `${ base }icons/season_alpha.png` } alt="Logo" />
+					<span class="fit-content">Season ${ this.season?.name }</span>
+				</a>
+			</s-logo-wrapper>
 
 			<ul class="nav-links">
 				<li><a href=${ `${ base }users` }>Users</a></li>
@@ -52,7 +54,7 @@ export class AaNavigationbar extends LitElement {
 				<li><a href="#" class="disabled">Game-log</a></li>
 				<li><a href="#" class="disabled">Seasons</a></li>
 			</ul>
-			</nav>
+		</nav>
 		`;
 	}
 
@@ -60,7 +62,6 @@ export class AaNavigationbar extends LitElement {
 		sharedStyles, css`
 		:host {
 			display: block;
-			width: 100%;
 			background-color: #ffeef1;
 			color: #000;
 			border-bottom: 4px solid #000;
@@ -78,6 +79,11 @@ export class AaNavigationbar extends LitElement {
 			justify-content: space-between;
 			padding: 1rem 2rem;
 			gap: 1rem;
+		}
+		s-logo-wrapper {
+			display: flex;
+			column-gap: 48px;
+			flex-flow: wrap;
 		}
 		.logo {
 			display: flex;
@@ -97,7 +103,9 @@ export class AaNavigationbar extends LitElement {
 		}
 		.nav-links {
 			display: flex;
-			gap: 1rem;
+			column-gap: 1rem;
+			row-gap: 0.5rem;
+			align-items: center;
 			justify-content: end;
 			flex-flow: wrap;
 

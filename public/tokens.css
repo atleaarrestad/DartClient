@@ -42,10 +42,9 @@
 	--font-color-inventory-slot: #fff;
 
 	/* Font & Sizes */
+	/* Using 'Bitter' for the Neo-Brutalism look */
 	--font-family-first: 'Bitter', serif;
-	/* Using 'Bitter' for the Neo-Brutalism look */
 	--font-family-second: 'Space Grotesk', serif;
-	/* Using 'Bitter' for the Neo-Brutalism look */
 	--font-size-title: 32px;
 	--font-size-subtitle: 28px;
 	--font-size-notification: 16px;

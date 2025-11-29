@@ -131,24 +131,30 @@ export class aaDartThrow extends LitElement {
 
 	private updateDisplayForThrowType() {
 		if (this.dartThrow.throwType === ThrowType.Miss) {
-			this.inputElement.value = 'MISS';
 			this.dartThrow = { ...this.dartThrow, hitLocation: 0 };
 			this.isReadOnly = true;
 		}
 		else if (this.dartThrow.throwType === ThrowType.Rim) {
-			this.inputElement.value = 'RIM';
 			this.dartThrow = { ...this.dartThrow, hitLocation: 0 };
 			this.isReadOnly = true;
 		}
 		else {
 			this.isReadOnly = false;
+
 			if (this.inputElement.value === 'MISS' || this.inputElement.value === 'RIM')
 				this.inputElement.value = String(this.dartThrow.hitLocation);
 		}
 	}
 
 	override render(): unknown {
-		const value = this.dartThrow.hitLocation == 0 ? '' : this.dartThrow.hitLocation.toString();
+		let value: string;
+		if (this.dartThrow.throwType === ThrowType.Miss)
+			value = 'MISS';
+		else if (this.dartThrow.throwType === ThrowType.Rim)
+			value = 'RIM';
+		else
+			value = this.dartThrow.hitLocation == 0 ? '' : this.dartThrow.hitLocation.toString();
+
 		const wrapperClasses = { 'wrapper': true, 'is-middle-input': this.dartThrow.throwIndex === 1 };
 		const inputClasses = { 'scoreModifierActivated': this.dartThrow.activatedModifiers.length > 0 };
 
@@ -156,15 +162,16 @@ export class aaDartThrow extends LitElement {
 		<div class=${ classMap(wrapperClasses) }>
 			<input
 				name="input"
-				tabindex ="-1"
-				type     ="text"
-				class    =${ classMap(inputClasses) }
-				?readonly=${ this.isReadOnly }
-				?disabled=${ this.isDisabled }
-				.value   =${ value }
-				@input   =${ this.handleInputChanged }
-				@keydown =${ this.handleKeyDown }
-				@blur    =${ this.handleBlur }
+				tabindex    ="-1"
+				type        ="text"
+				autocomplete="off"
+				class       =${ classMap(inputClasses) }
+				?readonly   =${ this.isReadOnly }
+				?disabled   =${ this.isDisabled }
+				.value      =${ value }
+				@input      =${ this.handleInputChanged }
+				@keydown    =${ this.handleKeyDown }
+				@blur       =${ this.handleBlur }
 			>
 			${ this.renderMultiplier() }
 		</div>

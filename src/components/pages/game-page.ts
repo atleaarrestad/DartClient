@@ -1,6 +1,6 @@
 import '../aa-button-cmp.js';
 
-import { html, unsafeCSS } from 'lit';
+import { html, type PropertyValues, unsafeCSS } from 'lit';
 import { LitElement } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -79,6 +79,13 @@ export class GamePage extends LitElement {
 		}
 
 		this.loading = false;
+
+		await this.updateComplete;
+
+		const scrollContainers = this.shadowRoot?.querySelectorAll('.rounds-scroll-container');
+		scrollContainers?.forEach(container => {
+			container.scrollTop = container.scrollHeight;
+		});
 	}
 
 	protected async healthCheckServer(): Promise<void> {
@@ -214,46 +221,48 @@ export class GamePage extends LitElement {
 						${ this.getCumulativePoints(player) } (${ this.getDifferenceFromBase(player) })
 					</span>
 
-					<div class="round-labels-container round-grid">
+					<div class="round-labels-container">
 						<span class="border-right">N</span>
 						<span>Throws</span>
 						<span class="border-left">Sum</span>
 					</div>
 
-					<div class="rounds-container">
-						${ player.rounds.map((round, roundIndex) => html`
-						<div class=${ classMap({
-							'victory':         hasVictory,
-							'alternate-color': roundIndex % 2 === 0 && !hasVictory,
-							'overshoot':       round.roundStatus === RoundStatus.Overshoot,
-						}) }>
-							<div class="round-grid">
-								<div class="round-number">${ roundIndex + 1 }</div>
-								<div class="throws-container">
-									${ round.dartThrows.map((dartThrow, throwIndex) => {
-										const onThrowUpdated = (e: CustomEvent) =>
-											this.handleThrowUpdated?.(e.detail.dartThrow, playerIndex, roundIndex);
+					<div class="rounds-scroll-container">
+						<div class="rounds-container">
+							${ player.rounds.map((round, roundIndex) => html`
+							<div class=${ classMap({
+								'victory':         hasVictory,
+								'alternate-color': roundIndex % 2 === 0 && !hasVictory,
+								'overshoot':       round.roundStatus === RoundStatus.Overshoot,
+							}) }>
+								<div class="round-grid">
+									<div class="round-number">${ roundIndex + 1 }</div>
+									<div class="throws-container">
+										${ round.dartThrows.map((dartThrow, throwIndex) => {
+											const onThrowUpdated = (e: CustomEvent) =>
+												this.handleThrowUpdated?.(e.detail.dartThrow, playerIndex, roundIndex);
 
-										const onFocus = (e: FocusEvent) =>
-											this.handleDartThrowFocused?.(e);
+											const onFocus = (e: FocusEvent) =>
+												this.handleDartThrowFocused?.(e);
 
-										return html`
-										<aa-dart-throw
-											id="throw-${ playerIndex }-${ roundIndex }-${ throwIndex }"
-											.dartThrow=${ dartThrow }
-											?isDisabled=${ this.isReadOnly }
-											@throw-updated=${ onThrowUpdated }
-											@focus=${ onFocus }>
-										</aa-dart-throw>
-										`;
-									}) }
-								</div>
-								<div class="cumulative-points-round">
-									<span>${ this.getRoundSum(round) }</span>
+											return html`
+											<aa-dart-throw
+												id="throw-${ playerIndex }-${ roundIndex }-${ throwIndex }"
+												.dartThrow=${ dartThrow }
+												?isDisabled=${ this.isReadOnly }
+												@throw-updated=${ onThrowUpdated }
+												@focus=${ onFocus }>
+											</aa-dart-throw>
+											`;
+										}) }
+									</div>
+									<div class="cumulative-points-round">
+										<span>${ this.getRoundSum(round) }</span>
+									</div>
 								</div>
 							</div>
+							`) }
 						</div>
-						`) }
 					</div>
 
 					<div class="rank-container">

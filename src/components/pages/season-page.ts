@@ -142,7 +142,7 @@ export class SeasonPage extends LitElement {
 		`;
 	}
 
-	override render() {
+	override render(): unknown {
 		const p = this.podium;
 
 		return html`
