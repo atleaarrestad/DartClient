@@ -18,6 +18,7 @@ import './components/aa-finish-count-chart.js';
 import './components/aa-user-picker.js';
 import './components/aa-dialog.js';
 import './getAbsoluteBase.js';
+import './utils/cookie.js';
 
 import { container } from 			'tsyringe';
 
@@ -29,6 +30,7 @@ import { NotificationService } from './services/notificationService.js';
 import { RuleService } from 		'./services/ruleService.js';
 import { SeasonService } from 		'./services/seasonService.js';
 import { UserService } from 		'./services/userService.js';
+import { signalRService } from 		"./services/signalRService.js";
 
 container.register(DataService, 		{ useClass: DataService });
 container.register(NotificationService, { useClass: NotificationService });
@@ -38,6 +40,7 @@ container.register(UserService, 		{ useClass: UserService });
 container.register(CacheService, 		{ useClass: CacheService });
 container.register(GameService, 		{ useClass: GameService });
 container.register(RuleService, 		{ useClass: RuleService });
+container.register(signalRService, 		{ useValue: signalRService });
 
 import hljs from 'highlight.js/lib/core';
 import csharp from 'highlight.js/lib/languages/csharp';
