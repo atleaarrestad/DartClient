@@ -1,5 +1,8 @@
 import { css, html, LitElement } from 'lit';
+import { customElement } from 'lit/decorators.js';
 
+
+@customElement('brutalist-button')
 class BrutalistButton extends LitElement {
 
 	override render() {
@@ -32,5 +35,4 @@ class BrutalistButton extends LitElement {
   `;
 
 }
-
-customElements.define('brutalist-button', BrutalistButton);
+BrutalistButton;

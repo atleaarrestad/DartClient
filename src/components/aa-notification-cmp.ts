@@ -2,7 +2,8 @@ import { css, html, LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
-import { sharedStyles } from '../../styles.js';
+import { faIcons } from '../faIcons.js';
+import { sharedStyles } from '../styles.js';
 
 
 @customElement('aa-notification-cmp')
@@ -45,7 +46,6 @@ export class NotificationElement extends LitElement {
 		if (this.promise != undefined)
 			return 'fas fa-spinner fa-spin info';
 
-
 		switch (this.type) {
 		case 'success': return 'fas fa-check-circle success';
 		case 'danger': return 'fas fa-exclamation-triangle danger';
@@ -81,7 +81,7 @@ export class NotificationElement extends LitElement {
 	}
 
 	static override styles = [
-		sharedStyles, css`
+		sharedStyles, faIcons, css`
 		:host([hidden]) {
 			opacity: 0;
 			transform: translateY(-20px);

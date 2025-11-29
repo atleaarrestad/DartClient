@@ -2,9 +2,9 @@ import { css, html, LitElement } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 
-import { sharedStyles } from '../../styles.js';
 import { DartThrow } from '../models/dartThrowSchema.js';
 import { ThrowType } from '../models/enums.js';
+import { sharedStyles } from '../styles.js';
 
 
 @customElement('aa-dart-throw')

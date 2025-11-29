@@ -1,8 +1,9 @@
 import Chart from 'chart.js/auto';
-import { css, html, LitElement } from 'lit';
+import { css, html, LitElement, type PropertyValues } from 'lit';
 import { customElement, property, query } from 'lit/decorators.js';
 
 import type { FinishCount } from '../models/schemas.js';
+
 
 @customElement('aa-finish-count-chart')
 export class FinishCountChart extends LitElement {
@@ -10,30 +11,18 @@ export class FinishCountChart extends LitElement {
 	@property({ type: Array }) finishCounts: FinishCount[] = [];
 
 	@query('canvas') private _canvas!: HTMLCanvasElement;
-	private _chart?:                   Chart;
 
-	static override styles = css`
-    :host {
-      display: block;
-      position: relative;
-      width: 100%;
-      height: 100%;
-    }
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-    }
-  `;
+	private _chart?: Chart;
 
-	override render() {
-		return html`<canvas></canvas>`;
-	}
+	override firstUpdated(changeProperties: PropertyValues): void {
+		super.firstUpdated(changeProperties);
 
-	override firstUpdated() {
 		this._renderChart();
 	}
 
-	override updated(changed: Map<string, any>) {
+	override updated(changed: PropertyValues): void {
+		super.updated(changed);
+
 		if (changed.has('finishCounts'))
 			this._renderChart();
 	}
@@ -53,7 +42,7 @@ export class FinishCountChart extends LitElement {
 
 		if (this._chart) {
 			this._chart.data.labels = labels;
-			this._chart.data.datasets[0].data = data;
+			this._chart.data.datasets[0]!.data = data;
 			this._chart.update();
 
 			return;
@@ -98,5 +87,22 @@ export class FinishCountChart extends LitElement {
 			},
 		});
 	}
+
+	override render(): unknown {
+		return html`<canvas></canvas>`;
+	}
+
+	static override styles = css`
+		:host {
+			display: block;
+			position: relative;
+			width: 100%;
+			height: 100%;
+		}
+		canvas {
+			width: 100% !important;
+			height: 100% !important;
+		}
+  `;
 
 }

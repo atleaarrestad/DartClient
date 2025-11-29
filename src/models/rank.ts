@@ -1,5 +1,6 @@
 import { getAbsoluteBase } from '../getAbsoluteBase.js';
 
+
 const base = getAbsoluteBase();
 export enum Rank {
 	Bronze = 0,
@@ -52,7 +53,6 @@ export const RankDisplayValues: Record<Rank, string> = {
 export function getRankDisplayValue(rank: Rank | undefined): string {
 	if (rank == undefined)
 		return 'Unranked';
-
 
 	return RankDisplayValues[rank];
 }

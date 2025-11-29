@@ -1,7 +1,7 @@
 import { css, html, LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
-import { sharedStyles } from '../../styles.js';
+import { sharedStyles } from '../styles.js';
 
 @customElement('aa-info-card')
 export class InfoCard extends LitElement {

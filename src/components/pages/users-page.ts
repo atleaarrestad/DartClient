@@ -4,7 +4,6 @@ import { LitElement } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
-import { sharedStyles } from '../../../styles.js';
 import { getAbsoluteBase } from '../../getAbsoluteBase.js';
 import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
 import { Season, SeasonStatistics, User } from '../../models/schemas.js';
@@ -12,6 +11,7 @@ import { DialogService } from '../../services/dialogService.js';
 import { NotificationService } from '../../services/notificationService.js';
 import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
+import { sharedStyles } from '../../styles.js';
 import { newUserTemplate } from '../../templates/dialogTemplates.js';
 
 const base = getAbsoluteBase();
@@ -129,8 +129,8 @@ export class UsersPage extends LitElement {
 		return html`
 
 		<h2>Users</h2>
-		
-	
+
+
       <table class="users-table">
         <thead>
           <tr>

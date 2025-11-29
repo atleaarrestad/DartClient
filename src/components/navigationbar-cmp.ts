@@ -3,10 +3,10 @@ import { LitElement } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
-import { sharedStyles } from '../../styles.js';
 import { getAbsoluteBase } from '../getAbsoluteBase.js';
 import { Season } from '../models/schemas.js';
 import { SeasonService } from '../services/seasonService.js';
+import { sharedStyles } from '../styles.js';
 
 
 const base = getAbsoluteBase();

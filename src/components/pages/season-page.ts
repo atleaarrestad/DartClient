@@ -5,12 +5,12 @@ import { customElement, state } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { container } from 'tsyringe';
 
-import { sharedStyles } from '../../../styles.js';
 import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
 import { RuleDefinition, Season, SeasonStatistics, User } from '../../models/schemas.js';
 import { RuleService } from '../../services/ruleService.js';
 import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
+import { sharedStyles } from '../../styles.js';
 
 @customElement('season-page')
 export class SeasonPage extends LitElement {

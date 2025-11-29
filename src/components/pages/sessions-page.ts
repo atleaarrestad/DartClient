@@ -5,7 +5,6 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { map } from 'lit/directives/map.js';
 import { container } from 'tsyringe';
 
-import { sharedStyles } from '../../../styles.js';
 import { getAbsoluteBase } from '../../getAbsoluteBase.js';
 import { RoundStatus } from '../../models/enums.js';
 import { GameTracker, PlayerRounds, Round, User } from '../../models/schemas.js';
@@ -14,6 +13,7 @@ import { GameService } from '../../services/gameService.js';
 import { NotificationService } from '../../services/notificationService.js';
 import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
+import { sharedStyles } from '../../styles.js';
 
 const base = getAbsoluteBase();
 

@@ -4,13 +4,13 @@ import { LitElement } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
-import { sharedStyles } from '../../../styles.js';
 import { UserQueryOptions } from '../../api/users.requests.js';
 import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
 import { SeasonStatistics, User } from '../../models/schemas.js';
 import { Season } from '../../models/schemas.js';
 import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
+import { sharedStyles } from '../../styles.js';
 
 
 @customElement('user-page')

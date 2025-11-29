@@ -1,9 +1,10 @@
 import Chart from 'chart.js/auto';
-import { css, html, LitElement } from 'lit';
+import { css, html, LitElement, type PropertyValues } from 'lit';
 import { customElement, property, query } from 'lit/decorators.js';
 
 import { ThrowType } from '../models/enums.js';
 import type { HitCount } from '../models/schemas.js';
+
 
 @customElement('aa-hit-count-chart')
 export class HitCountBarChart extends LitElement {
@@ -11,30 +12,18 @@ export class HitCountBarChart extends LitElement {
 	@property({ type: Array }) hits: HitCount[] = [];
 
 	@query('canvas') private _canvas!: HTMLCanvasElement;
-	private _chart?:                   Chart;
 
-	static override styles = css`
-    :host {
-      display: block;
-      position: relative;
-      width: 100%;
-      height: 100%;
-    }
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-    }
-  `;
+	private _chart?: Chart;
 
-	override render() {
-		return html`<canvas></canvas>`;
-	}
+	override firstUpdated(changeProperties: PropertyValues): void {
+		super.firstUpdated(changeProperties);
 
-	override firstUpdated() {
 		this._renderChart();
 	}
 
-	override updated(changed: Map<string, unknown>) {
+	override updated(changed: PropertyValues): void {
+		super.updated(changed);
+
 		if (changed.has('hits'))
 			this._renderChart();
 	}
@@ -93,14 +82,14 @@ export class HitCountBarChart extends LitElement {
 			if (throwType === ThrowType.Miss) {
 				const i = idxByLabel.get('Miss');
 				if (i !== undefined)
-					miss[i] += count;
+					miss[i]! += count;
 
 				continue;
 			}
 			if (throwType === ThrowType.Rim) {
 				const i = idxByLabel.get('Rim');
 				if (i !== undefined)
-					rim[i] += count;
+					rim[i]! += count;
 
 				continue;
 			}
@@ -111,15 +100,15 @@ export class HitCountBarChart extends LitElement {
 				continue;
 
 			if (throwType === ThrowType.Single) {
-				single[i] += count;
+				single[i]! += count;
 			}
 			else if (throwType === ThrowType.Double) {
 				if (hitLocation >= 1 && hitLocation <= 20)
-					dbl[i] += count;
+					dbl[i]! += count;
 			}
 			else if (throwType === ThrowType.Triple) {
 				if (hitLocation >= 1 && hitLocation <= 20)
-					triple[i] += count;
+					triple[i]! += count;
 			}
 		}
 
@@ -127,11 +116,11 @@ export class HitCountBarChart extends LitElement {
 		if (this._chart) {
 			this._chart.data.labels = labels;
 			// Maintain dataset order/colors while replacing the data arrays
-			this._chart.data.datasets[0].data = miss;
-			this._chart.data.datasets[1].data = rim;
-			this._chart.data.datasets[2].data = single;
-			this._chart.data.datasets[3].data = dbl;
-			this._chart.data.datasets[4].data = triple;
+			this._chart.data.datasets[0]!.data = miss;
+			this._chart.data.datasets[1]!.data = rim;
+			this._chart.data.datasets[2]!.data = single;
+			this._chart.data.datasets[3]!.data = dbl;
+			this._chart.data.datasets[4]!.data = triple;
 			this._chart.update();
 
 			return;
@@ -222,5 +211,22 @@ export class HitCountBarChart extends LitElement {
 			},
 		});
 	}
+
+	override render(): unknown {
+		return html`<canvas></canvas>`;
+	}
+
+	static override styles = css`
+    :host {
+      display: block;
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+  `;
 
 }

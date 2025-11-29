@@ -6,7 +6,6 @@ import { property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { container } from 'tsyringe';
 
-import { sharedStyles } from '../../../styles.js';
 import { sum } from '../../helpers/sum.js';
 import { RoundStatus } from '../../models/enums.js';
 import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
@@ -17,6 +16,7 @@ import { GameService } from '../../services/gameService.js';
 import { NotificationService } from '../../services/notificationService.js';
 import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
+import { sharedStyles } from '../../styles.js';
 import gamePageStyles from './game-page.css?inline';
 
 
