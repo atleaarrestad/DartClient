@@ -2,52 +2,64 @@
 	contain: strict;
 	display: grid;
 }
+
 .rank-text-container {
 	display: flex;
 	flex-direction: column;
 }
+
 .mmr {
-	font-size: 0.75rem;
+	font-size: 1rem;
 }
+
 .player-name {
 	padding: 8px;
 	text-align: center;
 	font-size: 1.5rem
 }
+
 .shortcut {
 	font-size: 2rem;
 	font-weight: bold;
 	margin-bottom: 0.5rem;
 }
+
 .subtitle {
 	font-size: 1.2rem;
 	opacity: 0.8;
 }
+
 .offsetY {
 	padding-top: 40vh;
 }
+
 .overshoot {
 	background-color: #ed817f89 !important;
 }
+
 .victory {
 	background-color: var(--color-victory);
 }
+
 .rank-container {
 	display: grid;
 	justify-content: center;
 	padding-block: 8px;
 }
+
 .rank-inner-container {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 0.5rem;
 }
+
 .rank-icon {
 	width: 64px;
 	height: 64px;
 	object-fit: contain;
 }
+
 .player-container {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(250px, auto));
@@ -55,6 +67,7 @@
 	padding-block: 24px;
 	padding-inline: 12px;
 }
+
 .player {
 	contain: strict;
 	display: grid;
@@ -66,17 +79,21 @@
 	background: var(--player-bg, #f0f0f0);
 	box-shadow: 3px 3px 0px 0px black;
 }
+
 .player:first-child {
 	border-top-left-radius: 10px;
 	border-bottom-left-radius: 10px;
 }
+
 .player:last-child {
 	border-bottom-right-radius: 10px;
 	border-top-right-radius: 10px;
 }
+
 .player:first-child:last-child {
 	border-radius: 10px;
 }
+
 .rounds-container {
 	overflow-y: auto;
 	scrollbar-gutter: stable;
@@ -84,28 +101,36 @@
 	display: grid;
 	grid-auto-rows: max-content;
 }
+
 .rounds-container::-webkit-scrollbar {
 	width: 2px;
 }
+
 .rounds-container::-webkit-scrollbar-track {
 	background: transparent;
 }
+
 .rounds-container::-webkit-scrollbar-thumb {
 	background: #888;
 }
+
 .rounds-container::-webkit-scrollbar-thumb:hover {
 	background: #555;
 }
+
 .alternate-color {
 	background-color: rgba(180, 204, 185, 0.25)
 }
+
 .player-name-container {
 	text-align: center;
 }
+
 .round-grid {
 	display: grid;
 	grid-template-columns: 1.5rem 1fr 3rem;
 }
+
 .round-labels-container {
 	display: grid;
 	grid-template-columns: 1.5rem 1fr calc(3rem + 2px);
@@ -114,28 +139,34 @@
 	background-color: #B4CCB9;
 	font-size: .7rem;
 }
+
 .border-right {
 	border-right: 1px solid black;
 }
+
 .border-left {
 	border-left: 1px solid black;
 }
+
 .throws-container {
 	display: grid;
 	grid-template-columns: 1fr 1fr 1fr;
 }
+
 .round-number {
 	border-right: 1px solid black;
 	font-size: .6rem;
 	line-height: 1.75rem;
 	text-align: center;
 }
+
 .cumulative-points-round {
 	border-left: 1px solid black;
 	font-size: 1rem;
 	text-align: center;
 	align-content: center;
 }
+
 .total-sum {
 	text-align: center;
 	border-top: 2px solid black;
