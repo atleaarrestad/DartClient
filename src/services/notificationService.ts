@@ -1,6 +1,7 @@
 import { NotificationElement } from 'src/components/aa-notification-cmp.js';
 import { injectable } from 'tsyringe';
 
+
 @injectable()
 export class NotificationService {
 
@@ -18,7 +19,6 @@ export class NotificationService {
 
 		if (promise)
 			notification.promise = promise;
-
 
 		container.appendChild(notification);
 	}

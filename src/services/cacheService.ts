@@ -1,12 +1,13 @@
 import { injectable, singleton } from 'tsyringe';
 
+
 @singleton()
 @injectable()
 export class CacheService {
 
 	private readonly gameIdKey = 'gameid';
 
-	SetGameId(gameId: string) {
+	SetGameId(gameId: string): void {
 		window.localStorage.setItem(this.gameIdKey, gameId);
 	}
 
@@ -16,7 +17,7 @@ export class CacheService {
 		return id ?? undefined;
 	}
 
-	removeGameId() {
+	removeGameId(): void {
 		window.localStorage.removeItem(this.gameIdKey);
 	}
 

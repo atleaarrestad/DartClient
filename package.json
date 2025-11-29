@@ -10,26 +10,26 @@
 		"lint:fix": "eslint --fix"
 	},
 	"dependencies": {
-		"@fortawesome/fontawesome-free": "^6.7.2",
+		"@fortawesome/fontawesome-free": "^7.1.0",
 		"@microsoft/signalr": "^10.0.0",
-		"@vaadin/router": "^1.7.5",
+		"@vaadin/router": "^2.0.1",
 		"chart.js": "^4.4.9",
 		"highlight.js": "^11.11.1",
-		"lit": "^2.8.0",
-		"reflect-metadata": "^0.1.14",
+		"lit": "^3.3.1",
+		"reflect-metadata": "^0.2.2",
 		"tslib": "^2.8.1",
 		"tsyringe": "^4.8.0",
-		"zod": "^3.24.2"
+		"zod": "^4.1.13"
 	},
 	"devDependencies": {
 		"@arcmantle/eslint-config": "^1.0.2",
 		"@eslint/js": "^9.22.0",
-		"@stylistic/eslint-plugin": "^4.2.0",
-		"@types/node": "^20.17.24",
+		"@stylistic/eslint-plugin": "^5.6.1",
+		"@types/node": "^24.10.1",
 		"eslint": "^9.22.0",
 		"globals": "^16.0.0",
 		"typescript": "^5.8.2",
 		"typescript-eslint": "^8.26.1",
-		"vite": "^4.5.9"
+		"vite": "^7.2.4"
 	}
 }

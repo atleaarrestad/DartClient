@@ -6,7 +6,10 @@ import { AaDialog } from '../components/aa-dialog.js';
 @injectable()
 export class DialogService {
 
-	open<T = void>(content: HTMLElement | string | TemplateResult, options?: { title?: string; }): Promise<T | undefined> {
+	open<T = void>(
+		content: HTMLElement | string | TemplateResult,
+		options?: { title?: string; },
+	): Promise<T | undefined> {
 		return new Promise((resolve, reject) => {
 			if (document.querySelector('aa-dialog')) {
 				reject(new Error('A dialog is already open'));

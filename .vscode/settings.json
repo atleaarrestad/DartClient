@@ -7,7 +7,7 @@
 	},
 	"editor.detectIndentation": false,
 	"editor.insertSpaces": false,
-	"eslint.run": "onType",
+	"eslint.run": "onSave",
 	"eslint.useESLintClass": true,
 	"eslint.useFlatConfig": true,
 	"eslint.format.enable": true,

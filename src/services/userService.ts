@@ -1,8 +1,9 @@
 import { container, injectable } from 'tsyringe';
 
 import { UserQueryOptions } from '../api/users.requests.js';
-import { User, UserSchema } from '../models/schemas.js';
+import { User } from '../models/schemas.js';
 import { DataService } from './dataService.js';
+
 
 @injectable()
 export class UserService {
@@ -45,7 +46,7 @@ export class UserService {
 		return this.dataService.getUserById(userId, options);
 	}
 
-	async addUser(name: string, alias: string) {
+	async addUser(name: string, alias: string): Promise<void> {
 		return this.dataService.addUser(name, alias);
 	}
 

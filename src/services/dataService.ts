@@ -1,21 +1,23 @@
-import { GameSubmission, RuleDefinitionsResponse } from 'src/models/schemas.js';
 import { injectable } from 'tsyringe';
 import { z } from 'zod';
 
 import { buildGetUserByIdUrl, UserQueryOptions } from '../api/users.requests.js';
 import { DartThrow } from '../models/dartThrowSchema.js';
-import { GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds, PlayerRoundsScema, RuleDefinitionSchema, RuleDefinitionsResponseSchema, Season, SeasonSchema, User, UserSchema } from '../models/schemas.js';
+import {
+	GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds,
+	type RuleDefinitionsResponse, RuleDefinitionsResponseSchema, Season, SeasonSchema, User, UserSchema,
+} from '../models/schemas.js';
+
 
 export type ApiResponse<T> =
 	| { ok: true; data: T; }
 	| { ok: false; status: number; statusText: string; body: unknown; };
 
+
 @injectable()
 export class DataService {
 
-	// private baseUrl = "https://localhost:7117/api/";// NOT DOCKER BACKEND
-	// private baseUrl = 'http://localhost:8080/api/'; // DOCKER BACKEND
-	private baseUrl = 'https://atulling.net/api/';// Production backend
+	private backendURL = import.meta.env.VITE_SERVER_URL;
 	private abortTimeout = 500000;
 
 	async Ping(): Promise<string> {
@@ -132,12 +134,21 @@ export class DataService {
 		}
 	}
 
-	async AddDartThrowToGameSession(gameId: string, playerId: string, roundNumber: number, dartThrow: DartThrow): Promise<GameTracker> {
+	async AddDartThrowToGameSession(
+		gameId: string,
+		playerId: string,
+		roundNumber: number,
+		dartThrow: DartThrow,
+	): Promise<GameTracker> {
 		const request = {
 			HitLocation: dartThrow.hitLocation,
 			ThrowType:   dartThrow.throwType,
 		};
-		const result = await this.post<object, PlayerRounds>(`games/sessions/${ gameId }/player/${ playerId }/round/${ roundNumber }/throw/${ dartThrow.throwIndex }`, request);
+		const result = await this.post<object, PlayerRounds>(
+			`games/sessions/${ gameId }/player/${ playerId }/round/${ roundNumber }/throw/${ dartThrow.throwIndex }`,
+			request,
+		);
+
 		if (!result.ok) {
 			throw new Error(
 				`Failed to add player to active game: ${ result.status } ${ result.statusText }`,
@@ -261,14 +272,14 @@ export class DataService {
 		endpoint: string,
 		options: RequestInit,
 	): Promise<ApiResponse<T>> {
-	// Build headers conditionally (MINIMAL CHANGE)
+		// Build headers conditionally (MINIMAL CHANGE)
 		const hasBody = options.body !== undefined && options.body !== null;
 		const headers = {
 			...(hasBody ? { 'Content-Type': 'application/json' } : {}),
 			...(options.headers || {}),
 		};
 
-		const res = await fetch(`${ this.baseUrl }${ endpoint }`, {
+		const res = await fetch(`${ this.backendURL }${ endpoint }`, {
 			...options,
 			headers,
 			signal: this.createTimeoutSignal(this.abortTimeout),
