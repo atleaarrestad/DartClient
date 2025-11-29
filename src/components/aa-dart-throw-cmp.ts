@@ -10,9 +10,11 @@ import { sharedStyles } from '../styles.js';
 @customElement('aa-dart-throw')
 export class aaDartThrow extends LitElement {
 
-	@property({ type: Object }) dartThrow: DartThrow;
+	@property({ type: Object }) dartThrow:   DartThrow;
+	@property({ type: Boolean }) isDisabled: boolean = false;
 
-	@state() isReadOnly:   boolean = false;
+	@state() isReadOnly: boolean = false;
+
 	@state() oldValue:     number = 0;
 	@state() oldThrowType: ThrowType = ThrowType.Single;
 
@@ -158,6 +160,7 @@ export class aaDartThrow extends LitElement {
 				type     ="text"
 				class    =${ classMap(inputClasses) }
 				?readonly=${ this.isReadOnly }
+				?disabled=${ this.isDisabled }
 				.value   =${ value }
 				@input   =${ this.handleInputChanged }
 				@keydown =${ this.handleKeyDown }

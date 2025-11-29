@@ -21,6 +21,8 @@ interface ElementDetails {
 @customElement('index-page')
 export class IndexPage extends GamePage {
 
+	protected override isReadOnly: boolean = false;
+
 	override connectedCallback(): void {
 		super.connectedCallback();
 
@@ -192,6 +194,7 @@ export class IndexPage extends GamePage {
 		}
 		finally {
 			this.creatingGame = false;
+			this.isActiveGame = true;
 		}
 	}
 

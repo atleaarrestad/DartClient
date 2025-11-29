@@ -25,8 +25,9 @@ export class GamePage extends LitElement {
 	@property({ type: Array }) users:   User[] = [];
 	@property({ type: Array }) players: PlayerRounds[] = [];
 
-	@state() protected season?: Season;
-	@state() protected loading: boolean = true;
+	@state() protected season?:    Season;
+	@state() protected loading:    boolean = true;
+	@state() protected isReadOnly: boolean = true;
 
 	protected dataService:            DataService;
 	protected seasonService:          SeasonService;
@@ -240,6 +241,7 @@ export class GamePage extends LitElement {
 										<aa-dart-throw
 											id="throw-${ playerIndex }-${ roundIndex }-${ throwIndex }"
 											.dartThrow=${ dartThrow }
+											?isDisabled=${ this.isReadOnly }
 											@throw-updated=${ onThrowUpdated }
 											@focus=${ onFocus }>
 										</aa-dart-throw>
