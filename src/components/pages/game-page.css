@@ -23,8 +23,8 @@
 	font-size: 1.2rem;
 	opacity: 0.8;
 }
-.offsetY {
-	padding-top: 40vh;
+.empty-state {
+	place-self: center;
 }
 .overshoot {
 	background-color: #ed817f89 !important;

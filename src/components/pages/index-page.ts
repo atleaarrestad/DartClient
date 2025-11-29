@@ -156,14 +156,21 @@ export class IndexPage extends GamePage {
 		return result;
 	};
 
-	protected async addNewPlayer(): Promise<void> {
-		if (!this.isActiveGame)
-			return;
-
+	protected async getNewPlayer(): Promise<User | undefined> {
 		const filteredUsers = this.users.filter(
 			user => !this.players.some(player => player.playerId === user.id),
 		);
-		const user = await this.dialogService.open<User>(selectUserTemplate(filteredUsers), { title: 'Select User' });
+		const user = await this.dialogService
+			.open<User>(selectUserTemplate(filteredUsers), { title: 'Select User' });
+
+		return user;
+	}
+
+	protected async addNewPlayer(user?: User): Promise<void> {
+		if (!this.isActiveGame)
+			return;
+
+		user ??= await this.getNewPlayer();
 
 		if (this.gameIdFromLocalStorage && user) {
 			const gameTracker = await this.gameService.addPlayerToGame(this.gameIdFromLocalStorage, user.id);
@@ -189,12 +196,23 @@ export class IndexPage extends GamePage {
 		this.creatingGame = true;
 		try {
 			this.players = [];
+			this.isActiveGame = true;
+
+			const user = await this.getNewPlayer();
+			if (!user) {
+				this.isActiveGame = false;
+
+				return;
+			}
+
 			await this.requestNewGame();
-			await this.addNewPlayer();
+			await this.addNewPlayer(user);
+		}
+		catch {
+			this.isActiveGame = false;
 		}
 		finally {
 			this.creatingGame = false;
-			this.isActiveGame = true;
 		}
 	}
 

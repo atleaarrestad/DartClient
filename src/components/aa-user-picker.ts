@@ -1,5 +1,6 @@
-import { css, html, LitElement } from 'lit';
+import { css, html, LitElement, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { when } from 'lit/directives/when.js';
 
 import { User } from '../models/schemas.js';
 import { sharedStyles } from '../styles.js';
@@ -12,7 +13,9 @@ export class AaUserPicker extends LitElement {
 	@state() private query = '';
 	@state() private activeIndex = 0;
 
-	override firstUpdated() {
+	override firstUpdated(changedProperties: PropertyValues): void {
+		super.firstUpdated(changedProperties);
+
 		const input = this.renderRoot.querySelector('input[type="search"]') as HTMLInputElement | null;
 		input?.focus();
 	}
@@ -78,7 +81,7 @@ export class AaUserPicker extends LitElement {
 		active?.scrollIntoView({ block: 'nearest' });
 	}
 
-	override render() {
+	override render(): unknown {
 		const items = this.filtered;
 
 		return html`
@@ -92,106 +95,101 @@ export class AaUserPicker extends LitElement {
         />
       </div>
 
-      ${ items.length === 0
-        ? html`<div class="empty">No users match “${ this.query }”.</div>`
-        : html`
-            <ul role="listbox" aria-activedescendant="opt-${ this.activeIndex }">
-              ${ items.map(
-                (u, i) => html`
-                  <li
-                    id="opt-${ i }"
-                    aria-selected=${ i === this.activeIndex }
-                    @mousemove=${ () => this.onMouseMove(i) }
-                  >
-                    <button class="row" @click=${ () => this.select(u) }>
-                      <span class="name">${ u.name }</span>
-                      ${ u.alias ? html`<span class="alias">@${ u.alias }</span>` : null }
-                    </button>
-                  </li>
-                `,
-              ) }
-            </ul>
-          ` }
+      ${ when(items.length === 0, () => html`
+		<div class="empty">No users match “${ this.query }”.</div>
+		`, () => html`
+		<ul role="listbox" aria-activedescendant="opt-${ this.activeIndex }">
+			${ items.map(
+				(u, i) => html`
+				<li
+					id="opt-${ i }"
+					aria-selected=${ i === this.activeIndex }
+					@mousemove=${ () => this.onMouseMove(i) }
+				>
+					<button class="row" @click=${ () => this.select(u) }>
+						<span class="name">${ u.name }</span>
+						${ u.alias ? html`<span class="alias">@${ u.alias }</span>` : null }
+					</button>
+				</li>
+				`,
+			) }
+		</ul>
+		`) }
     `;
 	}
 
 	static override styles = [
-		(globalThis as any).sharedStyles ?? css``,
+		sharedStyles,
 		css`
-      :host {
-        display: block;
-        position: relative;
-        width: 400px;
-		font-size: 1.5em;
-
-      }
-
-      .field {
-        margin-bottom: 0.5em;
-      }
-
-      input[type="search"] {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 0.5em 0.75em;
-        font-size: 1em;
-        border: 2px solid black;
-        border-right-width: 3px;
-        border-bottom-width: 3px;
-        border-radius: 12px;
-        outline: none;
-      }
-
-      ul {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        max-height: 50vh;
-        overflow: auto;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        background: white;
-      }
-
-      li {
-        border-bottom: 1px solid #eee;
-      }
-      li:last-child {
-        border-bottom: none;
-      }
-
-      .row {
-        width: 100%;
-        display: flex;
-        justify-content: space-between;
-        gap: 0.5em;
-        align-items: center;
-        padding: 0.5em 0.75em;
-        text-align: left;
-        background: transparent;
-        border: 0;
-        cursor: pointer;
-        font-size: 0.95em;
-      }
-
-      .row:hover,
-      li[aria-selected="true"] > .row {
-        background: #f5f5f5;
-      }
-
-      .alias {
-        opacity: 0.7;
-        font-size: 0.9em;
-      }
-
-      .empty {
-        padding: 0.75em;
-        color: #666;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        background: #fafafa;
-      }
-    `,
+		:host {
+			display: block;
+			position: relative;
+			width: 400px;
+			font-size: 1.5em;
+		}
+		.field {
+			margin-bottom: 0.5em;
+		}
+		input[type="search"] {
+			width: 100%;
+			box-sizing: border-box;
+			padding: 0.5em 0.75em;
+			font-size: 1em;
+			border: 2px solid black;
+			border-right-width: 3px;
+			border-bottom-width: 3px;
+			border-radius: 12px;
+			outline: none;
+		}
+		ul {
+			list-style: none;
+			margin: 0;
+			padding: 1px;
+			max-height: 50vh;
+			overflow: auto;
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			background: white;
+			display:grid;
+			grid-auto-rows: max-content;
+		}
+		li {
+			border-bottom: 1px solid #eee;
+		}
+		li:last-child {
+			border-bottom: none;
+		}
+		.row {
+			width: 100%;
+			display: flex;
+			justify-content: space-between;
+			gap: 0.5em;
+			align-items: center;
+			padding: 0.5em 0.75em;
+			text-align: left;
+			background: transparent;
+			border: 0;
+			cursor: pointer;
+			font-size: 0.95em;
+		}
+		.row:hover,
+		li[aria-selected="true"] > .row {
+			background: #e5e4e4;
+			outline: 2px solid rgb(0, 0, 0, 0.5);
+			border-radius: 8px;
+		}
+		.alias {
+			opacity: 0.7;
+			font-size: 0.9em;
+		}
+		.empty {
+			padding: 0.75em;
+			color: #666;
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			background: #fafafa;
+		}
+		`,
 	];
 
 }

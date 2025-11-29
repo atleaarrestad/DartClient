@@ -14,9 +14,12 @@ import { UserService } from '../../services/userService.js';
 import { sharedStyles } from '../../styles.js';
 import { newUserTemplate } from '../../templates/dialogTemplates.js';
 
+
 const base = getAbsoluteBase();
 
+
 export type SortKey = 'name' | 'alias' | 'mmr' | 'rank';
+
 
 @customElement('users-page')
 export class UsersPage extends LitElement {
@@ -39,16 +42,29 @@ export class UsersPage extends LitElement {
 		this.dialogService = container.resolve(DialogService);
 	}
 
-	override async connectedCallback(): Promise<void> {
+	override connectedCallback(): void {
 		super.connectedCallback();
+
+		this.initialize();
+	}
+
+	protected async initialize(): Promise<void> {
 		this.users = await this.userService.getAllUsers() ?? [];
 		this.season = await this.seasonService.getCurrentSeason();
 		this.sortUsers(this.sortKey);
 	}
 
 	private getStatsForCurrentSeason(user: User): SeasonStatistics {
-		if (!user.seasonStatistics || user.seasonStatistics.length === 0)
-			return { id: 0, userId: user.id, seasonId: '', currentRank: undefined, highestAchievedRank: undefined, mmr: 0 } as unknown as SeasonStatistics;
+		if (!user.seasonStatistics || user.seasonStatistics.length === 0) {
+			return {
+				id:                  0,
+				userId:              user.id,
+				seasonId:            '',
+				currentRank:         undefined,
+				highestAchievedRank: undefined,
+				mmr:                 0,
+			} as unknown as SeasonStatistics;
+		}
 
 		if (this.season) {
 			const match = user.seasonStatistics.find(s => s.seasonId === this.season!.id);
@@ -68,27 +84,28 @@ export class UsersPage extends LitElement {
 			this.sortAsc = true;
 		}
 
-		const usersWithStats = this.users.map(u => ({ user: u, stats: this.getStatsForCurrentSeason(u) }));
-		usersWithStats.sort((a, b) => {
-			let cmp = 0;
-			switch (key) {
-			case 'name':
-				cmp = a.user.name.localeCompare(b.user.name);
-				break;
-			case 'alias':
-				cmp = a.user.alias.localeCompare(b.user.alias);
-				break;
-			case 'mmr':
-				cmp = (a.stats.mmr ?? 0) - (b.stats.mmr ?? 0);
-				break;
-			case 'rank':
-				cmp = (a.stats.currentRank ?? 0) - (b.stats.currentRank ?? 0);
-				break;
-			}
+		this.users = this.users
+			.map(u => ({ user: u, stats: this.getStatsForCurrentSeason(u) }))
+			.sort((a, b) => {
+				let cmp = 0;
+				switch (key) {
+				case 'name':
+					cmp = a.user.name.localeCompare(b.user.name);
+					break;
+				case 'alias':
+					cmp = a.user.alias.localeCompare(b.user.alias);
+					break;
+				case 'mmr':
+					cmp = (a.stats.mmr ?? 0) - (b.stats.mmr ?? 0);
+					break;
+				case 'rank':
+					cmp = (a.stats.currentRank ?? 0) - (b.stats.currentRank ?? 0);
+					break;
+				}
 
-			return this.sortAsc ? cmp : -cmp;
-		});
-		this.users = usersWithStats.map(ws => ws.user);
+				return this.sortAsc ? cmp : -cmp;
+			})
+			.map(ws => ws.user);
 	}
 
 	private getSortIndicator(key: SortKey): string {
@@ -121,15 +138,12 @@ export class UsersPage extends LitElement {
 		);
 	}
 
-	override render() {
+	override render(): unknown {
 		if (!this.season || this.users.length === 0)
 			return html`<p>Loading data…</p>`;
 
-
 		return html`
-
 		<h2>Users</h2>
-
 
       <table class="users-table">
         <thead>
@@ -146,21 +160,27 @@ export class UsersPage extends LitElement {
 				const rankValue = stats.currentRank;
 
 				return html`
-					<tr  @click="${ () => this.onRowClick(user) }">
-						<td>${ user.name }</td>
-						<td>${ user.alias }</td>
-						<td>${ stats.mmr }</td>
-						<td>
-						${ rankValue !== undefined
-								? html`<img src="${ getRankIcon(rankValue) }" alt="${ getRankDisplayValue(rankValue) }" title="${ getRankDisplayValue(rankValue) }" />`
-								: html`-` }
-						</td>
-					</tr>
+				<tr  @click="${ () => this.onRowClick(user) }">
+					<td>${ user.name }</td>
+					<td>${ user.alias }</td>
+					<td>${ stats.mmr }</td>
+					<td>
+					${ rankValue !== undefined
+							? html`
+							<img
+								src=${ getRankIcon(rankValue) }
+								alt=${ getRankDisplayValue(rankValue) }
+								title=${ getRankDisplayValue(rankValue) }
+							>
+							`
+							: html`-` }
+					</td>
+				</tr>
 				`;
 			}) }
         </tbody>
       </table>
-	  <aa-button  @click=${ () => this.onNewUserButtonClicked() }>+ Add User</aa-button>
+	  <aa-button @click=${ () => this.onNewUserButtonClicked() }>+ Add User</aa-button>
     `;
 	}
 
@@ -171,7 +191,6 @@ export class UsersPage extends LitElement {
         width: 100%;
         border-collapse: collapse;
       }
-
       .users-table th,
       .users-table td {
         padding: 0.5rem;
@@ -179,28 +198,30 @@ export class UsersPage extends LitElement {
         text-align: left;
         white-space: nowrap;
       }
-
       .users-table th {
         cursor: pointer;
         user-select: none;
       }
-
       .users-table tbody tr:nth-child(even) {
         background-color: var(--row-even-bg, #f9f9f9);
       }
-
       .users-table tbody tr:hover {
         background-color: #e5fbe7;
       }
-
       .users-table tbody tr {
         cursor: pointer;
+		  height: 50px;
       }
-
       .users-table th:nth-child(4),
       .users-table td:nth-child(4) {
-        text-align: center;
+			text-align: center;
       }
+		.users-table td:nth-child(4) {
+			padding-block: 0px;
+			img {
+				height: 38px;
+			}
+		}
     `,
 	];
 

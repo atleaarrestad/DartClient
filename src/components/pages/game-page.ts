@@ -1,6 +1,6 @@
 import '../aa-button-cmp.js';
 
-import { html, type PropertyValues, unsafeCSS } from 'lit';
+import { html, unsafeCSS } from 'lit';
 import { LitElement } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -80,12 +80,7 @@ export class GamePage extends LitElement {
 
 		this.loading = false;
 
-		await this.updateComplete;
-
-		const scrollContainers = this.shadowRoot?.querySelectorAll('.rounds-scroll-container');
-		scrollContainers?.forEach(container => {
-			container.scrollTop = container.scrollHeight;
-		});
+		this.scrollToEndInPlayerRounds();
 	}
 
 	protected async healthCheckServer(): Promise<void> {
@@ -126,6 +121,7 @@ export class GamePage extends LitElement {
 	protected updateGameState(gameTracker: GameTracker): void {
 		this.players = [ ...gameTracker.playersRounds ];
 		this.reorderPlayersByMMR();
+		this.scrollToEndInPlayerRounds();
 	}
 
 	protected getCumulativePoints(player: PlayerRounds): number {
@@ -178,13 +174,22 @@ export class GamePage extends LitElement {
 		});
 	}
 
+	protected async scrollToEndInPlayerRounds(): Promise<void> {
+		await this.updateComplete;
+
+		const scrollContainers = this.shadowRoot?.querySelectorAll('.rounds-scroll-container');
+		scrollContainers?.forEach(container => {
+			container.scrollTop = container.scrollHeight;
+		});
+	}
+
 	protected renderLoadingState(): unknown {
 		return html`<p>Loading...</p>`;
 	}
 
 	protected renderEmptyState(): unknown {
 		return html`
-		<div class="centered offsetY">
+		<div class="empty-state">
 			<div class="shortcut">[SHIFT + N]</div>
 			<div class="subtitle">to start a new game!</div>
 		</div>
