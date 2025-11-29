@@ -37,6 +37,7 @@ export class GamePage extends LitElement {
 	protected gameIdFromLocalStorage: string | undefined = undefined;
 	protected creatingGame:           boolean = false;
 	protected selectedId?:            string;
+	protected isActiveGame:           boolean = false;
 
 	constructor() {
 		super();
@@ -68,6 +69,7 @@ export class GamePage extends LitElement {
 			if (gameTracker) {
 				this.gameIdFromLocalStorage = locallyCachedGameSessionId;
 				this.updateGameState(gameTracker);
+				this.isActiveGame = true;
 			}
 			else {
 				this.gameIdFromLocalStorage = undefined;
@@ -116,7 +118,6 @@ export class GamePage extends LitElement {
 	protected updateGameState(gameTracker: GameTracker): void {
 		this.players = [ ...gameTracker.playersRounds ];
 		this.reorderPlayersByMMR();
-		this.requestUpdate();
 	}
 
 	protected getCumulativePoints(player: PlayerRounds): number {
@@ -158,7 +159,7 @@ export class GamePage extends LitElement {
 	}
 
 	protected reorderPlayersByMMR(): void {
-		this.players = this.players.sort((a, b) => {
+		this.players = this.players.toSorted((a, b) => {
 			const userA = this.users.find(u => u.id === a.playerId);
 			const userB = this.users.find(u => u.id === b.playerId);
 
@@ -186,7 +187,7 @@ export class GamePage extends LitElement {
 		if (this.loading || !this.season)
 			return this.renderLoadingState();
 
-		if (this.players.length === 0)
+		if (!this.isActiveGame)
 			return this.renderEmptyState();
 
 		return html`
@@ -246,15 +247,15 @@ export class GamePage extends LitElement {
 									}) }
 								</div>
 								<div class="cumulative-points-round">
-									${ this.getRoundSum(round) }
+									<span>${ this.getRoundSum(round) }</span>
 								</div>
 							</div>
 						</div>
 						`) }
 					</div>
 
-					<div class="centered">
-						<div class="rank-container">
+					<div class="rank-container">
+						<div class="rank-inner-container">
 							<img
 								class="rank-icon"
 								src=${ getRankIcon(rank) }

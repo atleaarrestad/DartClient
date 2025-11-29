@@ -90,7 +90,6 @@ export class aaDartThrow extends LitElement {
 
 	private handleKeyDown(event: KeyboardEvent) {
 		const keyActions: Record<string, () => void> = {
-
 			ArrowUp: () => this.adjustThrowType('up'),
 			Up:      () => this.adjustThrowType('up'),
 			KP_Up:   () => this.adjustThrowType('up'),
@@ -116,14 +115,14 @@ export class aaDartThrow extends LitElement {
 		else if (direction === 'down' && currentIndex > 0)
 			this.dartThrow = { ...this.dartThrow, throwType: throwTypes[currentIndex - 1]! };
 
+		const isBullseyeOrRim = [ 0, 25, 50 ].includes(this.dartThrow.hitLocation);
+		const isDoubleOrTriple
+			= this.dartThrow.throwType === ThrowType.Double
+			|| this.dartThrow.throwType === ThrowType.Triple;
 
 		// Special case: If it's a Double or Triple, and the hitLocation is 0, reset to Single
-		if (
-			[ 0, 25, 50 ].includes(this.dartThrow.hitLocation)
-			&& (this.dartThrow.throwType === ThrowType.Double || this.dartThrow.throwType === ThrowType.Triple)
-		)
+		if (isBullseyeOrRim && isDoubleOrTriple)
 			this.dartThrow.throwType = ThrowType.Single;
-
 
 		this.updateDisplayForThrowType();
 	}
@@ -147,20 +146,22 @@ export class aaDartThrow extends LitElement {
 	}
 
 	override render(): unknown {
+		const value = this.dartThrow.hitLocation == 0 ? '' : this.dartThrow.hitLocation.toString();
+		const wrapperClasses = { 'wrapper': true, 'is-middle-input': this.dartThrow.throwIndex === 1 };
+		const inputClasses = { 'scoreModifierActivated': this.dartThrow.activatedModifiers.length > 0 };
+
 		return html`
-		<div
-			style="position: relative;"
-			class=${ classMap({ 'is-middle-input': this.dartThrow.throwIndex === 1 }) }
-		>
+		<div class=${ classMap(wrapperClasses) }>
 			<input
-				tabindex="-1"
-				type="text"
-				class="${ this.dartThrow.activatedModifiers.length > 0 ? 'scoreModifierActivated' : '' }"
+				name="input"
+				tabindex ="-1"
+				type     ="text"
+				class    =${ classMap(inputClasses) }
 				?readonly=${ this.isReadOnly }
-				.value=${ this.dartThrow.hitLocation == 0 ? '' : this.dartThrow.hitLocation.toString() }
-				@input=${ this.handleInputChanged }
-				@keydown=${ this.handleKeyDown }
-				@blur=${ this.handleBlur }
+				.value   =${ value }
+				@input   =${ this.handleInputChanged }
+				@keydown =${ this.handleKeyDown }
+				@blur    =${ this.handleBlur }
 			>
 			${ this.renderMultiplier() }
 		</div>
@@ -169,11 +170,21 @@ export class aaDartThrow extends LitElement {
 
 	static override styles = [
 		sharedStyles, css`
+		:host {
+			display: grid;
+		}
+		.wrapper {
+			display: grid;
+    		grid-template-columns: 1fr auto;
+		}
 		.scoreModifierActivated {
 			color: rgba(247, 33, 226, 1);
 			font-weight: bolder;
 		}
 		input[type="text"] {
+			grid-row: 1/2;
+			grid-column: 1/3;
+
 			position: relative;
 			text-align: center;
 			z-index: 0;
@@ -181,23 +192,18 @@ export class aaDartThrow extends LitElement {
 			border: unset;
 			width: 100%;
 			font-size: 1.25rem;
-		}
-
-		.multiplier {
-			pointer-events: none;
-			position: absolute;
-			top: 0%;
-			right: 0px;
-			width: 40%;
 			height: 100%;
+		}
+		.multiplier {
+			grid-row: 1/2;
+			grid-column: 2/3;
+			pointer-events: none;
 			background: linear-gradient(90deg, rgba(180,204,185,0) 0%, rgba(180,204,185,0.4) 80%);
-			z-index: 1;
-			text-align: right;
+			align-content: center;
+
 			span {
-				font-size: 1rem;
 				font-style: italic;
 				padding-right: .5rem;
-				line-height: 2rem;
 			}
 		}
 		.is-middle-input {

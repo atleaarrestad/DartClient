@@ -53,19 +53,20 @@ export class IndexPage extends GamePage {
 
 	protected onKeyDown = this.handleKeyDown.bind(this);
 	protected handleKeyDown(event: KeyboardEvent): void {
-		if (event.shiftKey) {
-			if (event.repeat)
-				return;
+		if (event.repeat)
+			return;
 
+		if (event.shiftKey) {
 			switch (event.code) {
 			case 'Minus':
-				if (this.players.length > 0)
-					this.addNewPlayer();
+			case 'NumpadAdd':
+				this.addNewPlayer();
 
 				event.preventDefault();
 				break;
 
 			case 'Slash':
+			case 'NumpadSubtract':
 				this.removeLastPlayer();
 				event.preventDefault();
 				break;
@@ -76,53 +77,12 @@ export class IndexPage extends GamePage {
 				break;
 
 			case 'KeyN':
-				(async () => {
-					if (this.creatingGame)
-						return;
-
-
-					this.creatingGame = true;
-					try {
-						this.players = [];
-						await this.requestNewGame();
-						await this.addNewPlayer();
-					}
-					finally {
-						this.creatingGame = false;
-					}
-				})();
+				this.createGame();
 				event.preventDefault();
 				break;
 
 			case 'KeyS':
-				(async () => {
-					try {
-						if (!this.gameIdFromLocalStorage)
-							return;
-
-						const isValidGame = this.validateGameCanBeSubmitted();
-						if (!isValidGame) {
-							this.notificationService.addNotification(
-								'Cannot submit game! Play at least one round and select user for all players', 'info',
-							);
-
-							return;
-						}
-
-						const gameResult: GameResult = await this.dataService.SubmitGame(this.gameIdFromLocalStorage);
-						this.gameIdFromLocalStorage = undefined;
-
-						await this.loadUsers(); // make sure this finishes before continuing
-
-						this.players = [];
-						this.requestUpdate();
-						await this.dialogService.open(postGameTemplate(gameResult, this.users), { title: 'Game Summary' });
-					}
-					catch (error) {
-						const errorMessage = (error as Error).message;
-						this.notificationService.addNotification(errorMessage, 'danger');
-					}
-				})();
+				this.saveGame();
 				event.preventDefault();
 				break;
 			}
@@ -195,6 +155,9 @@ export class IndexPage extends GamePage {
 	};
 
 	protected async addNewPlayer(): Promise<void> {
+		if (!this.isActiveGame)
+			return;
+
 		const filteredUsers = this.users.filter(
 			user => !this.players.some(player => player.playerId === user.id),
 		);
@@ -207,6 +170,9 @@ export class IndexPage extends GamePage {
 	}
 
 	protected async removeLastPlayer(): Promise<void> {
+		if (!this.isActiveGame)
+			return;
+
 		const playerId = this.players.at(-1)?.playerId;
 		if (playerId && this.gameIdFromLocalStorage) {
 			const gameTracker = await this.gameService.removePlayer(this.gameIdFromLocalStorage, playerId);
@@ -214,10 +180,56 @@ export class IndexPage extends GamePage {
 		}
 	}
 
+	protected async createGame(): Promise<void> {
+		if (this.creatingGame)
+			return;
+
+		this.creatingGame = true;
+		try {
+			this.players = [];
+			await this.requestNewGame();
+			await this.addNewPlayer();
+		}
+		finally {
+			this.creatingGame = false;
+		}
+	}
+
+	protected async saveGame(): Promise<void> {
+		if (!this.isActiveGame)
+			return;
+
+		try {
+			if (!this.gameIdFromLocalStorage)
+				return;
+
+			const isValidGame = this.validateGameCanBeSubmitted();
+			if (!isValidGame) {
+				this.notificationService.addNotification(
+					'Cannot submit game! Play at least one round and select user for all players', 'info',
+				);
+
+				return;
+			}
+
+			const gameResult: GameResult = await this.dataService.SubmitGame(this.gameIdFromLocalStorage);
+			this.gameIdFromLocalStorage = undefined;
+
+			await this.loadUsers(); // make sure this finishes before continuing
+
+			this.players = [];
+			this.requestUpdate();
+			await this.dialogService.open(postGameTemplate(gameResult, this.users), { title: 'Game Summary' });
+		}
+		catch (error) {
+			const errorMessage = (error as Error).message;
+			this.notificationService.addNotification(errorMessage, 'danger');
+		}
+	}
+
 	protected override handleDartThrowFocused(event: FocusEvent): void {
 		this.selectedId = (event.target as aaDartThrow).id;
 	}
-
 
 	protected focusCombobox(index: number): void {
 		const element = this.renderRoot.querySelector(`#combobox-${ index }`) as AaCombobox;
@@ -228,7 +240,6 @@ export class IndexPage extends GamePage {
 		const element = this.renderRoot.querySelector(`#throw-${ playerIndex }-${ rowIndex }-${ throwIndex }`) as aaDartThrow;
 		element?.focus();
 	}
-
 
 	protected getNextFocusablePlayer(currentPlayerIndex: number, direction: 'forward' | 'backward'): number | undefined {
 		const playerCount = this.players.length;

@@ -1,7 +1,9 @@
 import { css, html, LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { styleMap } from 'lit/directives/style-map.js';
 
 import { sharedStyles } from '../../styles.js';
+
 
 @customElement('aa-notification-cmp')
 export class NotificationElement extends LitElement {
@@ -11,7 +13,7 @@ export class NotificationElement extends LitElement {
 	@property({ type: Boolean }) visible: boolean = true;
 	@property({ type: Object }) promise:  Promise<unknown> | null = null;
 
-	override firstUpdated() {
+	override firstUpdated(): void {
 		if (this.promise) {
 			this.promise.finally(() => {
 				setTimeout(() => {
@@ -30,7 +32,7 @@ export class NotificationElement extends LitElement {
 		}
 	}
 
-	override updated(changedProperties: Map<string, unknown>) {
+	override updated(changedProperties: Map<string, unknown>): void {
 		super.updated(changedProperties);
 		if (changedProperties.has('visible') && !this.visible)
 			this.setAttribute('hidden', '');
@@ -61,16 +63,20 @@ export class NotificationElement extends LitElement {
 		}
 	}
 
-	override render() {
+	override render(): unknown {
+		const styles = {
+			backgroundColor: this.getBackgroundColor(),
+		};
+
 		return html`
-			<div class="notification" style="background-color: ${ this.getBackgroundColor() }">
-				<div class="icon">
-					<i class="${ this.getIconClass() }"></i>
-				</div>
-				<div class="content">
-					<div class="message">${ this.message }</div>
-				</div>
+		<div class="notification" style=${ styleMap(styles) }>
+			<div class="icon">
+				<i class="${ this.getIconClass() }"></i>
 			</div>
+			<div class="content">
+				<div class="message">${ this.message }</div>
+			</div>
+		</div>
     	`;
 	}
 

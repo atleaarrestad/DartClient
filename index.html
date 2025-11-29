@@ -19,19 +19,29 @@
 			margin: 0;
 			padding: 0;
 			box-sizing: border-box;
-			line-height: 1.5;
-			font-family: var(--font-family-first), var(--font-family-first),
+			font-family: var(--font-family-first),
+				var(--font-family-first),
 				"Arial Narrow", Arial, sans-serif;
 		}
 
 		body {
 			background-color: var(--color-background);
+			overflow: hidden;
+		}
+		.app-container {
+			display: grid;
+			grid-template-rows: auto 1fr;
+			height: 100vh;
+			width: 100vw;
+		}
+		#outlet {
+			display: grid;
 		}
 	</style>
 </head>
 
 <body>
-	<div>
+	<div class="app-container">
 		<aa-navigationbar></aa-navigationbar>
 		<div id="outlet"></div>
 	</div>
