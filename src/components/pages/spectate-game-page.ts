@@ -38,10 +38,11 @@ export class SpectateGamePage extends GamePage {
 			return;
 		}
 		this.updateGameState(gameTracker);
-		console.log("Game updated via signalR!");
 	}
 	private HandleOnGameFinished(gameId: string, gameResult: GameResult): void {
+		if (gameId !== this.gameId) {
+			return;
+		}
 		this.dialogService.open(postGameTemplate(gameResult, this.users), { title: 'Game Summary' });
-		console.log("Game finished via signalR!");
 	}
 }
