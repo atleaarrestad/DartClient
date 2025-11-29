@@ -22,6 +22,7 @@ interface ElementDetails {
 export class IndexPage extends GamePage {
 
 	protected override isReadOnly: boolean = false;
+	protected blockThrowUpdates:   boolean = false;
 
 	override connectedCallback(): void {
 		super.connectedCallback();
@@ -40,6 +41,8 @@ export class IndexPage extends GamePage {
 		playerIndex: number,
 		roundNumber: number,
 	): Promise<void> {
+		if (this.blockThrowUpdates)
+			return;
 		if (!this.players[playerIndex])
 			return;
 
@@ -115,6 +118,20 @@ export class IndexPage extends GamePage {
 		}
 	}
 
+
+	protected debounceBlockThrowUpdates = (() => {
+		let timeout: number | undefined;
+
+		return () => {
+			if (timeout)
+				clearTimeout(timeout);
+
+			timeout = window.setTimeout(() => {
+				this.blockThrowUpdates = false;
+			}, 100);
+		};
+	})();
+
 	protected moveFreeFocus(code: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {
 		const direction
 			= code === 'ArrowUp' ? 'upward'
@@ -125,12 +142,13 @@ export class IndexPage extends GamePage {
 		if (!direction)
 			return;
 
+		this.blockThrowUpdates = true;
+
 		const selectedElementDetails = this.getSelectedElementDetails();
 
 		if (selectedElementDetails.type === 'nothing') {
 			this.focusDartThrow(0, 0, 0);
 		}
-
 		else if (selectedElementDetails.type === 'throw') {
 			const nextThrow = this.getNextFocusForDartThrow(
 				direction,
@@ -148,6 +166,8 @@ export class IndexPage extends GamePage {
 				);
 			}
 		}
+
+		this.debounceBlockThrowUpdates();
 	}
 
 	protected async requestNewGame(): Promise<string> {

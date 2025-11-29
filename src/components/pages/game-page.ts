@@ -4,6 +4,7 @@ import { html, unsafeCSS } from 'lit';
 import { LitElement } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { map } from 'lit/directives/map.js';
 import { container } from 'tsyringe';
 
 import { sum } from '../../helpers/sum.js';
@@ -39,6 +40,7 @@ export class GamePage extends LitElement {
 	protected creatingGame:           boolean = false;
 	protected selectedId?:            string;
 	protected isActiveGame:           boolean = false;
+	protected scrollLeader:           HTMLElement | null = null;
 
 	constructor() {
 		super();
@@ -119,9 +121,15 @@ export class GamePage extends LitElement {
 	protected handleDartThrowFocused?(event: FocusEvent): void;
 
 	protected updateGameState(gameTracker: GameTracker): void {
+		const oldRoundCount = Math.max(...this.players.map(p => p.rounds.length), 0);
+		const newRoundCount = Math.max(...gameTracker.playersRounds.map(p => p.rounds.length), 0);
+		const roundCountChanged = oldRoundCount !== newRoundCount;
+
 		this.players = [ ...gameTracker.playersRounds ];
 		this.reorderPlayersByMMR();
-		this.scrollToEndInPlayerRounds();
+
+		if (roundCountChanged)
+			this.scrollToEndInPlayerRounds();
 	}
 
 	protected getCumulativePoints(player: PlayerRounds): number {
@@ -183,6 +191,34 @@ export class GamePage extends LitElement {
 		});
 	}
 
+	protected onPlayerInteract = (event: Event): void => {
+		const target = event.currentTarget as HTMLElement;
+		const scrollContainer = target.querySelector('.rounds-scroll-container') as HTMLElement;
+		if (scrollContainer)
+			this.scrollLeader = scrollContainer;
+	};
+
+	protected onPlayerScroll = (event: Event): void => {
+		const target = event.target as HTMLElement;
+
+		if (this.scrollLeader && this.scrollLeader !== target)
+			return;
+
+		if (!this.scrollLeader)
+			this.scrollLeader = target;
+
+		const scrollTop = target.scrollTop;
+
+		const scrollContainers = this.shadowRoot?.querySelectorAll('.rounds-scroll-container');
+		scrollContainers?.forEach((container) => {
+			if (container === this.scrollLeader)
+				return;
+
+			if (container !== target && container.scrollTop !== scrollTop)
+				container.scrollTop = scrollTop;
+		});
+	};
+
 	protected renderLoadingState(): unknown {
 		return html`<p>Loading...</p>`;
 	}
@@ -217,7 +253,11 @@ export class GamePage extends LitElement {
 				const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
 
 				return html`
-				<article class="player">
+				<article
+					class="player"
+					@focusin=${ this.onPlayerInteract }
+					@mouseenter=${ this.onPlayerInteract }
+				>
 					<span class="player-name">
 						${ user.alias }
 					</span>
@@ -232,7 +272,7 @@ export class GamePage extends LitElement {
 						<span class="border-left">Sum</span>
 					</div>
 
-					<div class="rounds-scroll-container">
+					<div class="rounds-scroll-container" @scroll=${ this.onPlayerScroll }>
 						<div class="rounds-container">
 							${ player.rounds.map((round, roundIndex) => html`
 							<div class=${ classMap({
@@ -243,7 +283,7 @@ export class GamePage extends LitElement {
 								<div class="round-grid">
 									<div class="round-number">${ roundIndex + 1 }</div>
 									<div class="throws-container">
-										${ round.dartThrows.map((dartThrow, throwIndex) => {
+										${ map(round.dartThrows, (dartThrow, throwIndex) => {
 											const onThrowUpdated = (e: CustomEvent) =>
 												this.handleThrowUpdated?.(e.detail.dartThrow, playerIndex, roundIndex);
 

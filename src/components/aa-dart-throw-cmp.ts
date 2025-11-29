@@ -13,8 +13,7 @@ export class aaDartThrow extends LitElement {
 	@property({ type: Object }) dartThrow:   DartThrow;
 	@property({ type: Boolean }) isDisabled: boolean = false;
 
-	@state() isReadOnly: boolean = false;
-
+	@state() isReadOnly:   boolean = false;
 	@state() oldValue:     number = 0;
 	@state() oldThrowType: ThrowType = ThrowType.Single;
 
