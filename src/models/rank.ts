@@ -58,7 +58,7 @@ export function getRankDisplayValue(rank: Rank | undefined): string {
 }
 
 export function getRankIcon(rank: Rank | undefined): string {
-	const base = '/';
+	const base = './';
 
 	switch (rank) {
 	case Rank.Bronze1:
