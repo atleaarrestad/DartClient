@@ -21,7 +21,15 @@ export enum Rank {
 	Diamond1 = 17,
 	Diamond2 = 18,
 	Diamond3 = 19,
-	Grandmaster = 20,
+	Wizard = 20,
+	Wizard1 = 21,
+	Wizard2 = 22,
+	Wizard3 = 23,
+	Fiend = 24,
+	Fiend1 = 25,
+	Fiend2 = 26,
+	Fiend3 = 27,
+	Grandmaster = 28,
 }
 
 export const RankDisplayValues: Record<Rank, string> = {
@@ -45,6 +53,14 @@ export const RankDisplayValues: Record<Rank, string> = {
 	[Rank.Diamond1]:    'Diamond I',
 	[Rank.Diamond2]:    'Diamond II',
 	[Rank.Diamond3]:    'Diamond III',
+	[Rank.Wizard]:      'Wizard',
+	[Rank.Wizard1]:     'Wizard I',
+	[Rank.Wizard2]:     'Wizard II',
+	[Rank.Wizard3]:     'Wizard III',
+	[Rank.Fiend]:       'Fiend',
+	[Rank.Fiend1]:      'Fiend I',
+	[Rank.Fiend2]:      'Fiend II',
+	[Rank.Fiend3]:      'Fiend III',
 	[Rank.Grandmaster]: 'Grandmaster',
 };
 
@@ -104,6 +120,24 @@ export function getRankIcon(rank: Rank | undefined): string {
 			return './icons/diamond_3.png';
 		case Rank.Diamond:
 			return './icons/diamond.png';
+
+		case Rank.Wizard1:
+			return './icons/wizard_1.png';
+		case Rank.Wizard2:
+			return './icons/wizard_2.png';
+		case Rank.Wizard3:
+			return './icons/wizard_3.png';
+		case Rank.Wizard:
+			return './icons/wizard.png';
+
+		case Rank.Fiend1:
+			return './icons/fiend_1.png';
+		case Rank.Fiend2:
+			return './icons/fiend_2.png';
+		case Rank.Fiend3:
+			return './icons/fiend_3.png';
+		case Rank.Fiend:
+			return './icons/fiend.png';
 
 		case Rank.Grandmaster:
 			return './icons/grandmaster.png';
