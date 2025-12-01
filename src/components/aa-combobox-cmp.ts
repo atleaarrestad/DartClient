@@ -1,8 +1,8 @@
 import { css, html, LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
-import { sharedStyles } from '../../styles.js';
 import { User } from '../models/schemas.js';
+import { sharedStyles } from '../styles.js';
 
 @customElement('aa-combobox')
 export class AaCombobox extends LitElement {

@@ -1,3 +1,5 @@
+import { getAbsoluteBase } from '../getAbsoluteBase.js';
+
 export enum Rank {
 	Bronze = 0,
 	Bronze1 = 1,
@@ -19,7 +21,15 @@ export enum Rank {
 	Diamond1 = 17,
 	Diamond2 = 18,
 	Diamond3 = 19,
-	Grandmaster = 20,
+	Wizard = 20,
+	Wizard1 = 21,
+	Wizard2 = 22,
+	Wizard3 = 23,
+	Fiend = 24,
+	Fiend1 = 25,
+	Fiend2 = 26,
+	Fiend3 = 27,
+	Grandmaster = 28,
 }
 
 export const RankDisplayValues: Record<Rank, string> = {
@@ -43,6 +53,14 @@ export const RankDisplayValues: Record<Rank, string> = {
 	[Rank.Diamond1]:    'Diamond I',
 	[Rank.Diamond2]:    'Diamond II',
 	[Rank.Diamond3]:    'Diamond III',
+	[Rank.Wizard]:      'Wizard',
+	[Rank.Wizard1]:     'Wizard I',
+	[Rank.Wizard2]:     'Wizard II',
+	[Rank.Wizard3]:     'Wizard III',
+	[Rank.Fiend]:       'Fiend',
+	[Rank.Fiend1]:      'Fiend I',
+	[Rank.Fiend2]:      'Fiend II',
+	[Rank.Fiend3]:      'Fiend III',
 	[Rank.Grandmaster]: 'Grandmaster',
 };
 
@@ -54,56 +72,80 @@ export function getRankDisplayValue(rank: Rank | undefined): string {
 }
 
 export function getRankIcon(rank: Rank | undefined): string {
-	switch (rank) {
-	case Rank.Bronze1:
-		return './icons/bronze_1.png';
-	case Rank.Bronze2:
-		return './icons/bronze_2.png';
-	case Rank.Bronze3:
-		return './icons/bronze_3.png';
-	case Rank.Bronze:
-		return './icons/bronze.png';
+	const base = getAbsoluteBase();
 
-	case Rank.Silver1:
-		return './icons/silver_1.png';
-	case Rank.Silver2:
-		return './icons/silver_2.png';
-	case Rank.Silver3:
-		return './icons/silver_3.png';
-	case Rank.Silver:
-		return './icons/silver.png';
+	const url = (() => {
+		switch (rank) {
+		case Rank.Bronze1:
+			return './icons/bronze_1.png';
+		case Rank.Bronze2:
+			return './icons/bronze_2.png';
+		case Rank.Bronze3:
+			return './icons/bronze_3.png';
+		case Rank.Bronze:
+			return './icons/bronze.png';
 
-	case Rank.Gold1:
-		return './icons/gold_1.png';
-	case Rank.Gold2:
-		return './icons/gold_2.png';
-	case Rank.Gold3:
-		return './icons/gold_3.png';
-	case Rank.Gold:
-		return './icons/gold.png';
+		case Rank.Silver1:
+			return './icons/silver_1.png';
+		case Rank.Silver2:
+			return './icons/silver_2.png';
+		case Rank.Silver3:
+			return './icons/silver_3.png';
+		case Rank.Silver:
+			return './icons/silver.png';
 
-	case Rank.Platinum1:
-		return './icons/platinum_1.png';
-	case Rank.Platinum2:
-		return './icons/platinum_2.png';
-	case Rank.Platinum3:
-		return './icons/platinum_3.png';
-	case Rank.Platinum:
-		return './icons/platinum.png';
+		case Rank.Gold1:
+			return './icons/gold_1.png';
+		case Rank.Gold2:
+			return './icons/gold_2.png';
+		case Rank.Gold3:
+			return './icons/gold_3.png';
+		case Rank.Gold:
+			return './icons/gold.png';
 
-	case Rank.Diamond1:
-		return './icons/diamond_1.png';
-	case Rank.Diamond2:
-		return './icons/diamond_2.png';
-	case Rank.Diamond3:
-		return './icons/diamond_3.png';
-	case Rank.Diamond:
-		return './icons/diamond.png';
+		case Rank.Platinum1:
+			return './icons/platinum_1.png';
+		case Rank.Platinum2:
+			return './icons/platinum_2.png';
+		case Rank.Platinum3:
+			return './icons/platinum_3.png';
+		case Rank.Platinum:
+			return './icons/platinum.png';
 
-	case Rank.Grandmaster:
-		return './icons/grandmaster.png';
+		case Rank.Diamond1:
+			return './icons/diamond_1.png';
+		case Rank.Diamond2:
+			return './icons/diamond_2.png';
+		case Rank.Diamond3:
+			return './icons/diamond_3.png';
+		case Rank.Diamond:
+			return './icons/diamond.png';
 
-	default:
-		return './icons/rank_unranked.png';
-	}
+		case Rank.Wizard1:
+			return './icons/wizard_1.png';
+		case Rank.Wizard2:
+			return './icons/wizard_2.png';
+		case Rank.Wizard3:
+			return './icons/wizard_3.png';
+		case Rank.Wizard:
+			return './icons/wizard.png';
+
+		case Rank.Fiend1:
+			return './icons/fiend_1.png';
+		case Rank.Fiend2:
+			return './icons/fiend_2.png';
+		case Rank.Fiend3:
+			return './icons/fiend_3.png';
+		case Rank.Fiend:
+			return './icons/fiend.png';
+
+		case Rank.Grandmaster:
+			return './icons/grandmaster.png';
+
+		default:
+			return './icons/rank_unranked.png';
+		}
+	})();
+
+	return `${ base }${ url }`;
 }

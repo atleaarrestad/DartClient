@@ -4,6 +4,7 @@ import { DartThrowSchema } from './dartThrowSchema.js';
 import { RoundStatus, ScoreModifier, ThrowType, WinCondition } from './enums.js';
 import { Rank } from './rank.js';
 
+
 export const RoundSchema = z.object({
 	roundIndex:       z.number().int().min(0),
 	dartThrows:       z.array(DartThrowSchema).min(1).max(3),
@@ -11,13 +12,13 @@ export const RoundSchema = z.object({
 	roundStatus:      z.nativeEnum(RoundStatus),
 });
 
-export const PlayerRoundsScema = z.object({
+export const PlayerRoundsSchema = z.object({
 	playerId: z.string().uuid(),
 	rounds:   z.array(RoundSchema),
 });
 
 export const GameSubmissionSchema = z.object({
-	playerRoundsList: z.array(PlayerRoundsScema),
+	playerRoundsList: z.array(PlayerRoundsSchema),
 });
 
 export const PlayerResultSchema = z.object({
@@ -37,7 +38,7 @@ export const PlayerResultSchema = z.object({
 export const GameTrackerSchema = z.object({
 	id:            z.string().uuid(),
 	started:       z.string().transform(str => new Date(str)),
-	playersRounds: z.array(PlayerRoundsScema),
+	playersRounds: z.array(PlayerRoundsSchema),
 });
 
 export const MatchSnapshotSchema = z.object({
@@ -69,7 +70,7 @@ export const SeasonStatisticsSchema = z.object({
 	currentRank:                z.nativeEnum(Rank),
 	highestAchievedRank:        z.nativeEnum(Rank),
 	highestRoundScore:          z.number(),
-	highestRoundScoreForVicory: z.number(),
+	highestRoundScoreForVicory: z.number(), // Spelling mistake in backend also
 	mmr:                        z.number(),
 	matchSnapshots:             z.array(MatchSnapshotSchema),
 	hitCounts:                  z.array(HitCountSchema),
@@ -107,7 +108,7 @@ export const SeasonSchema = z.object({
 
 export const GameResultSchema = z.object({
 	date:             z.string().transform(str => new Date(str)),
-	playerRoundsList: z.array(PlayerRoundsScema),
+	playerRoundsList: z.array(PlayerRoundsSchema),
 	playerResults:    z.array(PlayerResultSchema),
 	season:           SeasonSchema,
 	goal:             z.number().int(),
@@ -125,7 +126,7 @@ export const RuleDefinitionsResponseSchema = z.object({
 });
 
 export type Round = z.infer<typeof RoundSchema>;
-export type PlayerRounds = z.infer<typeof PlayerRoundsScema>;
+export type PlayerRounds = z.infer<typeof PlayerRoundsSchema>;
 
 export type GameSubmission = z.infer<typeof GameSubmissionSchema>;
 export type PlayerResult = z.infer<typeof PlayerResultSchema>;

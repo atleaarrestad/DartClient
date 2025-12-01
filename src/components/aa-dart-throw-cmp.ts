@@ -1,35 +1,42 @@
 import { css, html, LitElement } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 
-import { sharedStyles } from '../../styles.js';
 import { DartThrow } from '../models/dartThrowSchema.js';
-import { ScoreModifier, ThrowType } from '../models/enums.js';
+import { ThrowType } from '../models/enums.js';
+import { sharedStyles } from '../styles.js';
 
-@customElement('aa-dartthrow')
+
+@customElement('aa-dart-throw')
 export class aaDartThrow extends LitElement {
 
-	@property({ type: Object }) dartThrow: DartThrow;
-	@state() isReadOnly:                   boolean = false;
-	@query('input') inputElement:          HTMLInputElement;
-	@state() oldValue:                     number = 0;
-	@state() oldThrowType:                 ThrowType = ThrowType.Single;
+	@property({ type: Object }) dartThrow:   DartThrow;
+	@property({ type: Boolean }) isDisabled: boolean = false;
+
+	@state() isReadOnly:   boolean = false;
+	@state() oldValue:     number = 0;
+	@state() oldThrowType: ThrowType = ThrowType.Single;
+
+	@query('input') inputElement: HTMLInputElement;
 
 	override focus(options?: FocusOptions): void {
 		this.shadowRoot?.querySelector('input')?.focus(options);
 	}
 
 	private handleBlur() {
-		if (this.oldValue === this.dartThrow.hitLocation
-			&& 	this.oldThrowType === this.dartThrow.throwType)
+		const isSameHitLocation = this.oldValue === this.dartThrow.hitLocation;
+		const isSameThrowType = this.oldThrowType === this.dartThrow.throwType;
+
+		if (isSameHitLocation && isSameThrowType)
 			return;
 
+		const bullseyeOrRim = [ 0, 25, 50 ].includes(this.dartThrow.hitLocation);
+		const isDoubleOrTriple
+			= this.dartThrow.throwType === ThrowType.Double
+			|| this.dartThrow.throwType === ThrowType.Triple;
 
-		if (
-			[ 0, 25, 50 ].includes(this.dartThrow.hitLocation)
-			&& 	(this.dartThrow.throwType === ThrowType.Double || this.dartThrow.throwType === ThrowType.Triple))
-
+		if (bullseyeOrRim && isDoubleOrTriple)
 			this.dartThrow.throwType = ThrowType.Single;
-
 
 		const event = new CustomEvent('throw-updated', {
 			detail:   { dartThrow: this.dartThrow },
@@ -45,18 +52,18 @@ export class aaDartThrow extends LitElement {
 	private renderMultiplier() {
 		if (this.dartThrow.throwType === ThrowType.Double) {
 			return html`
-      <div class="multiplier">
-        <span>x2</span>
-      </div>`;
+			<div class="multiplier">
+				<span>x2</span>
+			</div>
+			`;
 		}
 		if (this.dartThrow.throwType === ThrowType.Triple) {
 			return html`
-      <div class="multiplier">
-        <span>x3</span>
-      </div>`;
+			<div class="multiplier">
+				<span>x3</span>
+			</div>
+			`;
 		}
-
-		return null;
 	}
 
 	private handleInputChanged(event: Event) {
@@ -79,13 +86,14 @@ export class aaDartThrow extends LitElement {
 			&& (this.dartThrow.throwType == ThrowType.Double || this.dartThrow.throwType == ThrowType.Triple))
 			this.dartThrow.throwType = ThrowType.Single;
 
-
 		this.requestUpdate();
 	}
 
 	private handleKeyDown(event: KeyboardEvent) {
-		const keyActions: Record<string, () => void> = {
+		if (event.shiftKey)
+			return;
 
+		const keyActions: Record<string, () => void> = {
 			ArrowUp: () => this.adjustThrowType('up'),
 			Up:      () => this.adjustThrowType('up'),
 			KP_Up:   () => this.adjustThrowType('up'),
@@ -111,61 +119,84 @@ export class aaDartThrow extends LitElement {
 		else if (direction === 'down' && currentIndex > 0)
 			this.dartThrow = { ...this.dartThrow, throwType: throwTypes[currentIndex - 1]! };
 
+		const isBullseyeOrRim = [ 0, 25, 50 ].includes(this.dartThrow.hitLocation);
+		const isDoubleOrTriple
+			= this.dartThrow.throwType === ThrowType.Double
+			|| this.dartThrow.throwType === ThrowType.Triple;
 
 		// Special case: If it's a Double or Triple, and the hitLocation is 0, reset to Single
-		if (
-			[ 0, 25, 50 ].includes(this.dartThrow.hitLocation)
-			&& (this.dartThrow.throwType === ThrowType.Double || this.dartThrow.throwType === ThrowType.Triple)
-		)
+		if (isBullseyeOrRim && isDoubleOrTriple)
 			this.dartThrow.throwType = ThrowType.Single;
-
 
 		this.updateDisplayForThrowType();
 	}
 
 	private updateDisplayForThrowType() {
 		if (this.dartThrow.throwType === ThrowType.Miss) {
-			this.inputElement.value = 'MISS';
 			this.dartThrow = { ...this.dartThrow, hitLocation: 0 };
 			this.isReadOnly = true;
 		}
 		else if (this.dartThrow.throwType === ThrowType.Rim) {
-			this.inputElement.value = 'RIM';
 			this.dartThrow = { ...this.dartThrow, hitLocation: 0 };
 			this.isReadOnly = true;
 		}
 		else {
 			this.isReadOnly = false;
+
 			if (this.inputElement.value === 'MISS' || this.inputElement.value === 'RIM')
 				this.inputElement.value = String(this.dartThrow.hitLocation);
 		}
 	}
 
-	override render() {
+	override render(): unknown {
+		let value: string;
+		if (this.dartThrow.throwType === ThrowType.Miss)
+			value = 'MISS';
+		else if (this.dartThrow.throwType === ThrowType.Rim)
+			value = 'RIM';
+		else
+			value = this.dartThrow.hitLocation == 0 ? '' : this.dartThrow.hitLocation.toString();
+
+		const wrapperClasses = { 'wrapper': true, 'is-middle-input': this.dartThrow.throwIndex === 1 };
+		const inputClasses = { 'scoreModifierActivated': this.dartThrow.activatedModifiers.length > 0 };
+
 		return html`
-			<div style="position: relative;" class=${ this.dartThrow.throwIndex === 1 ? 'is-middle-input' : '' }>
-				<input
-					tabindex="-1"
-					type="text"
-					.value=${ this.dartThrow.hitLocation == 0 ? '' : this.dartThrow.hitLocation.toString() }
-					?readonly=${ this.isReadOnly }
-					@input=${ this.handleInputChanged }
-					@keydown=${ this.handleKeyDown }
-					@blur=${ this.handleBlur }
-					class="${ this.dartThrow.activatedModifiers.length > 0 ? 'scoreModifierActivated' : '' }"
-				>
-				${ this.renderMultiplier() }
-			</div>
+		<div class=${ classMap(wrapperClasses) }>
+			<input
+				name="input"
+				tabindex    ="-1"
+				type        ="text"
+				autocomplete="off"
+				class       =${ classMap(inputClasses) }
+				?readonly   =${ this.isReadOnly }
+				?disabled   =${ this.isDisabled }
+				.value      =${ value }
+				@input      =${ this.handleInputChanged }
+				@keydown    =${ this.handleKeyDown }
+				@blur       =${ this.handleBlur }
+			>
+			${ this.renderMultiplier() }
+		</div>
     	`;
 	}
 
 	static override styles = [
 		sharedStyles, css`
+		:host {
+			display: grid;
+		}
+		.wrapper {
+			display: grid;
+    		grid-template-columns: 1fr auto;
+		}
 		.scoreModifierActivated {
 			color: rgba(247, 33, 226, 1);
 			font-weight: bolder;
 		}
 		input[type="text"] {
+			grid-row: 1/2;
+			grid-column: 1/3;
+
 			position: relative;
 			text-align: center;
 			z-index: 0;
@@ -173,23 +204,18 @@ export class aaDartThrow extends LitElement {
 			border: unset;
 			width: 100%;
 			font-size: 1.25rem;
-		}
-
-		.multiplier {
-			pointer-events: none;
-			position: absolute;
-			top: 0%;
-			right: 0px;
-			width: 40%;
 			height: 100%;
+		}
+		.multiplier {
+			grid-row: 1/2;
+			grid-column: 2/3;
+			pointer-events: none;
 			background: linear-gradient(90deg, rgba(180,204,185,0) 0%, rgba(180,204,185,0.4) 80%);
-			z-index: 1;
-			text-align: right;
+			align-content: center;
+
 			span {
-				font-size: 1rem;
 				font-style: italic;
 				padding-right: .5rem;
-				line-height: 2rem;
 			}
 		}
 		.is-middle-input {

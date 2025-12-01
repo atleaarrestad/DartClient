@@ -1,43 +1,40 @@
+import type { RouterLocation } from '@vaadin/router';
 import { css, html } from 'lit';
 import { LitElement } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
-import { sharedStyles } from '../../../styles.js';
 import { UserQueryOptions } from '../../api/users.requests.js';
-import { getRankDisplayValue, getRankIcon, Rank } from '../../models/rank.js';
+import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
 import { SeasonStatistics, User } from '../../models/schemas.js';
 import { Season } from '../../models/schemas.js';
-import { DialogService } from '../../services/dialogService.js';
-import { NotificationService } from '../../services/notificationService.js';
 import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
+import { sharedStyles } from '../../styles.js';
+
 
 @customElement('user-page')
 export class UserPage extends LitElement {
 
-	private seasonService:            SeasonService;
-	private notificationService:      NotificationService;
-	private dialogService:            DialogService;
-	private userService:              UserService;
-	private user?:                    User;
+	@property({ type: Array }) users: User[] = [];
+
 	@state() private userId!:         string;
 	@state() private currentSeason?:  Season;
-	@state() private seasons:         Season[];
+	@state() private seasons?:        Season[];
 	@state() private selectedSeason?: Season;
 
-	@property({ type: Array }) users: User[] = [];
+	private seasonService: SeasonService;
+	private userService:   UserService;
+	private user?:         User;
 
 	constructor() {
 		super();
 		this.userService = container.resolve(UserService);
-		this.notificationService = container.resolve(NotificationService);
 		this.seasonService = container.resolve(SeasonService);
-		this.dialogService = container.resolve(DialogService);
 	}
 
-	onBeforeEnter(location: Location): void {
-		this.userId = location.params.id!;
+	onBeforeEnter(location: RouterLocation): void {
+		this.userId = location.params['id'] as string;
 	}
 
 	override async connectedCallback(): Promise<void> {
@@ -49,7 +46,7 @@ export class UserPage extends LitElement {
 			includeFinishCounts:     true,
 		};
 
-		this.user = await this.userService.getUserById(this.userId, options);
+		this.user = await this.userService.getUserById(this.userId, options) ?? undefined;
 		this.currentSeason = await this.seasonService.getCurrentSeason();
 		this.seasons = await this.seasonService.getAll();
 		this.selectedSeason = this.seasons.find(s => s.id === this.currentSeason!.id) || this.seasons[0];
@@ -58,7 +55,7 @@ export class UserPage extends LitElement {
 	private handleSeasonChange(e: Event) {
 		const select = e.target as HTMLSelectElement;
 		const seasonId = select.value;
-		this.selectedSeason = this.seasons.find(s => s.id === seasonId);
+		this.selectedSeason = this.seasons?.find(s => s.id === seasonId);
 	}
 
 	private editUser(user: User): void {
@@ -88,17 +85,16 @@ export class UserPage extends LitElement {
 		return match || defaultStats;
 	}
 
-	override render() {
-		if (!this.user || !this.seasons.length || !this.selectedSeason)
+	override render(): unknown {
+		if (!this.user || !this.seasons?.length || !this.selectedSeason)
 			return html`<p>Loading data…</p>`;
-
 
 		const stats = this.getStatsForSeason(this.selectedSeason);
 
 		return html`
 		  <section class="user-header">
 			<h2>${ this.user.name } (@${ this.user.alias })</h2>
-	
+
 			<label>
 			  Season:
 			  <select @change=${ this.handleSeasonChange }>
@@ -112,10 +108,22 @@ export class UserPage extends LitElement {
 				) }
 			  </select>
 			</label>
-	
+
 			<div class="cards-container">
-			  <aa-info-card label="Current Rank" value=${ getRankDisplayValue(stats.currentRank) } imageSrc=${ getRankIcon(stats.currentRank) } imageAlt=${ getRankDisplayValue(stats.currentRank) }  .rank=${ stats.currentRank }></aa-info-card>
-			  <aa-info-card label="Highest Rank" value=${ getRankDisplayValue(stats.highestAchievedRank) } imageSrc=${ getRankIcon(stats.highestAchievedRank) } imageAlt=${ getRankDisplayValue(stats.highestAchievedRank) }  .rank=${ stats.highestAchievedRank }></aa-info-card>
+			  <aa-info-card
+			  		label="Current Rank"
+					value=${ getRankDisplayValue(stats.currentRank) }
+					imageSrc=${ getRankIcon(stats.currentRank) }
+					imageAlt=${ getRankDisplayValue(stats.currentRank) }
+					.rank=${ stats.currentRank }
+				></aa-info-card>
+			  <aa-info-card
+			  		label="Highest Rank"
+					value=${ getRankDisplayValue(stats.highestAchievedRank) }
+					imageSrc=${ getRankIcon(stats.highestAchievedRank) }
+					imageAlt=${ getRankDisplayValue(stats.highestAchievedRank) }
+					.rank=${ stats.highestAchievedRank }
+				></aa-info-card>
 			  <aa-info-card label="Highest round score" value=${ stats.highestRoundScore } ></aa-info-card>
 			  <aa-info-card label="Highest finishing score" value=${ stats.highestRoundScoreForVicory } ></aa-info-card>
 			</div>
@@ -125,37 +133,36 @@ export class UserPage extends LitElement {
 			  <aa-hit-count-chart .hits=${ stats.hitCounts }></aa-hit-count-chart>
 			  <aa-finish-count-chart .finishCounts=${ stats.finishCount }></aa-finish-count-chart>
 		  </div>
-		   
+
 		`;
 	}
 
 	static override styles = [
 		sharedStyles,
 		css`
-			.charts-container {
-				display: flex;
-				gap: 1rem;
-				margin-top: 1rem;
-				max-height: 40vh;
-			}
-			.user-header {
-				padding: 1rem;
-				border-bottom: 1px solid #ccc;
-			}
-			.user-header label {
-				margin-left: 1rem;
-				font-size: 0.9rem;
-			}
-			.user-header select {
-				margin-left: 0.5rem;
-			}
-			.cards-container {
-				display: grid;
-				grid-template-columns: 1fr 1fr 1fr 1fr;
-				gap: 1rem;
-				margin-top: 1rem;
-			}
-
+		.charts-container {
+			display: flex;
+			gap: 1rem;
+			margin-top: 1rem;
+			max-height: 40vh;
+		}
+		.user-header {
+			padding: 1rem;
+			border-bottom: 1px solid #ccc;
+		}
+		.user-header label {
+			margin-left: 1rem;
+			font-size: 0.9rem;
+		}
+		.user-header select {
+			margin-left: 0.5rem;
+		}
+		.cards-container {
+			display: grid;
+			grid-template-columns: 1fr 1fr 1fr 1fr;
+			gap: 1rem;
+			margin-top: 1rem;
+		}
 		`,
 	];
 

@@ -1,7 +1,7 @@
 import { css, html, LitElement } from 'lit';
 import { customElement } from 'lit/decorators.js';
 
-import { sharedStyles } from '../../styles.js';
+import { sharedStyles } from '../styles.js';
 
 @customElement('aa-notification-container-cmp')
 export class NotificationContainer extends LitElement {

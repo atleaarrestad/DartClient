@@ -5,7 +5,6 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { map } from 'lit/directives/map.js';
 import { container } from 'tsyringe';
 
-import { sharedStyles } from '../../../styles.js';
 import { getAbsoluteBase } from '../../getAbsoluteBase.js';
 import { RoundStatus } from '../../models/enums.js';
 import { GameTracker, PlayerRounds, Round, User } from '../../models/schemas.js';
@@ -14,6 +13,7 @@ import { GameService } from '../../services/gameService.js';
 import { NotificationService } from '../../services/notificationService.js';
 import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
+import { sharedStyles } from '../../styles.js';
 
 const base = getAbsoluteBase();
 
@@ -102,7 +102,8 @@ export class SessionsPage extends LitElement {
 
 	private handleOnGameSelected(gameTracker: GameTracker): void {
 		this.gameService.setCachedGameId(gameTracker.id);
-		Router.go(base);
+		history.pushState({}, '', `${ base }spectate/${ gameTracker.id }`);
+		window.dispatchEvent(new PopStateEvent('popstate'));
 	}
 
 	private onCardKeydown(e: KeyboardEvent, tracker: GameTracker) {
@@ -169,7 +170,7 @@ export class SessionsPage extends LitElement {
 							</div>
 
 							<div class="cta">
-								<span class="cta__hint">Open session</span>
+								<span class="cta__hint">Spectate game</span>
 								<span class="arrow" aria-hidden="true">➜</span>
 							</div>
 						</li>

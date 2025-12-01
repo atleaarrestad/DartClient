@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { ScoreModifier, ThrowType } from './enums.js'; // Import the enums
 
-// DartThrow Schema
+
 export const DartThrowSchema = z.object({
 	hitLocation:        z.number().min(0).max(50), // Dartboard number 0-20, 25, 50
 	throwType:          z.nativeEnum(ThrowType), // Now using ThrowType enum

@@ -5,6 +5,7 @@ import { AaDialog } from '../components/aa-dialog.js';
 import { getRankDisplayValue } from '../models/rank.js';
 import { GameResult, User } from '../models/schemas.js';
 
+
 const getOrdinal = (n: number): string => {
 	const s = [ 'th', 'st', 'nd', 'rd' ],
 		v = n % 100;
@@ -13,7 +14,7 @@ const getOrdinal = (n: number): string => {
 };
 
 export const selectUserTemplate = (users: User[]): TemplateResult => {
-	const handleUserselected = (e: CustomEvent, user: User) => {
+	const handleUserSelected = (e: CustomEvent, user: User) => {
 		const dialog = (e.currentTarget as HTMLElement).closest('aa-dialog') as any;
 		dialog?.close(user);
 	};
@@ -27,7 +28,7 @@ export const selectUserTemplate = (users: User[]): TemplateResult => {
 
 	 <aa-user-picker
 		.users=${ users }
-		@user-selected=${ (e: CustomEvent<User>) => handleUserselected(e, e.detail) }
+		@user-selected=${ (e: CustomEvent<User>) => handleUserSelected(e, e.detail) }
   ></aa-user-picker>
 	`;
 };

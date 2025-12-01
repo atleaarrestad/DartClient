@@ -1,46 +1,20 @@
 import Chart from 'chart.js/auto';
-import { css, html, LitElement } from 'lit';
+import { css, html, LitElement, type PropertyValues } from 'lit';
 import { customElement, property, query } from 'lit/decorators.js';
 
 import type { MatchSnapshot } from '../models/schemas.js';
 
+
 @customElement('aa-match-snapshot-chart')
 export class MatchSnapshotChart extends LitElement {
 
-	/**
-   * Array of MatchSnapshot objects with { date: Date | string, mmr: number }
-   */
+	/** Array of MatchSnapshot objects with { date: Date | string, mmr: number } */
 	@property({ type: Array }) snapshots: MatchSnapshot[] = [];
 
 	@query('canvas') private _canvas!: HTMLCanvasElement;
-	private _chart?:                   Chart;
 
-	static override styles = css`
-    :host {
-      display: block;
-      position: relative;
-      width: 100%;
-      height: 100%;
-    }
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-      display: block; /* avoid inline canvas baseline gap */
-    }
-  `;
+	private _chart?: Chart;
 
-	override render() {
-		return html`<canvas></canvas>`;
-	}
-
-	override firstUpdated() {
-		this._renderChart();
-	}
-
-	override updated(changed: Map<string, unknown>) {
-		if (changed.has('snapshots'))
-			this._renderChart();
-	}
 
 	override disconnectedCallback(): void {
 		super.disconnectedCallback();
@@ -49,6 +23,19 @@ export class MatchSnapshotChart extends LitElement {
 			this._chart.destroy();
 			this._chart = undefined;
 		}
+	}
+
+	override firstUpdated(changeProperties: PropertyValues): void {
+		super.firstUpdated(changeProperties);
+
+		this._renderChart();
+	}
+
+	override updated(changed: PropertyValues): void {
+		super.updated(changed);
+
+		if (changed.has('snapshots'))
+			this._renderChart();
 	}
 
 	private _renderChart() {
@@ -64,7 +51,7 @@ export class MatchSnapshotChart extends LitElement {
 
 		if (this._chart) {
 			this._chart.data.labels = labels;
-			this._chart.data.datasets[0].data = data;
+			this._chart.data.datasets[0]!.data = data;
 			this._chart.update();
 
 			return;
@@ -108,5 +95,23 @@ export class MatchSnapshotChart extends LitElement {
 			},
 		});
 	}
+
+	override render(): unknown {
+		return html`<canvas></canvas>`;
+	}
+
+	static override styles = css`
+		:host {
+			display: block;
+			position: relative;
+			width: 100%;
+			height: 100%;
+		}
+		canvas {
+			width: 100% !important;
+			height: 100% !important;
+			display: block; /* avoid inline canvas baseline gap */
+		}
+  `;
 
 }
