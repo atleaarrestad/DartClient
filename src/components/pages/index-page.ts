@@ -112,6 +112,7 @@ export class IndexPage extends GamePage {
 			switch (event.code) {
 			case 'Tab':
 			case 'Enter':
+			case 'NumpadEnter':
 				this.moveFocus('forward');
 				event.preventDefault();
 			}
