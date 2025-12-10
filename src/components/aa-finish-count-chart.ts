@@ -32,13 +32,13 @@ export class FinishCountChart extends LitElement {
 			return;
 
 		const labels = Array.from({ length: 15 }, (_, i) => String(i + 1));
-		labels[14] = '>14';
 		const data = labels.map((label) => {
 			const num = parseInt(label, 10);
 			const entry = this.finishCounts.find(fc => fc.roundNumber === num);
 
 			return entry ? entry.count : 0;
 		});
+		labels[14] = '>14';
 
 		if (this._chart) {
 			this._chart.data.labels = labels;
