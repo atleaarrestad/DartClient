@@ -12,10 +12,12 @@ export class aaDartThrow extends LitElement {
 
 	@property({ type: Object }) dartThrow:   DartThrow;
 	@property({ type: Boolean }) isDisabled: boolean = false;
+	@property({ type: Boolean }) isSaving: boolean = false;
 
 	@state() isReadOnly:   boolean = false;
 	@state() oldValue:     number = 0;
 	@state() oldThrowType: ThrowType = ThrowType.Single;
+
 
 	@query('input') inputElement: HTMLInputElement;
 
@@ -157,7 +159,11 @@ export class aaDartThrow extends LitElement {
 		else
 			value = this.dartThrow.hitLocation == 0 ? '' : this.dartThrow.hitLocation.toString();
 
-		const wrapperClasses = { 'wrapper': true, 'is-middle-input': this.dartThrow.throwIndex === 1 };
+		const wrapperClasses = {
+			'wrapper': true,
+			'is-middle-input': this.dartThrow.throwIndex === 1,
+			'is-saving': this.isSaving,
+		};
 		const inputClasses = { 'scoreModifierActivated': this.dartThrow.activatedModifiers.length > 0 };
 
 		return html`
@@ -188,7 +194,27 @@ export class aaDartThrow extends LitElement {
 		.wrapper {
 			display: grid;
     		grid-template-columns: 1fr auto;
+			box-sizing: border-box;
+			position: relative;
 		}
+
+		.is-middle-input {
+			border-left: 1px solid rgba(0, 0, 0, .25);
+			border-right: 1px solid rgba(0, 0, 0, .25);
+    	}
+
+		@keyframes saving-border {
+			0%   { box-shadow: inset 0 0 0 2px #3498db; }
+			25%  { box-shadow: inset 0 0 0 2px #9b59b6; }
+			50%  { box-shadow: inset 0 0 0 2px #e67e22; }
+			75%  { box-shadow: inset 0 0 0 2px #2ecc71; }
+			100% { box-shadow: inset 0 0 0 2px #3498db; }
+		}
+
+		.wrapper.is-saving {
+			animation: saving-border 0.8s linear infinite;
+		}
+
 		.scoreModifierActivated {
 			color: rgba(247, 33, 226, 1);
 			font-weight: bolder;

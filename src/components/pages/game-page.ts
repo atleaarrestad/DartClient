@@ -19,6 +19,7 @@ import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
 import { sharedStyles } from '../../styles.js';
 import gamePageStyles from './game-page.css?inline';
+import { aaDartThrow } from "../aa-dart-throw-cmp.js";
 
 
 export class GamePage extends LitElement {
@@ -284,8 +285,21 @@ export class GamePage extends LitElement {
 									<div class="round-number">${ roundIndex + 1 }</div>
 									<div class="throws-container">
 										${ map(round.dartThrows, (dartThrow, throwIndex) => {
-											const onThrowUpdated = (e: CustomEvent) =>
-												this.handleThrowUpdated?.(e.detail.dartThrow, playerIndex, roundIndex);
+											const onThrowUpdated = async (e: CustomEvent) => {
+												const cmp = e.currentTarget as aaDartThrow;
+
+												cmp.isSaving = true;
+												try {
+													await this.handleThrowUpdated?.(
+														e.detail.dartThrow,
+														playerIndex,
+														roundIndex,
+													);
+												}
+												finally {
+													cmp.isSaving = false;
+												}
+											};
 
 											const onFocus = (e: FocusEvent) =>
 												this.handleDartThrowFocused?.(e);
