@@ -31,7 +31,7 @@ export class UsersPage extends LitElement {
 
 	@state() private season?: Season;
 	@state() private users:   User[] = [];
-	@state() private sortKey: SortKey = 'name';
+	@state() private sortKey: SortKey = 'mmr';
 	@state() private sortAsc: boolean = true;
 
 	constructor() {
