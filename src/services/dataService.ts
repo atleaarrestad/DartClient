@@ -19,6 +19,7 @@ export class DataService {
 
 	private backendURL = import.meta.env.VITE_SERVER_URL;
 	private abortTimeout = 500000;
+	private addThrowQueue: Promise<unknown> = Promise.resolve();
 
 	async Ping(): Promise<string> {
 		const result = await this.get<string>('ping');
@@ -134,35 +135,46 @@ export class DataService {
 		}
 	}
 
+	private enqueueAddThrow<T>(task: () => Promise<T>): Promise<T> {
+		const result = this.addThrowQueue.then(task, task);
+		this.addThrowQueue = result.catch(() => {});
+
+		return result;
+	}
+
 	async AddDartThrowToGameSession(
 		gameId: string,
 		playerId: string,
 		roundNumber: number,
 		dartThrow: DartThrow,
-	): Promise<GameTracker> {
-		const request = {
-			HitLocation: dartThrow.hitLocation,
-			ThrowType:   dartThrow.throwType,
-		};
-		const result = await this.post<object, PlayerRounds>(
-			`games/sessions/${ gameId }/player/${ playerId }/round/${ roundNumber }/throw/${ dartThrow.throwIndex }`,
-			request,
-		);
+		): Promise<GameTracker> {
 
-		if (!result.ok) {
-			throw new Error(
-				`Failed to add player to active game: ${ result.status } ${ result.statusText }`,
+		return this.enqueueAddThrow(async () => {
+			const request = {
+				HitLocation: dartThrow.hitLocation,
+				ThrowType:   dartThrow.throwType,
+			};
+
+			const result = await this.post<object, PlayerRounds>(
+				`games/sessions/${gameId}/player/${playerId}/round/${roundNumber}/throw/${dartThrow.throwIndex}`,
+				request,
 			);
-		}
-		else {
+
+			if (!result.ok) {
+				throw new Error(
+					`Failed to add player to active game: ${result.status} ${result.statusText}`,
+				);
+			}
+
 			try {
 				return GameTrackerSchema.parse(result.data);
 			}
 			catch {
-				throw new Error('Invalid game tracker data received from the API');
+				throw new Error("Invalid game tracker data received from the API");
 			}
-		}
+		});
 	}
+
 
 	async getCurrentSeason(): Promise<Season> {
 		const resp = await this.get<Season>('season/latest');
