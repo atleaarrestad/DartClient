@@ -45,7 +45,6 @@ export class signalRService {
 	}
 
 	invoke<T>(method: string, ...args: unknown[]): Promise<T> {
-		console.log(this.connection.state);
 		return this.connection.invoke(method, ...args);
 	}
 

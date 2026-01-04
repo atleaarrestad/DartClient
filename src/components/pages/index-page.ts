@@ -4,7 +4,7 @@ import { customElement } from 'lit/decorators.js';
 
 import { RoundStatus } from '../../models/enums.js';
 import type { GameResult, Round, User } from '../../models/schemas.js';
-import { postGameTemplate, selectUserTemplate } from '../../templates/dialogTemplates.js';
+import { gameResultDummyData, postGameTemplate, selectUserTemplate } from '../../templates/dialogTemplates.js';
 import type { AaCombobox } from '../aa-combobox-cmp.js';
 import type { aaDartThrow } from '../aa-dart-throw-cmp.js';
 import { GamePage } from './game-page.js';
@@ -310,7 +310,8 @@ export class IndexPage extends GamePage {
 
 			this.players = [];
 			this.requestUpdate();
-			await this.dialogService.open(postGameTemplate(gameResult, this.users), { title: 'Game Summary' });
+			const achievementDefinitions = await this.achievementService.getAchievementDefinitions();
+			await this.dialogService.open(postGameTemplate(gameResult, this.users, achievementDefinitions), { title: 'Game Summary' });
 		}
 		catch (error) {
 			const errorMessage = (error as Error).message;

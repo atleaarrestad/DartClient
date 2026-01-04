@@ -33,6 +33,7 @@ import { RuleService } from './services/ruleService.js';
 import { SeasonService } from './services/seasonService.js';
 import { signalRService } from './services/signalRService.js';
 import { UserService } from './services/userService.js';
+import { achievementService } from "./services/achievementService.js";
 
 container.register(DataService,         { useClass: DataService });
 container.register(NotificationService, { useClass: NotificationService });
@@ -43,5 +44,7 @@ container.register(CacheService,        { useClass: CacheService });
 container.register(GameService,         { useClass: GameService });
 container.register(RuleService,         { useClass: RuleService });
 container.register(signalRService,      { useClass: signalRService });
+container.register(achievementService,      { useClass: achievementService });
+
 
 hljs.registerLanguage('csharp', csharp);

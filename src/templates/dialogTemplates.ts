@@ -3,7 +3,9 @@ import { createRef, ref } from 'lit/directives/ref.js';
 
 import { AaDialog } from '../components/aa-dialog.js';
 import { getRankDisplayValue } from '../models/rank.js';
-import { GameResult, User } from '../models/schemas.js';
+import { AchievementDefinitionsResponse, GameResult, User } from '../models/schemas.js';
+import { SessionAchievement } from "../models/enums.js";
+import { renderAchievementSummary } from "../helpers/achievementHelper.js";
 
 
 const getOrdinal = (n: number): string => {
@@ -66,7 +68,7 @@ export const newUserTemplate = (options: {
   `;
 };
 
-export const postGameTemplate = (gameResult: GameResult, users: User[]): TemplateResult => {
+export const postGameTemplate = (gameResult: GameResult, users: User[], achievementDefinitions: AchievementDefinitionsResponse): TemplateResult => {
 	const sortedPlayerResults = [ ...gameResult.playerResults ].sort((a, b) => {
 		if (a.placement === 0 && b.placement !== 0)
 			return 1;
@@ -163,6 +165,56 @@ export const postGameTemplate = (gameResult: GameResult, users: User[]): Templat
       @media (min-width: 900px) {
         .name-line { font-size: 1.25rem; }
       }
+	  /* make summary look like a normal row (no default marker spacing) */
+.achievements { margin-top: 0.5rem; }
+.achievements > summary { list-style: none; }
+.achievements > summary::-webkit-details-marker { display: none; }
+
+.ach-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ach-label { font-weight: 800; opacity: 0.75; }
+.ach-hint { font-weight: 800; opacity: 0.55; font-size: 0.9em; }
+
+.achievements[open] .ach-hint { opacity: 0.35; } /* subtle change when open */
+
+.ach-total {
+  font-weight: 900;
+  background: #fff;
+  border: 2px solid #000;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+}
+
+.ach-badges { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
+
+.ach-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #fff;
+  border: 2px solid #000;
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  font-weight: 800;
+}
+
+.ach-icon { width: 18px; height: 18px; }
+.ach-count { line-height: 1; }
+
+.ach-list { margin-top: 0.35rem; }
+.ach-tier-group { margin-top: 0.35rem; }
+.ach-tier-header { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 900; }
+.ach-tier-group ul { margin: 0.25rem 0 0 1.1rem; padding: 0; }
+.muted { opacity: 0.7; }
+
+
     </style>
 
     <div class="postgame">
@@ -199,6 +251,7 @@ export const postGameTemplate = (gameResult: GameResult, users: User[]): Templat
                 <div class="pill"><span class="label">Overshoots</span> ${ pr.overShoots }</div>
                 <div class="pill"><span class="label">Avg</span> ${ pr.averageScore }</div>
               </div>
+			  ${renderAchievementSummary(pr, achievementDefinitions)}
 
               ${ index < sortedPlayerResults.length - 1
                 ? html`<div class="divider"></div>`
@@ -228,6 +281,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2250,
 			oldRank:      4,
 			newRank:      5,
+			unlockedSessionAchievements: [SessionAchievement.AllTwentyVariantsSameGame, SessionAchievement.BudgetTrippleTwenty, SessionAchievement.MaggaSlayer],
+			unlockedProgressAchievements: []
 		},
 		{
 			id:           26,
@@ -241,6 +296,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
+			unlockedSessionAchievements: [SessionAchievement.ClassicAnyDouble, SessionAchievement.ClassicAnyTripple, SessionAchievement.Classic1, SessionAchievement.Classic3, SessionAchievement.Classic2],
+			unlockedProgressAchievements: []
 		},
 		{
 			id:           26,
@@ -254,6 +311,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
+			unlockedSessionAchievements: [],
+			unlockedProgressAchievements: []
 		},
 		{
 			id:           26,
@@ -267,6 +326,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
+			unlockedSessionAchievements: [],
+			unlockedProgressAchievements: []
 		},
 		{
 			id:           26,
@@ -280,6 +341,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
+			unlockedSessionAchievements: [],
+			unlockedProgressAchievements: []
 		},
 		{
 			id:           26,
@@ -293,6 +356,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
+			unlockedSessionAchievements: [],
+			unlockedProgressAchievements: []
 		},
 		{
 			id:           26,
@@ -306,6 +371,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
+			unlockedSessionAchievements: [],
+			unlockedProgressAchievements: []
 		},
 		{
 			id:           26,
@@ -319,6 +386,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
+			unlockedSessionAchievements: [],
+			unlockedProgressAchievements: []
 		},
 		{
 			id:           26,
@@ -332,6 +401,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
+			unlockedSessionAchievements: [],
+			unlockedProgressAchievements: []
 		},
 		{
 			id:           26,
@@ -345,6 +416,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
+			unlockedSessionAchievements: [],
+			unlockedProgressAchievements: []
 		},
 		{
 			id:           26,
@@ -358,6 +431,8 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
+			unlockedSessionAchievements: [],
+			unlockedProgressAchievements: []
 		},
 	],
 	season: {

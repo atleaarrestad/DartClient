@@ -20,6 +20,7 @@ import { UserService } from '../../services/userService.js';
 import { sharedStyles } from '../../styles.js';
 import gamePageStyles from './game-page.css?inline';
 import { aaDartThrow } from "../aa-dart-throw-cmp.js";
+import { achievementService } from "../../services/achievementService.js";
 
 
 export class GamePage extends LitElement {
@@ -33,6 +34,7 @@ export class GamePage extends LitElement {
 
 	protected dataService:            DataService;
 	protected seasonService:          SeasonService;
+	protected achievementService:     achievementService;
 	protected userService:            UserService;
 	protected notificationService:    NotificationService;
 	protected dialogService:          DialogService;
@@ -47,11 +49,12 @@ export class GamePage extends LitElement {
 		super();
 
 		this.notificationService = container.resolve(NotificationService);
-		this.seasonService = container.resolve(SeasonService);
-		this.dialogService = container.resolve(DialogService);
-		this.dataService = container.resolve(DataService);
-		this.userService = container.resolve(UserService);
-		this.gameService = container.resolve(GameService);
+		this.seasonService       = container.resolve(SeasonService);
+		this.achievementService  = container.resolve(achievementService);
+		this.dialogService       = container.resolve(DialogService);
+		this.dataService         = container.resolve(DataService);
+		this.userService         = container.resolve(UserService);
+		this.gameService         = container.resolve(GameService);
 	}
 
 	override connectedCallback(): void {

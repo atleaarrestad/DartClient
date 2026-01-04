@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { buildGetUserByIdUrl, UserQueryOptions } from '../api/users.requests.js';
 import { DartThrow } from '../models/dartThrowSchema.js';
 import {
+	AchievementDefinitionsResponse,
+	AchievementDefinitionsResponseSchema,
 	GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds,
 	type RuleDefinitionsResponse, RuleDefinitionsResponseSchema, Season, SeasonSchema, User, UserSchema,
 } from '../models/schemas.js';
@@ -44,6 +46,23 @@ export class DataService {
 		}
 		catch (e) {
 			throw new Error('Invalid rule-definition data received from the API');
+		}
+	}
+
+	async GetAchievementDefinitions(): Promise<AchievementDefinitionsResponse> {
+		const resp = await this.get<AchievementDefinitionsResponse>(`achievement/definitions`);
+
+		if (!resp.ok) {
+			throw new Error(
+				`Failed to fetch achievement definitions: ${ resp.status } ${ resp.statusText }`,
+			);
+		}
+
+		try {
+			return AchievementDefinitionsResponseSchema.parse(resp.data);
+		}
+		catch (e) {
+			throw new Error('Invalid achievement definition data received from the API');
 		}
 	}
 
@@ -250,7 +269,7 @@ export class DataService {
 		try {
 			return resp.data.map(u => UserSchema.parse(u));
 		}
-		catch {
+		catch(e) {
 			throw new Error('Invalid user data received from the API');
 		}
 	}
@@ -275,7 +294,7 @@ export class DataService {
 		try {
 			return UserSchema.parse(resp.data);
 		}
-		catch {
+		catch(e) {
 			throw new Error('Invalid user data received from the API');
 		}
 	}
