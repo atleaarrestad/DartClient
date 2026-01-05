@@ -39,10 +39,11 @@ export class SpectateGamePage extends GamePage {
 		}
 		this.updateGameState(gameTracker);
 	}
-	private HandleOnGameFinished(gameId: string, gameResult: GameResult): void {
+	private async HandleOnGameFinished(gameId: string, gameResult: GameResult): Promise<void> {
 		if (gameId !== this.gameId) {
 			return;
 		}
-		this.dialogService.open(postGameTemplate(gameResult, this.users), { title: 'Game Summary' });
+		const achievementDefinitions = await this.achievementService.getAchievementDefinitions();
+		this.dialogService.open(postGameTemplate(gameResult, this.users, achievementDefinitions), { title: 'Game Summary' });
 	}
 }
