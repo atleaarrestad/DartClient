@@ -110,6 +110,7 @@ export enum SessionAchievement {
 	FinishWithDoubleBull = 405,
 	FinishWithDouble = 406,
 	FinishWithTripple = 407,
+	BigFish = 408,
 
 	// 500-599: Memes
 	MaggaSlayer = 500,
