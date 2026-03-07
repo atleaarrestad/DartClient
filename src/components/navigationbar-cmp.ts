@@ -42,7 +42,7 @@ export class AaNavigationbar extends LitElement {
 				</a>
 
 				<a class="logo center" href=${ `${ base }season/${ this.season?.id }` }>
-					<img class="logo-icon" src=${ `${ base }icons/season_alpha.png` } alt="Logo" />
+					<img class="logo-icon" src=${ `${ base }icons/season_beta.png` } alt="Logo" />
 					<span class="fit-content">Season ${ this.season?.name }</span>
 				</a>
 			</s-logo-wrapper>
