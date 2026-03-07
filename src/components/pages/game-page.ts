@@ -21,6 +21,7 @@ import { sharedStyles } from '../../styles.js';
 import gamePageStyles from './game-page.css?inline';
 import { aaDartThrow } from "../aa-dart-throw-cmp.js";
 import { achievementService } from "../../services/achievementService.js";
+import { signalRService } from "../../services/signalRService.js";
 
 
 export class GamePage extends LitElement {
@@ -44,6 +45,7 @@ export class GamePage extends LitElement {
 	protected selectedId?:            string;
 	protected isActiveGame:           boolean = false;
 	protected scrollLeader:           HTMLElement | null = null;
+	protected signalRService:         signalRService;
 
 	constructor() {
 		super();
@@ -55,12 +57,18 @@ export class GamePage extends LitElement {
 		this.dataService         = container.resolve(DataService);
 		this.userService         = container.resolve(UserService);
 		this.gameService         = container.resolve(GameService);
+		this.signalRService      = container.resolve(signalRService);
 	}
 
 	override connectedCallback(): void {
 		super.connectedCallback();
 
 		this.initialize();
+	}
+
+	override disconnectedCallback(): void {
+		super.connectedCallback();
+		this.signalRService.stop();
 	}
 
 	protected async initialize(): Promise<void> {
@@ -87,6 +95,9 @@ export class GamePage extends LitElement {
 		this.loading = false;
 
 		this.scrollToEndInPlayerRounds();
+
+		this.signalRService.buildHubConnection("hubs/main");
+		await this.signalRService.start();
 	}
 
 	protected async healthCheckServer(): Promise<void> {

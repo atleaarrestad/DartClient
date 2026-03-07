@@ -8,14 +8,9 @@ import { postGameTemplate } from "../../templates/dialogTemplates.js";
 
 @customElement('spectate-game-page')
 export class SpectateGamePage extends GamePage {
-
-	protected signalRService:            signalRService;
 	@state() private gameId!:         string;
 	constructor() {
 		super();
-
-		this.signalRService = container.resolve(signalRService);
-		this.signalRService.buildHubConnection("hubs/spectate");
 	}
 	
 	override async initialize(): Promise<void> {
@@ -24,14 +19,12 @@ export class SpectateGamePage extends GamePage {
 
 		this.signalRService.on<GameTracker>("OnGameUpdated", (gameId, gameTracker) => this.HandleOnGameUpdated(gameId, gameTracker));
 		this.signalRService.on<GameResult>("OnGameFinished", (gameId, gameResult) => this.HandleOnGameFinished(gameId, gameResult));
-
-		await this.signalRService.start();
-		await this.signalRService.invoke<void>("Subscribe", this.gameId);
+		await this.signalRService.invoke<void>("SubscribeSpectate", this.gameId);
 	}
 
-	override disconnectedCallback(): void {
+	override async disconnectedCallback(): Promise<void> {
 		super.disconnectedCallback();
-		this.signalRService.stop();
+		await this.signalRService.invoke<void>("UnsubscribeSpectate", this.gameId);
 	}
 	private HandleOnGameUpdated(gameId: string, gameTracker: GameTracker): void {
 		if (gameId !== this.gameId) {
