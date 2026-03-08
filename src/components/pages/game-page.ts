@@ -8,7 +8,7 @@ import { map } from 'lit/directives/map.js';
 import { container } from 'tsyringe';
 
 import { sum } from '../../helpers/sum.js';
-import { RoundStatus } from '../../models/enums.js';
+import { RoundStatus, SessionAchievement } from '../../models/enums.js';
 import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
 import { GameTracker, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../models/schemas.js';
 import { DataService } from '../../services/dataService.js';
@@ -67,9 +67,13 @@ export class GamePage extends LitElement {
 		this.initialize();
 	}
 
-	override disconnectedCallback(): void {
+	override async disconnectedCallback(): Promise<void> {
 		super.connectedCallback();
+		if (this.gameIdFromLocalStorage){
+			await this.unSubscribeToAchievementEvents(this.gameIdFromLocalStorage);
+		}
 		this.signalRService.stop();
+		
 	}
 
 	protected async initialize(): Promise<void> {
@@ -99,6 +103,26 @@ export class GamePage extends LitElement {
 
 		this.signalRService.buildHubConnection("hubs/main");
 		await this.signalRService.start();
+
+		if (this.gameIdFromLocalStorage){
+			await this.subscribeToAchievementEvents(this.gameIdFromLocalStorage);
+		}
+	}
+
+	public async subscribeToAchievementEvents(gameId: string){
+		this.signalRService.on("OnSessionAchievementUnlocked", (gameId, playerId, SessionAchievement) => this.HandleSessionAchievementUnlocked(gameId, playerId, SessionAchievement));
+		await this.signalRService.invoke<void>("SubscribeAchievement", gameId);
+	}
+
+	public async unSubscribeToAchievementEvents(gameId: string){
+		this.signalRService.off("OnSessionAchievementUnlocked")
+		await this.signalRService.invoke<void>("UnsubscribeAchievement", gameId);
+	}
+
+	private async HandleSessionAchievementUnlocked(gameId: string, playerId: string, sessionAchievement: SessionAchievement){
+		const achievementName = SessionAchievement[sessionAchievement];
+		const displayName = achievementName.replace(/([a-z])([A-Z])/g, "$1 $2");
+		this.notificationService.addNotification(`Achievement unlocked! \n\n ${displayName}`, "success")
 	}
 
 	protected async healthCheckServer(): Promise<void> {

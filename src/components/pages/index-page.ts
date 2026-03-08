@@ -31,8 +31,8 @@ export class IndexPage extends GamePage {
 		window.addEventListener('keydown', this.onKeyDown);
 	}
 
-	override disconnectedCallback(): void {
-		super.disconnectedCallback();
+	override async disconnectedCallback(): Promise<void> {
+		await super.disconnectedCallback();
 
 		window.removeEventListener('keydown', this.onKeyDown);
 	}
@@ -197,9 +197,16 @@ export class IndexPage extends GamePage {
 	}
 
 	protected async requestNewGame(): Promise<string> {
+
+		if (this.gameIdFromLocalStorage){
+			await this.unSubscribeToAchievementEvents(this.gameIdFromLocalStorage);
+		}
+
 		const newGameID = await this.gameService.requestNewGame();
-		if (newGameID)
+		if (newGameID){
 			this.gameIdFromLocalStorage = newGameID;
+			await this.subscribeToAchievementEvents(newGameID);
+		}
 
 		return newGameID;
 	}
