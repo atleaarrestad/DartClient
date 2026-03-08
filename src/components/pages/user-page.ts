@@ -221,7 +221,7 @@ export class UserPage extends LitElement {
 				<span class="ach-overall">${earnedAll}/${totalAll}</span>
 			</div>
 
-			<div class="ach-types">
+			<div class="ach-types ach-scroll">
 				${typesSorted.map(([type, tiers]) => {
 				const typeTotal = tierOrder.reduce((s, t) => s + (tiers.get(t)?.total ?? 0), 0);
 				const typeEarned = tierOrder.reduce((s, t) => s + (tiers.get(t)?.earned ?? 0), 0);
@@ -353,9 +353,7 @@ export class UserPage extends LitElement {
 			  <aa-hit-count-chart .hits=${ stats.hitCounts }></aa-hit-count-chart>
 			  <aa-finish-count-chart .finishCounts=${ stats.finishCount }></aa-finish-count-chart>
 		  </div>
-		  <div class="ach-scroll">
-			${this.renderAchievements(stats)}
-		  </div>
+		  ${this.renderAchievements(stats)}
 
 		`;
 	}
@@ -517,7 +515,7 @@ export class UserPage extends LitElement {
 
 .ach-item strong { font-weight: 900; }
 .ach-scroll {
-  max-height: 35vh;
+  max-height: 30vh;
   overflow-y: auto;
   padding-right: 0.35rem;
   padding-bottom: 1rem;
