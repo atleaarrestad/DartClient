@@ -165,6 +165,14 @@ export enum SessionAchievement {
 
 export enum ProgressAchievement {
 	Everything = 0,
+	Darkness = 1,
+	Flames = 2,
+	GreenMonster = 3,
+	LevelHeaded = 4,
+	Light = 5,
+	OddFellow = 6,
+	ThriceBlessed = 7,
+	TwiceAsNice = 8,
 }
 
 export enum AchievementTier {
