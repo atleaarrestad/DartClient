@@ -1,5 +1,5 @@
 import { Router } from '@vaadin/router';
-import { css, html } from 'lit';
+import { css, html, mathml } from 'lit';
 import { LitElement } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
@@ -55,24 +55,19 @@ export class UsersPage extends LitElement {
 	}
 
 	private getStatsForCurrentSeason(user: User): SeasonStatistics {
-		if (!user.seasonStatistics || user.seasonStatistics.length === 0) {
-			return {
-				id:                  0,
-				userId:              user.id,
-				seasonId:            '',
-				currentRank:         undefined,
-				highestAchievedRank: undefined,
-				mmr:                 0,
-			} as unknown as SeasonStatistics;
+		const match = user.seasonStatistics.find(s => s.seasonId === this.season!.id);
+		if (match){
+			return match
 		}
 
-		if (this.season) {
-			const match = user.seasonStatistics.find(s => s.seasonId === this.season!.id);
-			if (match)
-				return match;
-		}
-
-		return user.seasonStatistics.reduce((prev, curr) => curr.id > prev.id ? curr : prev);
+		return {
+			id:                  0,
+			userId:              user.id,
+			seasonId:            '',
+			currentRank:         undefined,
+			highestAchievedRank: undefined,
+			mmr:                 0,
+		} as unknown as SeasonStatistics;
 	}
 
 	private sortUsers(key: SortKey): void {
