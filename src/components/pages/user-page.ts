@@ -95,17 +95,32 @@ export class UserPage extends LitElement {
 	}
 
 	private scrollDetailsIntoView(e: Event) {
-		const details = (e.currentTarget as HTMLElement)?.closest("details");
-		if (!details) return;
+	const details = (e.currentTarget as HTMLElement)?.closest("details");
+	const container = this.renderRoot.querySelector(".ach-scroll") as HTMLElement | null;
 
-		// wait for <details> to toggle open
-		setTimeout(() => {
-			details.scrollIntoView({
-			block: "nearest",
-			behavior: "smooth",
+	if (!details || !container) return;
+
+	requestAnimationFrame(() => {
+		const containerRect = container.getBoundingClientRect();
+		const detailsRect = details.getBoundingClientRect();
+
+		const currentScroll = container.scrollTop;
+		const offsetTop = detailsRect.top - containerRect.top + currentScroll;
+		const offsetBottom = detailsRect.bottom - containerRect.bottom + currentScroll;
+
+		if (detailsRect.top < containerRect.top) {
+			container.scrollTo({
+				top: offsetTop - 8,
+				behavior: "smooth",
 			});
-		}, 0);
-	}
+		} else if (detailsRect.bottom > containerRect.bottom) {
+			container.scrollTo({
+				top: offsetBottom + 8,
+				behavior: "smooth",
+			});
+		}
+	});
+}
 	private renderAchievements(stats: SeasonStatistics): TemplateResult {
 		const defs: AchievementDefinitionsResponse | undefined = this.achievementDefinitions;
 		if (!defs) return html``;
@@ -502,7 +517,7 @@ export class UserPage extends LitElement {
 
 .ach-item strong { font-weight: 900; }
 .ach-scroll {
-  max-height: 45vh;
+  max-height: 35vh;
   overflow-y: auto;
   padding-right: 0.35rem;
   padding-bottom: 1rem;
