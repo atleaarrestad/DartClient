@@ -43,6 +43,7 @@ export class GamePage extends LitElement {
 	protected gameIdFromLocalStorage: string | undefined = undefined;
 	protected creatingGame:           boolean = false;
 	protected selectedId?:            string;
+	protected selectedCellElement?:   aaDartThrow = undefined;
 	protected isActiveGame:           boolean = false;
 	protected scrollLeader:           HTMLElement | null = null;
 	protected signalRService:         signalRService;

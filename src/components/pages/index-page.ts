@@ -8,6 +8,7 @@ import { gameResultDummyData, postGameTemplate, selectUserTemplate } from '../..
 import type { AaCombobox } from '../aa-combobox-cmp.js';
 import type { aaDartThrow } from '../aa-dart-throw-cmp.js';
 import { GamePage } from './game-page.js';
+import { DartThrow } from "../../models/dartThrowSchema.js";
 
 
 interface ElementDetails {
@@ -51,7 +52,31 @@ export class IndexPage extends GamePage {
 			const gameTracker = await this.gameService
 				.addDartThrowToGame(this.gameIdFromLocalStorage!, playerId!, roundNumber, updatedThrow);
 
+			const selectedCellElement : aaDartThrow | undefined = this.selectedCellElement;
+			const selectedDartThrow : DartThrow | undefined = selectedCellElement?.dartThrow;
+			const selectedDartThrowDetails = this.getSelectedElementDetails();
+			const hasValidOldSelection = selectedCellElement && selectedDartThrow && selectedDartThrowDetails
+			var storedOldValue : DartThrow | undefined = undefined;
+
+			if (hasValidOldSelection && selectedDartThrowDetails.throwIndex !== updatedThrow.throwIndex) {
+				const existingThrow =
+					this.players[selectedDartThrowDetails.playerIndex!]?.rounds[selectedDartThrowDetails.rowIndex!]?.dartThrows[selectedDartThrowDetails.throwIndex!];
+
+				if (existingThrow) {
+					storedOldValue = { ...selectedCellElement.dartThrow };
+				}
+			}
+
 			this.updateGameState(gameTracker);
+
+			if (storedOldValue) {
+				const player = this.players[selectedDartThrowDetails.playerIndex!];
+				const round = player?.rounds[selectedDartThrowDetails.rowIndex!];
+
+				if (round) {
+					round.dartThrows[selectedDartThrowDetails.throwIndex!] = storedOldValue;
+				}
+			}
 		}
 		catch (error) { /* */ }
 	}
@@ -321,6 +346,7 @@ export class IndexPage extends GamePage {
 
 	protected override handleDartThrowFocused(event: FocusEvent): void {
 		this.selectedId = (event.target as aaDartThrow).id;
+		this.selectedCellElement = (event.target as aaDartThrow);
 	}
 
 	protected focusCombobox(index: number): void {
