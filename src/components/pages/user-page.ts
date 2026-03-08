@@ -72,19 +72,20 @@ export class UserPage extends LitElement {
 
 	private getStatsForSeason(season: Season): SeasonStatistics {
 		const defaultStats: SeasonStatistics = {
-			id:                           0,
-			userId:                       this.user?.id ?? '',
-			seasonId:                     season.id,
-			currentRank:                  0,
-			highestAchievedRank:          0,
-			mmr:                          0,
-			matchSnapshots:               [],
-			hitCounts:                    [],
-			highestRoundScore:            0,
-			highestRoundScoreForVictory:  0,
-			finishCount:                  [],
-			unlockedProgressAchievements: [],
-			unlockedSessionAchievements:  []
+			id:                           	0,
+			userId:                       	this.user?.id ?? '',
+			seasonId:                     	season.id,
+			currentRank:                  	0,
+			highestAchievedRank:          	0,
+			mmr:                          	0,
+			matchSnapshots:               	[],
+			hitCounts:                    	[],
+			highestRoundScore:            	0,
+			highestRoundScoreNoSeasonRules: 0,
+			highestRoundScoreForVictory:  	0,
+			finishCount:                  	[],
+			unlockedProgressAchievements: 	[],
+			unlockedSessionAchievements:  	[]
 		};
 		if (!this.user?.seasonStatistics?.length)
 			return defaultStats;
@@ -310,6 +311,7 @@ export class UserPage extends LitElement {
 			return html`<p>Loading data…</p>`;
 
 		const stats = this.getStatsForSeason(this.selectedSeason);
+		const highestRoundScoreNoSeasonRules = `${stats.highestRoundScore} (${stats.highestRoundScoreNoSeasonRules})`; 
 
 		return html`
 		  <section class="user-header">
@@ -344,7 +346,7 @@ export class UserPage extends LitElement {
 					imageAlt=${ getRankDisplayValue(stats.highestAchievedRank) }
 					.rank=${ stats.highestAchievedRank }
 				></aa-info-card>
-			  <aa-info-card label="Highest round score" value=${ stats.highestRoundScore } ></aa-info-card>
+			  <aa-info-card label="Highest round score" value=${ highestRoundScoreNoSeasonRules }></aa-info-card>
 			  <aa-info-card label="Highest finishing score" value=${ stats.highestRoundScoreForVictory } ></aa-info-card>
 			</div>
 		  </section>

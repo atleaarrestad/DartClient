@@ -95,19 +95,20 @@ export type SessionAchievementSafe = SessionAchievement | "unknown";
 export type ProgressionAchievementSafe = ProgressAchievement | "unknown";
 
 export const SeasonStatisticsSchema = z.object({
-	id:                           z.number(),
-	userId:                       z.string().uuid(),
-	seasonId:                     z.string().uuid(),
-	currentRank:                  z.nativeEnum(Rank),
-	highestAchievedRank:          z.nativeEnum(Rank),
-	highestRoundScore:            z.number(),
-	highestRoundScoreForVictory:  z.number(),
-	mmr:                          z.number(),
-	matchSnapshots:               z.array(MatchSnapshotSchema),
-	hitCounts:                    z.array(HitCountSchema),
-	finishCount:                  z.array(FinishCountSchema),
-	unlockedProgressAchievements: z.array(ProgressionAchievementSafeSchema),
-  	unlockedSessionAchievements:  z.array(SessionAchievementSafeSchema),
+	id:                           	z.number(),
+	userId:                       	z.string().uuid(),
+	seasonId:                     	z.string().uuid(),
+	currentRank:                  	z.nativeEnum(Rank),
+	highestAchievedRank:          	z.nativeEnum(Rank),
+	highestRoundScore:            	z.number(),
+	highestRoundScoreForVictory:  	z.number(),
+	highestRoundScoreNoSeasonRules: z.number(),
+	mmr:                          	z.number(),
+	matchSnapshots:               	z.array(MatchSnapshotSchema),
+	hitCounts:                    	z.array(HitCountSchema),
+	finishCount:                  	z.array(FinishCountSchema),
+	unlockedProgressAchievements: 	z.array(ProgressionAchievementSafeSchema),
+  	unlockedSessionAchievements:  	z.array(SessionAchievementSafeSchema),
 });
 
 export const UserSchema = z.object({
