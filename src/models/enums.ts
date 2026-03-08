@@ -17,6 +17,8 @@ export enum ThrowType {
 export enum WinCondition {
 	MustHitBoard = 0,
 	MustReachExactGoal = 1,
+	MustHitBoardIfNotWinByMultiplier = 2
+
 }
 
 export enum ScoreModifier {
