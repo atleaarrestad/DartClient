@@ -9,7 +9,7 @@ import { container } from 'tsyringe';
 
 import { sum } from '../../helpers/sum.js';
 import { RoundStatus, SessionAchievement } from '../../models/enums.js';
-import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
+import { getRankDisplayValue, getRankIcon, Rank } from '../../models/rank.js';
 import { GameTracker, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../models/schemas.js';
 import { DataService } from '../../services/dataService.js';
 import { DialogService } from '../../services/dialogService.js';
@@ -202,8 +202,7 @@ export class GamePage extends LitElement {
 	protected getLatestSeasonStatsForPlayer(playerIndex: number): SeasonStatistics | undefined {
 		const user = this.getUserFromPlayerIndex(playerIndex);
 		if (user && user.seasonStatistics.length > 0) {
-			const seasonStats = user.seasonStatistics[user.seasonStatistics.length - 1];
-
+			const seasonStats = user.seasonStatistics.find(stats => stats.seasonId == this.season?.id);
 			return seasonStats;
 		}
 
@@ -294,7 +293,7 @@ export class GamePage extends LitElement {
 					return;
 
 				const seasonStats = this.getLatestSeasonStatsForPlayer(playerIndex);
-				const mmr = seasonStats?.mmr;
+				const mmr = seasonStats?.mmr ?? 0;
 				const rank = seasonStats?.currentRank;
 
 				const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
