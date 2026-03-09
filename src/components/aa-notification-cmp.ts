@@ -220,7 +220,7 @@ export class NotificationElement extends LitElement {
 			left: 0;
 			right: 0;
 			bottom: 0;
-			height: 4px;
+			height: 6px;
 			background: rgba(0, 0, 0, 0.12);
 		}
 
