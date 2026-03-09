@@ -126,7 +126,7 @@ export class UsersPage extends LitElement {
 									this.requestUpdate();
 								});
 						})
-						.catch((e) => this.notificationService.addNotification(e.message, 'danger'));
+						.catch((e) => this.notificationService.addNotification({type: 'danger', message: e.message}));
 				},
 			})
 			, { title: 'Create new user' },

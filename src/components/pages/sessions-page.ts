@@ -48,7 +48,7 @@ export class SessionsPage extends LitElement {
 		}
 		catch (err) {
 			console.error(err);
-			this.notificationService.addNotification("Couldn't load active games", 'danger');
+			this.notificationService.addNotification({message: "Couldn't load active games", type: 'danger'});
 		}
 		finally {
 			this.loading = false;

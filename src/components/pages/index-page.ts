@@ -328,10 +328,7 @@ export class IndexPage extends GamePage {
 
 			const isValidGame = this.validateGameCanBeSubmitted();
 			if (!isValidGame) {
-				this.notificationService.addNotification(
-					'Cannot submit game! Play at least one round and select user for all players', 'info',
-				);
-
+				this.notificationService.addNotification({type: 'info', message: 'Cannot submit game! Play at least one round and select user for all players'})
 				return;
 			}
 
@@ -347,7 +344,7 @@ export class IndexPage extends GamePage {
 		}
 		catch (error) {
 			const errorMessage = (error as Error).message;
-			this.notificationService.addNotification(errorMessage, 'danger');
+			this.notificationService.addNotification({type: 'danger', message: errorMessage})
 		}
 	}
 

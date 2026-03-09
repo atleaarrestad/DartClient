@@ -110,7 +110,7 @@ export class GamePage extends LitElement {
 	}
 
 	public async subscribeToAchievementEvents(gameId: string){
-		this.signalRService.on("OnSessionAchievementUnlocked", (gameId, playerId, SessionAchievement) => this.HandleSessionAchievementUnlocked(gameId, playerId, SessionAchievement));
+		this.signalRService.on("OnSessionAchievementUnlocked", (gameId, playerId, SessionAchievements) => this.HandleSessionAchievementUnlocked(gameId, playerId, SessionAchievements));
 		await this.signalRService.invoke<void>("SubscribeAchievement", gameId);
 	}
 
@@ -119,20 +119,27 @@ export class GamePage extends LitElement {
 		await this.signalRService.invoke<void>("UnsubscribeAchievement", gameId);
 	}
 
-	private async HandleSessionAchievementUnlocked(gameId: string, playerId: string, sessionAchievement: SessionAchievement){
-		const achievementName = SessionAchievement[sessionAchievement];
-		const displayName = achievementName.replace(/([a-z])([A-Z])/g, "$1 $2");
-		this.notificationService.addNotification(`Achievement unlocked! \n\n ${displayName}`, "success")
+	private async HandleSessionAchievementUnlocked(gameId: string, playerId: string, sessionAchievements: SessionAchievement[]){
+		const achievementNames = sessionAchievements.map(sessionAchievement => {
+			const achievementName = SessionAchievement[sessionAchievement];
+			return achievementName.replace(/([a-z])([A-Z])/g, '$1 $2');
+		});
+
+		this.notificationService.addNotification({type: 'achievement', achievementNames});
 	}
 
 	protected async healthCheckServer(): Promise<void> {
 		this.dataService.Ping()
-			.catch(error => this.notificationService.addNotification(error, 'danger'));
+			.catch(error => this.notificationService.addNotification({type: 'danger', message: error}));
 	}
 
 	protected async loadUsers(): Promise<void> {
 		const usersPromise = this.userService.getAllUsers();
-		this.notificationService.addNotification('Fetching users..', 'info', usersPromise);
+		this.notificationService.addNotification({
+			type: 'info',
+			message: 'Fetching users..',
+			promise: usersPromise
+		});
 
 		return usersPromise
 			.then((users) => {
@@ -143,7 +150,7 @@ export class GamePage extends LitElement {
 					this.users = [];
 			})
 			.catch((error) => {
-				this.notificationService.addNotification(error, 'danger');
+				this.notificationService.addNotification({type: 'danger', message: error});
 			});
 	}
 
