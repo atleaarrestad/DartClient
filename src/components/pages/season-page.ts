@@ -49,26 +49,19 @@ export class SeasonPage extends LitElement {
 	}
 
 	private getStatsForCurrentSeason(user: User): SeasonStatistics {
-		if (!user.seasonStatistics || user.seasonStatistics.length === 0) {
-			return {
-				id:                  0,
-				userId:              user.id,
-				seasonId:            '',
-				currentRank:         undefined,
-				highestAchievedRank: undefined,
-				mmr:                 0,
-			} as unknown as SeasonStatistics;
-		}
-		if (this.season) {
-			const match = user.seasonStatistics.find(
-				(s) => s.seasonId === this.season!.id,
-			);
-			if (match)
-				return match;
+		const match = user?.seasonStatistics?.find(seasonStats => seasonStats.seasonId === this.season!.id);
+		if (match){
+			return match;
 		}
 
-		return user.seasonStatistics.reduce((prev, curr) =>
-			curr.id > prev.id ? curr : prev);
+		return {
+			id:                  0,
+			userId:              user.id,
+			seasonId:            '',
+			currentRank:         undefined,
+			highestAchievedRank: undefined,
+			mmr:                 0,
+		} as unknown as SeasonStatistics;
 	}
 
 	private get podium() {
