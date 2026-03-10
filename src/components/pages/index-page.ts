@@ -334,6 +334,7 @@ export class IndexPage extends GamePage {
 
 			const gameResult: GameResult = await this.dataService.SubmitGame(this.gameIdFromLocalStorage);
 			this.gameIdFromLocalStorage = undefined;
+			this.isActiveGame = false;
 
 			await this.loadUsers(); // make sure this finishes before continuing
 
