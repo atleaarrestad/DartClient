@@ -6,7 +6,7 @@ import { classMap } from 'lit/directives/class-map.js';
 
 import { RoundStatus } from '../../models/enums.js';
 import type { GameResult, Round, User } from '../../models/schemas.js';
-import { postGameTemplate, selectUserTemplate } from '../../templates/dialogTemplates.js';
+import { postGameTemplate, selectUserTemplate, confirmRematchTemplate } from '../../templates/dialogTemplates.js';
 import type { AaCombobox } from '../aa-combobox-cmp.js';
 import type { aaDartThrow } from '../aa-dart-throw-cmp.js';
 import { GamePage } from './game-page.js';
@@ -85,6 +85,10 @@ export class IndexPage extends GamePage {
 	protected onKeyDown = this.handleKeyDown.bind(this);
 
 	protected handleKeyDown(event: KeyboardEvent): void {
+		if (document.querySelector('aa-dialog')){
+			return;
+		}
+		
 		if (event.shiftKey) {
 			switch (event.code) {
 				case 'ArrowUp':
@@ -158,8 +162,11 @@ export class IndexPage extends GamePage {
 		if (!this.isRematchPermissible())
 			return;
 
-		if (this.isActiveGame)
-			return;
+		if (this.isActiveGame) {
+			const confirmed = await this.confirmRematch();
+			if (!confirmed)
+				return;
+		}
 
 		try {
 			this.players = [];
@@ -175,6 +182,18 @@ export class IndexPage extends GamePage {
 		catch {
 			this.isActiveGame = false;
 		}
+	}
+	private async confirmRematch(): Promise<boolean> {
+		const rematchUsers = this.getLastPlayedUsers();
+		if (rematchUsers.length === 0)
+			return false;
+
+		const confirmed = await this.dialogService.open<boolean>(
+			confirmRematchTemplate(rematchUsers),
+			{ title: 'Confirm Rematch' }
+		);
+
+		return confirmed ?? false;
 	}
 
 	protected debounceBlockThrowUpdates = (() => {

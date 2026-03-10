@@ -35,6 +35,203 @@ export const selectUserTemplate = (users: User[]): TemplateResult => {
 	`;
 };
 
+export const confirmRematchTemplate = (users: User[]): TemplateResult => {
+	const closeDialog = (result?: boolean) => {
+		const dialog = document.querySelector('aa-dialog');
+		if (!dialog)
+			return;
+
+		dialog.dispatchEvent(new CustomEvent('dialog-closed', {
+			detail: { result },
+			bubbles: true,
+			composed: true,
+		}));
+	};
+
+	const onKeyDown = (event: KeyboardEvent) => {
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			closeDialog(false);
+		}
+	};
+
+	return html`
+		<style>
+			.confirm-rematch {
+				display: grid;
+				gap: 1rem;
+				outline: none;
+			}
+
+			.confirm-copy {
+				display: grid;
+				gap: 0.4rem;
+			}
+
+			.confirm-title {
+				font-size: 1.1rem;
+				font-weight: 900;
+			}
+
+			.confirm-text {
+				opacity: 0.8;
+				line-height: 1.4;
+			}
+
+			.rematch-card {
+				display: grid;
+				gap: 0.75rem;
+				padding: 0.9rem 1rem;
+				background: #fffdf6;
+				border: 2px solid #000;
+				border-radius: 20px;
+				box-shadow: 4px 4px 0 #000;
+			}
+
+			.rematch-header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+
+			.rematch-label {
+				font-size: 1rem;
+				font-weight: 900;
+			}
+
+			.rematch-keys {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.35rem;
+				font-weight: 900;
+			}
+
+			.keycap {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				min-width: 2.1rem;
+				padding: 0.2rem 0.5rem;
+				background: #fff;
+				border: 2px solid #000;
+				border-radius: 12px;
+				line-height: 1;
+				box-shadow: 2px 2px 0 #000;
+			}
+
+			.roster-label {
+				font-size: 0.85rem;
+				font-weight: 800;
+				opacity: 0.65;
+			}
+
+			.player-list {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.5rem;
+			}
+
+			.player-pill {
+				display: inline-flex;
+				align-items: center;
+				padding: 0.3rem 0.65rem;
+				background: #eef6ff;
+				border: 2px solid #000;
+				border-radius: 999px;
+				font-weight: 800;
+				box-shadow: 2px 2px 0 #000;
+			}
+
+			.actions {
+				display: flex;
+				justify-content: flex-end;
+				gap: 0.75rem;
+				flex-wrap: wrap;
+				margin-top: 0.25rem;
+			}
+
+			.dialog-button {
+				font: inherit;
+				font-weight: 900;
+				border: 2px solid #000;
+				border-radius: 14px;
+				padding: 0.65rem 0.9rem;
+				box-shadow: 3px 3px 0 #000;
+				cursor: pointer;
+				background: #fff;
+			}
+
+			.dialog-button:hover {
+				transform: translate(-1px, -1px);
+				box-shadow: 4px 4px 0 #000;
+			}
+
+			.dialog-button:active {
+				transform: translate(2px, 2px);
+				box-shadow: 1px 1px 0 #000;
+			}
+
+			.dialog-button:focus-visible {
+				outline: 3px solid #000;
+				outline-offset: 3px;
+			}
+
+			.dialog-button.confirm {
+				background: #fff7d6;
+			}
+		</style>
+
+		<div class="confirm-rematch" tabindex="-1" @keydown=${onKeyDown}>
+			<div class="confirm-copy">
+				<div class="confirm-title">Start rematch?</div>
+				<div class="confirm-text">
+					You are currently in an active game!
+				</div>
+			</div>
+
+			<div class="rematch-card">
+				<div class="rematch-header">
+					<span class="rematch-label">Rematch roster</span>
+					<span class="rematch-keys" aria-hidden="true">
+						<span class="keycap">Shift</span>
+						<span>+</span>
+						<span class="keycap">R</span>
+					</span>
+				</div>
+
+				<div class="roster-label">Players</div>
+
+				<div class="player-list">
+					${users.map(user => html`
+						<span class="player-pill">${user.alias || user.name}</span>
+					`)}
+				</div>
+			</div>
+
+			<div class="actions">
+				<button
+					type="button"
+					class="dialog-button confirm"
+					data-autofocus
+					@click=${() => closeDialog(true)}
+				>
+					Yes, rematch
+				</button>
+
+				<button
+					type="button"
+					class="dialog-button"
+					@click=${() => closeDialog(false)}
+				>
+					No, keep game
+				</button>
+			</div>
+		</div>
+	`;
+};
+
 export const newUserTemplate = (options: {
 	onSave: (name: string, alias: string) => void;
 }): TemplateResult => {

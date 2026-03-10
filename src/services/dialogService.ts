@@ -40,6 +40,11 @@ export class DialogService {
 			});
 
 			document.body.appendChild(dialog);
+
+			queueMicrotask(() => {
+				const autofocusElement = dialog.querySelector<HTMLElement>('[data-autofocus]');
+				autofocusElement?.focus();
+			});
 		});
 	}
 
