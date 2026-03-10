@@ -65,7 +65,6 @@ export class GamePage extends LitElement {
 
 	override connectedCallback(): void {
 		super.connectedCallback();
-
 		void this.initialize();
 	}
 
@@ -102,7 +101,7 @@ export class GamePage extends LitElement {
 
 		this.loading = false;
 
-		this.scrollToEndInPlayerRounds();
+		void this.scrollToEndInPlayerRounds();
 
 		this.signalRService.buildHubConnection('hubs/main');
 		await this.signalRService.start();
@@ -113,8 +112,8 @@ export class GamePage extends LitElement {
 	}
 
 	public async subscribeToAchievementEvents(gameId: string) {
-		this.signalRService.on('OnSessionAchievementUnlocked', (gameId, playerId, SessionAchievements) =>
-			this.HandleSessionAchievementUnlocked(gameId, playerId, SessionAchievements));
+		this.signalRService.on('OnSessionAchievementUnlocked', (gameId, playerId, sessionAchievements) =>
+			this.HandleSessionAchievementUnlocked(gameId, playerId, sessionAchievements));
 		await this.signalRService.invoke<void>('SubscribeAchievement', gameId);
 	}
 
@@ -133,7 +132,11 @@ export class GamePage extends LitElement {
 			return achievementName.replace(/([a-z])([A-Z])/g, '$1 $2');
 		});
 
-		this.notificationService.addNotification({ type: 'achievement', achievementNames, timeout: 5000 });
+		this.notificationService.addNotification({
+			type: 'achievement',
+			achievementNames,
+			timeout: 5000,
+		});
 	}
 
 	protected async healthCheckServer(): Promise<void> {
@@ -162,8 +165,7 @@ export class GamePage extends LitElement {
 	}
 
 	protected async GetLatestSeason(): Promise<void> {
-		const season = await this.seasonService.getCurrentSeason();
-		this.season = season;
+		this.season = await this.seasonService.getCurrentSeason();
 	}
 
 	protected async handleThrowUpdated?(
@@ -183,7 +185,7 @@ export class GamePage extends LitElement {
 		this.reorderPlayersByMMR();
 
 		if (roundCountChanged)
-			this.scrollToEndInPlayerRounds();
+			void this.scrollToEndInPlayerRounds();
 	}
 
 	protected getCumulativePoints(player: PlayerRounds): number {
@@ -258,7 +260,7 @@ export class GamePage extends LitElement {
 		const scrollTop = target.scrollTop;
 
 		const scrollContainers = this.shadowRoot?.querySelectorAll('.rounds-scroll-container');
-		scrollContainers?.forEach((container) => {
+		scrollContainers?.forEach(container => {
 			if (container === this.scrollLeader)
 				return;
 
@@ -282,6 +284,10 @@ export class GamePage extends LitElement {
 
 	protected renderBottomContent(): unknown {
 		return null;
+	}
+
+	protected isPlayerActive(_playerIndex: number): boolean {
+		return false;
 	}
 
 	override render(): unknown {
@@ -311,7 +317,10 @@ export class GamePage extends LitElement {
 								@focusin=${this.onPlayerInteract}
 								@mouseenter=${this.onPlayerInteract}
 							>
-								<span class="player-name">
+								<span class=${classMap({
+									'player-name': true,
+									'active-player-name': this.isPlayerActive(playerIndex),
+								})}>
 									${user.alias}
 								</span>
 
@@ -334,7 +343,7 @@ export class GamePage extends LitElement {
 												'overshoot': round.roundStatus === RoundStatus.Overshoot,
 											})}>
 												<div class="round-grid">
-													<div class="round-number">${roundIndex + 1}</div>
+													<div class="round-number">${roundIndex + 1 }</div>
 													<div class="throws-container">
 														${map(round.dartThrows, (dartThrow, throwIndex) => {
 															const onThrowUpdated = async (e: CustomEvent) => {

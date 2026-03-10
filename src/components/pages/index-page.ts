@@ -79,16 +79,17 @@ export class IndexPage extends GamePage {
 				}
 			}
 		}
-		catch (error) { /* */ }
+		catch {
+			/* */
+		}
 	}
 
 	protected onKeyDown = this.handleKeyDown.bind(this);
 
 	protected handleKeyDown(event: KeyboardEvent): void {
-		if (document.querySelector('aa-dialog')){
+		if (document.querySelector('aa-dialog'))
 			return;
-		}
-		
+
 		if (event.shiftKey) {
 			switch (event.code) {
 				case 'ArrowUp':
@@ -154,8 +155,30 @@ export class IndexPage extends GamePage {
 		}
 	}
 
+	protected override isPlayerActive(playerIndex: number): boolean {
+		const selectedElementDetails = this.getSelectedElementDetails();
+
+		if (selectedElementDetails.type !== 'throw')
+			return false;
+
+		return selectedElementDetails.playerIndex === playerIndex;
+	}
+
 	private isRematchPermissible(): boolean {
 		return this.hasRematchPlayers() && !this.creatingGame;
+	}
+
+	private async confirmRematch(): Promise<boolean> {
+		const rematchUsers = this.getLastPlayedUsers();
+		if (rematchUsers.length === 0)
+			return false;
+
+		const confirmed = await this.dialogService.open<boolean>(
+			confirmRematchTemplate(rematchUsers),
+			{ title: 'Confirm Rematch' },
+		);
+
+		return confirmed ?? false;
 	}
 
 	private async rematch(): Promise<void> {
@@ -182,18 +205,6 @@ export class IndexPage extends GamePage {
 		catch {
 			this.isActiveGame = false;
 		}
-	}
-	private async confirmRematch(): Promise<boolean> {
-		const rematchUsers = this.getLastPlayedUsers();
-		if (rematchUsers.length === 0)
-			return false;
-
-		const confirmed = await this.dialogService.open<boolean>(
-			confirmRematchTemplate(rematchUsers),
-			{ title: 'Confirm Rematch' }
-		);
-
-		return confirmed ?? false;
 	}
 
 	protected debounceBlockThrowUpdates = (() => {
@@ -313,7 +324,10 @@ export class IndexPage extends GamePage {
 			user => !this.players.some(player => player.playerId === user.id),
 		);
 
-		return this.dialogService.open<User>(selectUserTemplate(filteredUsers), { title: 'Select User' });
+		return this.dialogService.open<User>(
+			selectUserTemplate(filteredUsers),
+			{ title: 'Select User' },
+		);
 	}
 
 	protected async addNewPlayer(user?: User): Promise<void> {
@@ -344,7 +358,6 @@ export class IndexPage extends GamePage {
 			return;
 
 		this.creatingGame = true;
-
 		try {
 			this.players = [];
 			this.isActiveGame = true;
@@ -400,7 +413,7 @@ export class IndexPage extends GamePage {
 			const achievementDefinitions = await this.achievementService.getAchievementDefinitions();
 			await this.dialogService.open(
 				postGameTemplate(gameResult, this.users, achievementDefinitions),
-				{ title: 'Game Summary'},
+				{ title: 'Game Summary' },
 			);
 		}
 		catch (error) {
@@ -412,6 +425,7 @@ export class IndexPage extends GamePage {
 	protected override handleDartThrowFocused(event: FocusEvent): void {
 		this.selectedId = (event.target as aaDartThrow).id;
 		this.selectedCellElement = event.target as aaDartThrow;
+		this.requestUpdate();
 	}
 
 	protected focusCombobox(index: number): void {
@@ -481,11 +495,12 @@ export class IndexPage extends GamePage {
 
 				if (nextFocusablePlayer < playerIndex)
 					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
-
-				return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
+				else
+					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
 			}
-
-			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
+			else {
+				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
+			}
 		}
 		else if (direction === 'backward') {
 			if (playerIndex === 0 && roundIndex === 0 && throwIndex === 0)
@@ -506,11 +521,12 @@ export class IndexPage extends GamePage {
 
 				if (prevFocusablePlayer > playerIndex)
 					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
-
-				return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
+				else
+					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
 			}
-
-			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
+			else {
+				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
+			}
 		}
 		else if (direction === 'upward' && ignoreRestrictions) {
 			if (roundIndex === 0)
@@ -532,8 +548,11 @@ export class IndexPage extends GamePage {
 	}
 
 	protected validateGameCanBeSubmitted(): boolean {
-		const allPlayersSelectedUser = this.players.every(player => player.playerId !== '');
-		const hasPlayedAtLeastOneRound = this.players.every(player => player.rounds[0]?.roundStatus !== RoundStatus.Unplayed);
+		const allPlayersSelectedUser = this.players
+			.every(player => player.playerId !== '');
+
+		const hasPlayedAtLeastOneRound = this.players
+			.every(player => player.rounds[0]?.roundStatus !== RoundStatus.Unplayed);
 
 		return allPlayersSelectedUser && hasPlayedAtLeastOneRound;
 	}
@@ -544,44 +563,8 @@ export class IndexPage extends GamePage {
 			.filter((user): user is User => user !== undefined);
 	}
 
-	protected getLastPlayedUserDisplayText(): string {
-		const users = this.getLastPlayedUsers();
-		const names = users.map(user => user.alias || user.name);
-
-		if (names.length === 0)
-			return '';
-
-		if (names.length === 1)
-			return names[0]!;
-
-		if (names.length === 2)
-			return `${names[0]} and ${names[1]}`;
-
-		return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-	}
-
 	protected hasRematchPlayers(): boolean {
 		return this.getLastPlayedUsers().length > 0;
-	}
-
-	protected renderRematchShortcut(compact = false): unknown {
-		if (!this.hasRematchPlayers())
-			return null;
-
-		return html`
-			<div class=${classMap({
-				'rematch-callout': true,
-				'compact': compact,
-			})}>
-				<span class="rematch-keys" aria-hidden="true">
-					<span class="keycap">Shift</span>
-					<span>+</span>
-					<span class="keycap">R</span>
-				</span>
-				<span class="rematch-text">for rematch!</span>
-				${this.renderLastPlayedUserBadges(compact)}
-			</div>
-		`;
 	}
 
 	protected renderLastPlayedUserBadges(compact = false): unknown {
@@ -600,6 +583,27 @@ export class IndexPage extends GamePage {
 						${user.alias || user.name}
 					</span>
 				`)}
+			</div>
+		`;
+	}
+
+	protected renderRematchShortcut(compact = false): unknown {
+		if (!this.hasRematchPlayers())
+			return null;
+
+		return html`
+			<div class=${classMap({
+				'rematch-callout': true,
+				'compact': compact,
+			})}>
+				<span class="rematch-label">Ready for another?</span>
+				<span class="rematch-keys" aria-hidden="true">
+					<span class="keycap">Shift</span>
+					<span>+</span>
+					<span class="keycap">R</span>
+				</span>
+				<span class="rematch-text">for rematch!</span>
+				${this.renderLastPlayedUserBadges(compact)}
 			</div>
 		`;
 	}
@@ -633,6 +637,8 @@ export class IndexPage extends GamePage {
 									<span class="keycap">R</span>
 								</span>
 							</div>
+
+							<div class="shortcut-subtext">Players</div>
 							${this.renderLastPlayedUserBadges()}
 						</div>
 					` : ''}
