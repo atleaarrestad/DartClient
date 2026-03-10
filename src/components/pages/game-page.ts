@@ -220,9 +220,9 @@ export class GamePage extends LitElement {
 		this.players = this.players.toSorted((a, b) => {
 			const userA = this.users.find(u => u.id === a.playerId);
 			const userB = this.users.find(u => u.id === b.playerId);
-
-			const mmrA = userA?.seasonStatistics?.[userA.seasonStatistics.length - 1]?.mmr ?? 0;
-			const mmrB = userB?.seasonStatistics?.[userB.seasonStatistics.length - 1]?.mmr ?? 0;
+			
+			const mmrA = userA?.seasonStatistics?.find(stats => stats.seasonId == this.season?.id)?.mmr ?? 0;
+			const mmrB = userB?.seasonStatistics?.find(stats => stats.seasonId == this.season?.id)?.mmr ?? 0;
 
 			return mmrA - mmrB;
 		});
