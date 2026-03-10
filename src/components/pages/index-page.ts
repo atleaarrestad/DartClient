@@ -1,30 +1,30 @@
 import '../aa-button-cmp.js';
 
+import { html } from 'lit';
 import { customElement } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 
 import { RoundStatus } from '../../models/enums.js';
 import type { GameResult, Round, User } from '../../models/schemas.js';
-import { gameResultDummyData, postGameTemplate, selectUserTemplate } from '../../templates/dialogTemplates.js';
+import { postGameTemplate, selectUserTemplate } from '../../templates/dialogTemplates.js';
 import type { AaCombobox } from '../aa-combobox-cmp.js';
 import type { aaDartThrow } from '../aa-dart-throw-cmp.js';
 import { GamePage } from './game-page.js';
-import { DartThrow } from "../../models/dartThrowSchema.js";
-
+import { DartThrow } from '../../models/dartThrowSchema.js';
 
 interface ElementDetails {
-	type:         'throw' | 'nothing';
+	type: 'throw' | 'nothing';
 	playerIndex?: number;
-	rowIndex?:    number;
-	throwIndex?:  number;
+	rowIndex?: number;
+	throwIndex?: number;
 }
-
 
 @customElement('index-page')
 export class IndexPage extends GamePage {
 
 	protected override isReadOnly: boolean = false;
-	protected blockThrowUpdates:   boolean = false;
-	protected lastPlayedUserIds:   string[] = [];
+	protected blockThrowUpdates: boolean = false;
+	protected lastPlayedUserIds: string[] = [];
 
 	override connectedCallback(): void {
 		super.connectedCallback();
@@ -34,7 +34,6 @@ export class IndexPage extends GamePage {
 
 	override async disconnectedCallback(): Promise<void> {
 		await super.disconnectedCallback();
-
 		window.removeEventListener('keydown', this.onKeyDown);
 	}
 
@@ -49,15 +48,16 @@ export class IndexPage extends GamePage {
 			return;
 
 		const playerId = this.getUserFromPlayerIndex(playerIndex)?.id;
+
 		try {
 			const gameTracker = await this.gameService
 				.addDartThrowToGame(this.gameIdFromLocalStorage!, playerId!, roundNumber, updatedThrow);
 
-			const selectedCellElement : aaDartThrow | undefined = this.selectedCellElement;
-			const selectedDartThrow : DartThrow | undefined = selectedCellElement?.dartThrow;
+			const selectedCellElement: aaDartThrow | undefined = this.selectedCellElement;
+			const selectedDartThrow: DartThrow | undefined = selectedCellElement?.dartThrow;
 			const selectedDartThrowDetails = this.getSelectedElementDetails();
-			const hasValidOldSelection = selectedCellElement && selectedDartThrow && selectedDartThrowDetails
-			var storedOldValue : DartThrow | undefined = undefined;
+			const hasValidOldSelection = selectedCellElement && selectedDartThrow && selectedDartThrowDetails;
+			let storedOldValue: DartThrow | undefined = undefined;
 
 			if (hasValidOldSelection && selectedDartThrowDetails.throwIndex !== updatedThrow.throwIndex) {
 				const existingThrow =
@@ -83,6 +83,7 @@ export class IndexPage extends GamePage {
 	}
 
 	protected onKeyDown = this.handleKeyDown.bind(this);
+
 	protected handleKeyDown(event: KeyboardEvent): void {
 		if (event.shiftKey) {
 			switch (event.code) {
@@ -91,9 +92,7 @@ export class IndexPage extends GamePage {
 				case 'ArrowRight':
 				case 'ArrowDown': {
 					this.moveFreeFocus(event.code);
-
 					event.preventDefault();
-
 					return;
 				}
 			}
@@ -104,14 +103,13 @@ export class IndexPage extends GamePage {
 			switch (event.code) {
 				case 'Minus':
 				case 'NumpadAdd':
-					this.addNewPlayer();
-
+					void this.addNewPlayer();
 					event.preventDefault();
 					break;
 
 				case 'Slash':
 				case 'NumpadSubtract':
-					this.removeLastPlayer();
+					void this.removeLastPlayer();
 					event.preventDefault();
 					break;
 
@@ -121,18 +119,18 @@ export class IndexPage extends GamePage {
 					break;
 
 				case 'KeyN':
-					this.createGame();
+					void this.createGame();
 					event.preventDefault();
 					break;
 
 				case 'KeyS':
-					this.saveGame();
+					void this.saveGame();
 					event.preventDefault();
 					break;
 
 				case 'KeyR':
-					if (this.isRematchPermissible()){
-						this.rematch()
+					if (this.isRematchPermissible()) {
+						void this.rematch();
 					}
 					event.preventDefault();
 					break;
@@ -152,14 +150,33 @@ export class IndexPage extends GamePage {
 		}
 	}
 
-	private isRematchPermissible(): boolean{
-		return true
+	private isRematchPermissible(): boolean {
+		return this.hasRematchPlayers() && !this.creatingGame;
 	}
 
-	private rematch(): void{
-		console.log(this.lastPlayedUserIds)
-		console.log(this.users);
+	private async rematch(): Promise<void> {
+		if (!this.isRematchPermissible())
+			return;
+
+		if (this.isActiveGame)
+			return;
+
+		try {
+			this.players = [];
+			this.isActiveGame = true;
+
+			await this.requestNewGame();
+
+			const rematchUsers = this.getLastPlayedUsers();
+			for (const user of rematchUsers) {
+				await this.addNewPlayer(user);
+			}
+		}
+		catch {
+			this.isActiveGame = false;
+		}
 	}
+
 	protected debounceBlockThrowUpdates = (() => {
 		let timeout: number | undefined;
 
@@ -212,13 +229,12 @@ export class IndexPage extends GamePage {
 	}
 
 	protected async requestNewGame(): Promise<string> {
-
-		if (this.gameIdFromLocalStorage){
+		if (this.gameIdFromLocalStorage) {
 			await this.unSubscribeToAchievementEvents(this.gameIdFromLocalStorage);
 		}
 
 		const newGameID = await this.gameService.requestNewGame();
-		if (newGameID){
+		if (newGameID) {
 			this.gameIdFromLocalStorage = newGameID;
 			await this.subscribeToAchievementEvents(newGameID);
 		}
@@ -252,16 +268,16 @@ export class IndexPage extends GamePage {
 
 	protected getSelectedElementDetails(): ElementDetails {
 		const result: ElementDetails = {
-			type:        'nothing',
+			type: 'nothing',
 			playerIndex: undefined,
-			rowIndex:    undefined,
-			throwIndex:  undefined,
+			rowIndex: undefined,
+			throwIndex: undefined,
 		};
 
 		if (!this.selectedId)
 			return result;
 
-		const idParts = this.selectedId!.split('-');
+		const idParts = this.selectedId.split('-');
 		result.type = idParts[0]! as 'throw' | 'nothing';
 
 		if (result.type === 'throw') {
@@ -271,16 +287,14 @@ export class IndexPage extends GamePage {
 		}
 
 		return result;
-	};
+	}
 
 	protected async getNewPlayer(): Promise<User | undefined> {
 		const filteredUsers = this.users.filter(
 			user => !this.players.some(player => player.playerId === user.id),
 		);
-		const user = await this.dialogService
-			.open<User>(selectUserTemplate(filteredUsers), { title: 'Select User' });
 
-		return user;
+		return this.dialogService.open<User>(selectUserTemplate(filteredUsers), { title: 'Select User' });
 	}
 
 	protected async addNewPlayer(user?: User): Promise<void> {
@@ -311,6 +325,7 @@ export class IndexPage extends GamePage {
 			return;
 
 		this.creatingGame = true;
+
 		try {
 			this.players = [];
 			this.isActiveGame = true;
@@ -318,7 +333,6 @@ export class IndexPage extends GamePage {
 			const user = await this.getNewPlayer();
 			if (!user) {
 				this.isActiveGame = false;
-
 				return;
 			}
 
@@ -343,43 +357,51 @@ export class IndexPage extends GamePage {
 
 			const isValidGame = this.validateGameCanBeSubmitted();
 			if (!isValidGame) {
-				this.notificationService.addNotification({type: 'info', message: 'Cannot submit game! Play at least one round and select user for all players'})
+				this.notificationService.addNotification({
+					type: 'info',
+					message: 'Cannot submit game! Play at least one round and select user for all players',
+				});
 				return;
 			}
 
 			const gameResult: GameResult = await this.dataService.SubmitGame(this.gameIdFromLocalStorage);
-			var lastPlayedUserIds = this.players.map(player => player.playerId);
+			const lastPlayedUserIds = this.players.map(player => player.playerId);
+
 			this.lastPlayedUserIds = lastPlayedUserIds;
 			this.cacheService.setLastPlayedUserIds(lastPlayedUserIds);
 
 			this.gameIdFromLocalStorage = undefined;
 			this.isActiveGame = false;
 
-			await this.loadUsers(); // make sure this finishes before continuing
+			await this.loadUsers();
 
 			this.players = [];
 			this.requestUpdate();
+
 			const achievementDefinitions = await this.achievementService.getAchievementDefinitions();
-			await this.dialogService.open(postGameTemplate(gameResult, this.users, achievementDefinitions), { title: 'Game Summary' });
+			await this.dialogService.open(
+				postGameTemplate(gameResult, this.users, achievementDefinitions),
+				{ title: 'Game Summary'},
+			);
 		}
 		catch (error) {
 			const errorMessage = (error as Error).message;
-			this.notificationService.addNotification({type: 'danger', message: errorMessage})
+			this.notificationService.addNotification({ type: 'danger', message: errorMessage });
 		}
 	}
 
 	protected override handleDartThrowFocused(event: FocusEvent): void {
 		this.selectedId = (event.target as aaDartThrow).id;
-		this.selectedCellElement = (event.target as aaDartThrow);
+		this.selectedCellElement = event.target as aaDartThrow;
 	}
 
 	protected focusCombobox(index: number): void {
-		const element = this.renderRoot.querySelector(`#combobox-${ index }`) as AaCombobox;
+		const element = this.renderRoot.querySelector(`#combobox-${index}`) as AaCombobox;
 		element?.focus();
 	}
 
 	protected focusDartThrow(playerIndex: number, rowIndex: number, throwIndex: number): void {
-		const element = this.renderRoot.querySelector(`#throw-${ playerIndex }-${ rowIndex }-${ throwIndex }`) as aaDartThrow;
+		const element = this.renderRoot.querySelector(`#throw-${playerIndex}-${rowIndex}-${throwIndex}`) as aaDartThrow;
 		element?.focus();
 	}
 
@@ -431,22 +453,20 @@ export class IndexPage extends GamePage {
 			if (throwIndex === 2) {
 				const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'forward', ignoreRestrictions);
 
-				// everyone else has won (potentially you also)
 				if (nextFocusablePlayer === undefined) {
 					if (ignoreRestrictions)
 						return null;
 
 					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
 				}
-				// Has looped around
+
 				if (nextFocusablePlayer < playerIndex)
 					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
-				else
-					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
+
+				return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
 			}
-			else {
-				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
-			}
+
+			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
 		}
 		else if (direction === 'backward') {
 			if (playerIndex === 0 && roundIndex === 0 && throwIndex === 0)
@@ -455,7 +475,6 @@ export class IndexPage extends GamePage {
 			if (throwIndex === 0) {
 				const prevFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'backward', ignoreRestrictions);
 
-				// everyone else has won (potentially you also)
 				if (prevFocusablePlayer === undefined) {
 					if (ignoreRestrictions)
 						return null;
@@ -466,15 +485,13 @@ export class IndexPage extends GamePage {
 				if (roundIndex === 0)
 					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
 
-				// If we're not in the first round, move to the previous round
 				if (prevFocusablePlayer > playerIndex)
 					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
-				else
-					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
+
+				return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
 			}
-			else {
-				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
-			}
+
+			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
 		}
 		else if (direction === 'upward' && ignoreRestrictions) {
 			if (roundIndex === 0)
@@ -496,13 +513,123 @@ export class IndexPage extends GamePage {
 	}
 
 	protected validateGameCanBeSubmitted(): boolean {
-		const AllPlayersSelectedUser = this.players
-			.every(player => player.playerId !== '');
+		const allPlayersSelectedUser = this.players.every(player => player.playerId !== '');
+		const hasPlayedAtLeastOneRound = this.players.every(player => player.rounds[0]?.roundStatus !== RoundStatus.Unplayed);
 
-		const hasPlayedAtLeastOneRound = this.players
-			.every(player => player.rounds[0]?.roundStatus !== RoundStatus.Unplayed);
-
-		return (AllPlayersSelectedUser && hasPlayedAtLeastOneRound);
+		return allPlayersSelectedUser && hasPlayedAtLeastOneRound;
 	}
 
+	protected getLastPlayedUsers(): User[] {
+		return this.lastPlayedUserIds
+			.map(id => this.users.find(user => user.id === id))
+			.filter((user): user is User => user !== undefined);
+	}
+
+	protected getLastPlayedUserDisplayText(): string {
+		const users = this.getLastPlayedUsers();
+		const names = users.map(user => user.alias || user.name);
+
+		if (names.length === 0)
+			return '';
+
+		if (names.length === 1)
+			return names[0]!;
+
+		if (names.length === 2)
+			return `${names[0]} and ${names[1]}`;
+
+		return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+	}
+
+	protected hasRematchPlayers(): boolean {
+		return this.getLastPlayedUsers().length > 0;
+	}
+
+	protected renderRematchShortcut(compact = false): unknown {
+		if (!this.hasRematchPlayers())
+			return null;
+
+		return html`
+			<div class=${classMap({
+				'rematch-callout': true,
+				'compact': compact,
+			})}>
+				<span class="rematch-keys" aria-hidden="true">
+					<span class="keycap">Shift</span>
+					<span>+</span>
+					<span class="keycap">R</span>
+				</span>
+				<span class="rematch-text">for rematch!</span>
+				${this.renderLastPlayedUserBadges(compact)}
+			</div>
+		`;
+	}
+
+	protected renderLastPlayedUserBadges(compact = false): unknown {
+		const users = this.getLastPlayedUsers();
+
+		if (users.length === 0)
+			return null;
+
+		return html`
+			<div class=${classMap({
+				'rematch-player-list': true,
+				'compact': compact,
+			})}>
+				${users.map(user => html`
+					<span class="rematch-player-pill">
+						${user.alias || user.name}
+					</span>
+				`)}
+			</div>
+		`;
+	}
+
+	protected override renderEmptyState(): unknown {
+		const hasRematch = this.hasRematchPlayers();
+
+		return html`
+			<div class="empty-state">
+				<div class="empty-shortcuts-card">
+					<div class="shortcut-section">
+						<div class="shortcut-row">
+							<span class="shortcut-label">Start a new game</span>
+							<span class="shortcut-keys">
+								<span class="keycap">Shift</span>
+								<span>+</span>
+								<span class="keycap">N</span>
+							</span>
+						</div>
+					</div>
+
+					${hasRematch ? html`
+						<div class="shortcut-divider"></div>
+
+						<div class="shortcut-section">
+							<div class="shortcut-row">
+								<span class="shortcut-label">Rematch last game</span>
+								<span class="shortcut-keys">
+									<span class="keycap">Shift</span>
+									<span>+</span>
+									<span class="keycap">R</span>
+								</span>
+							</div>
+							${this.renderLastPlayedUserBadges()}
+						</div>
+					` : ''}
+				</div>
+			</div>
+		`;
+	}
+
+	protected override renderBottomContent(): unknown {
+		if (!this.isActiveGame)
+			return null;
+
+		return html`
+			<div class="bottom-bar">
+				${this.renderRematchShortcut(true)}
+			</div>
+		`;
+	}
 }

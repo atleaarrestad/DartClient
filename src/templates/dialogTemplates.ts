@@ -68,24 +68,11 @@ export const newUserTemplate = (options: {
   `;
 };
 
-type PostGameTemplateOptions = {
-	onRematch?: () => void;
-	showRematchHint?: boolean;
-	canRematch?: boolean;
-};
-
 export const postGameTemplate = (
 	gameResult: GameResult,
 	users: User[],
-	achievementDefinitions: AchievementDefinitionsResponse,
-	options?: PostGameTemplateOptions
+	achievementDefinitions: AchievementDefinitionsResponse
 ): TemplateResult => {
-	const {
-		onRematch,
-		showRematchHint = true,
-		canRematch = true,
-	} = options ?? {};
-
 	const sortedPlayerResults = [ ...gameResult.playerResults ].sort((a, b) => {
 		if (a.placement === 0 && b.placement !== 0)
 			return 1;
@@ -94,8 +81,6 @@ export const postGameTemplate = (
 
 		return a.placement - b.placement;
 	});
-
-	const showRematchCta = showRematchHint && (onRematch || !canRematch);
 
 	return html`
 		<style>
@@ -190,7 +175,6 @@ export const postGameTemplate = (
 				.name-line { font-size: 1.25rem; }
 			}
 
-			/* make summary look like a normal row (no default marker spacing) */
 			.achievements { margin-top: 0.5rem; }
 			.achievements > summary { list-style: none; }
 			.achievements > summary::-webkit-details-marker { display: none; }
@@ -234,92 +218,17 @@ export const postGameTemplate = (
 
 			.ach-list { margin-top: 0.35rem; }
 			.ach-tier-group { margin-top: 0.35rem; }
-			.ach-tier-header { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 900; }
-			.ach-tier-group ul { margin: 0.25rem 0 0 1.1rem; padding: 0; }
-			.muted { opacity: 0.7; }
-
-			.footer {
-				margin-top: 1rem;
-				padding-top: 0.25rem;
-			}
-
-			.rematch-callout {
-				width: 100%;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				gap: 0.65rem;
-				flex-wrap: wrap;
-				padding: 0.8rem 1rem;
-				background: #fff7d6;
-				border: 2px solid #000;
-				border-radius: 18px;
-				font: inherit;
-				font-weight: 800;
-				text-align: center;
-				box-shadow: 3px 3px 0 #000;
-				transition: transform 0.06s ease, box-shadow 0.06s ease, opacity 0.12s ease;
-			}
-
-			button.rematch-callout {
-				cursor: pointer;
-			}
-
-			button.rematch-callout:hover:not(:disabled) {
-				transform: translate(-1px, -1px);
-				box-shadow: 4px 4px 0 #000;
-			}
-
-			button.rematch-callout:active:not(:disabled) {
-				transform: translate(2px, 2px);
-				box-shadow: 1px 1px 0 #000;
-			}
-
-			button.rematch-callout:focus-visible {
-				outline: 3px solid #000;
-				outline-offset: 3px;
-			}
-
-			.rematch-callout:disabled {
-				cursor: not-allowed;
-				opacity: 0.6;
-				box-shadow: 2px 2px 0 #000;
-			}
-
-			.rematch-label {
-				opacity: 0.75;
-			}
-
-			.rematch-keys {
+			.ach-tier-header {
 				display: inline-flex;
 				align-items: center;
 				gap: 0.35rem;
 				font-weight: 900;
 			}
-
-			.keycap {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				min-width: 2.1rem;
-				padding: 0.2rem 0.5rem;
-				background: #fff;
-				border: 2px solid #000;
-				border-radius: 12px;
-				line-height: 1;
-				box-shadow: 2px 2px 0 #000;
+			.ach-tier-group ul {
+				margin: 0.25rem 0 0 1.1rem;
+				padding: 0;
 			}
-
-			.rematch-text {
-				font-weight: 900;
-			}
-
-			.rematch-subtle {
-				width: 100%;
-				font-size: 0.9rem;
-				font-weight: 700;
-				opacity: 0.65;
-			}
+			.muted { opacity: 0.7; }
 		</style>
 
 		<div class="postgame">
@@ -368,32 +277,6 @@ export const postGameTemplate = (
 					`;
 				})}
 			</div>
-
-			${showRematchCta ? html`
-				<div class="footer">
-					<button
-						type="button"
-						class="rematch-callout"
-						title=${canRematch ? 'Start a rematch' : 'Rematch unavailable'}
-						?disabled=${!canRematch || !onRematch}
-						@click=${() => {
-							if (canRematch && onRematch)
-								onRematch();
-						}}
-					>
-						<span class="rematch-label">Ready for another?</span>
-						<span class="rematch-keys" aria-hidden="true">
-							<span class="keycap">Shift</span>
-							<span>+</span>
-							<span class="keycap">R</span>
-						</span>
-						<span class="rematch-text">for rematch!</span>
-						${!canRematch
-							? html`<span class="rematch-subtle">Rematch is unavailable right now</span>`
-							: ''}
-					</button>
-				</div>
-			` : ''}
 		</div>
 	`;
 };

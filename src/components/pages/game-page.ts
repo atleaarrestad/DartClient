@@ -9,7 +9,7 @@ import { container } from 'tsyringe';
 
 import { sum } from '../../helpers/sum.js';
 import { RoundStatus, SessionAchievement } from '../../models/enums.js';
-import { getRankDisplayValue, getRankIcon, Rank } from '../../models/rank.js';
+import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
 import { GameTracker, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../models/schemas.js';
 import { DataService } from '../../services/dataService.js';
 import { DialogService } from '../../services/dialogService.js';
@@ -19,64 +19,64 @@ import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
 import { sharedStyles } from '../../styles.js';
 import gamePageStyles from './game-page.css?inline';
-import { aaDartThrow } from "../aa-dart-throw-cmp.js";
-import { achievementService } from "../../services/achievementService.js";
-import { signalRService } from "../../services/signalRService.js";
-import { CacheService } from "../../services/cacheService.js";
-
+import { aaDartThrow } from '../aa-dart-throw-cmp.js';
+import { achievementService } from '../../services/achievementService.js';
+import { signalRService } from '../../services/signalRService.js';
+import { CacheService } from '../../services/cacheService.js';
 
 export class GamePage extends LitElement {
 
-	@property({ type: Array }) users:   User[] = [];
+	@property({ type: Array }) users: User[] = [];
 	@property({ type: Array }) players: PlayerRounds[] = [];
 
-	@state() protected season?:    Season;
-	@state() protected loading:    boolean = true;
+	@state() protected season?: Season;
+	@state() protected loading: boolean = true;
 	@state() protected isReadOnly: boolean = true;
 
-	protected dataService:            DataService;
-	protected seasonService:          SeasonService;
-	protected achievementService:     achievementService;
-	protected userService:            UserService;
-	protected notificationService:    NotificationService;
-	protected dialogService:          DialogService;
-	protected gameService:            GameService;
-	protected cacheService:           CacheService;
+	protected dataService: DataService;
+	protected seasonService: SeasonService;
+	protected achievementService: achievementService;
+	protected userService: UserService;
+	protected notificationService: NotificationService;
+	protected dialogService: DialogService;
+	protected gameService: GameService;
+	protected cacheService: CacheService;
 	protected gameIdFromLocalStorage: string | undefined = undefined;
-	protected creatingGame:           boolean = false;
-	protected selectedId?:            string;
-	protected selectedCellElement?:   aaDartThrow = undefined;
-	protected isActiveGame:           boolean = false;
-	protected scrollLeader:           HTMLElement | null = null;
-	protected signalRService:         signalRService;
+	protected creatingGame: boolean = false;
+	protected selectedId?: string;
+	protected selectedCellElement?: aaDartThrow = undefined;
+	protected isActiveGame: boolean = false;
+	protected scrollLeader: HTMLElement | null = null;
+	protected signalRService: signalRService;
 
 	constructor() {
 		super();
 
 		this.notificationService = container.resolve(NotificationService);
-		this.seasonService       = container.resolve(SeasonService);
-		this.achievementService  = container.resolve(achievementService);
-		this.dialogService       = container.resolve(DialogService);
-		this.dataService         = container.resolve(DataService);
-		this.userService         = container.resolve(UserService);
-		this.gameService         = container.resolve(GameService);
-		this.signalRService      = container.resolve(signalRService);
-		this.cacheService        = container.resolve(CacheService);
+		this.seasonService = container.resolve(SeasonService);
+		this.achievementService = container.resolve(achievementService);
+		this.dialogService = container.resolve(DialogService);
+		this.dataService = container.resolve(DataService);
+		this.userService = container.resolve(UserService);
+		this.gameService = container.resolve(GameService);
+		this.signalRService = container.resolve(signalRService);
+		this.cacheService = container.resolve(CacheService);
 	}
 
 	override connectedCallback(): void {
 		super.connectedCallback();
 
-		this.initialize();
+		void this.initialize();
 	}
 
 	override async disconnectedCallback(): Promise<void> {
-		super.connectedCallback();
-		if (this.gameIdFromLocalStorage){
+		super.disconnectedCallback();
+
+		if (this.gameIdFromLocalStorage) {
 			await this.unSubscribeToAchievementEvents(this.gameIdFromLocalStorage);
 		}
+
 		this.signalRService.stop();
-		
 	}
 
 	protected async initialize(): Promise<void> {
@@ -104,36 +104,41 @@ export class GamePage extends LitElement {
 
 		this.scrollToEndInPlayerRounds();
 
-		this.signalRService.buildHubConnection("hubs/main");
+		this.signalRService.buildHubConnection('hubs/main');
 		await this.signalRService.start();
 
-		if (this.gameIdFromLocalStorage){
+		if (this.gameIdFromLocalStorage) {
 			await this.subscribeToAchievementEvents(this.gameIdFromLocalStorage);
 		}
 	}
 
-	public async subscribeToAchievementEvents(gameId: string){
-		this.signalRService.on("OnSessionAchievementUnlocked", (gameId, playerId, SessionAchievements) => this.HandleSessionAchievementUnlocked(gameId, playerId, SessionAchievements));
-		await this.signalRService.invoke<void>("SubscribeAchievement", gameId);
+	public async subscribeToAchievementEvents(gameId: string) {
+		this.signalRService.on('OnSessionAchievementUnlocked', (gameId, playerId, SessionAchievements) =>
+			this.HandleSessionAchievementUnlocked(gameId, playerId, SessionAchievements));
+		await this.signalRService.invoke<void>('SubscribeAchievement', gameId);
 	}
 
-	public async unSubscribeToAchievementEvents(gameId: string){
-		this.signalRService.off("OnSessionAchievementUnlocked")
-		await this.signalRService.invoke<void>("UnsubscribeAchievement", gameId);
+	public async unSubscribeToAchievementEvents(gameId: string) {
+		this.signalRService.off('OnSessionAchievementUnlocked');
+		await this.signalRService.invoke<void>('UnsubscribeAchievement', gameId);
 	}
 
-	private async HandleSessionAchievementUnlocked(gameId: string, playerId: string, sessionAchievements: SessionAchievement[]){
+	private async HandleSessionAchievementUnlocked(
+		gameId: string,
+		playerId: string,
+		sessionAchievements: SessionAchievement[],
+	) {
 		const achievementNames = sessionAchievements.map(sessionAchievement => {
 			const achievementName = SessionAchievement[sessionAchievement];
 			return achievementName.replace(/([a-z])([A-Z])/g, '$1 $2');
 		});
 
-		this.notificationService.addNotification({type: 'achievement', achievementNames, timeout: 5000});
+		this.notificationService.addNotification({ type: 'achievement', achievementNames, timeout: 5000 });
 	}
 
 	protected async healthCheckServer(): Promise<void> {
 		this.dataService.Ping()
-			.catch(error => this.notificationService.addNotification({type: 'danger', message: error}));
+			.catch(error => this.notificationService.addNotification({ type: 'danger', message: error }));
 	}
 
 	protected async loadUsers(): Promise<void> {
@@ -141,19 +146,18 @@ export class GamePage extends LitElement {
 		this.notificationService.addNotification({
 			type: 'info',
 			message: 'Fetching users..',
-			promise: usersPromise
+			promise: usersPromise,
 		});
 
 		return usersPromise
 			.then((users) => {
 				if (users)
 					this.users = [ ...users ];
-
 				else
 					this.users = [];
 			})
 			.catch((error) => {
-				this.notificationService.addNotification({type: 'danger', message: error});
+				this.notificationService.addNotification({ type: 'danger', message: error });
 			});
 	}
 
@@ -193,9 +197,7 @@ export class GamePage extends LitElement {
 	}
 
 	protected getRoundSum(round: Round): number {
-		const newSum = sum(round.dartThrows, t => t.finalPoints);
-
-		return newSum;
+		return sum(round.dartThrows, t => t.finalPoints);
 	}
 
 	protected getDifferenceFromBase(player: PlayerRounds): number | undefined {
@@ -205,8 +207,7 @@ export class GamePage extends LitElement {
 	protected getLatestSeasonStatsForPlayer(playerIndex: number): SeasonStatistics | undefined {
 		const user = this.getUserFromPlayerIndex(playerIndex);
 		if (user && user.seasonStatistics.length > 0) {
-			const seasonStats = user.seasonStatistics.find(stats => stats.seasonId == this.season?.id);
-			return seasonStats;
+			return user.seasonStatistics.find(stats => stats.seasonId == this.season?.id);
 		}
 
 		return undefined;
@@ -214,16 +215,14 @@ export class GamePage extends LitElement {
 
 	protected getUserFromPlayerIndex(playerIndex: number): User | undefined {
 		const playerId = this.players[playerIndex]!.playerId;
-		const user = this.users.find(user => user.id == playerId);
-
-		return user;
+		return this.users.find(user => user.id == playerId);
 	}
 
 	protected reorderPlayersByMMR(): void {
 		this.players = this.players.toSorted((a, b) => {
 			const userA = this.users.find(u => u.id === a.playerId);
 			const userB = this.users.find(u => u.id === b.playerId);
-			
+
 			const mmrA = userA?.seasonStatistics?.find(stats => stats.seasonId == this.season?.id)?.mmr ?? 0;
 			const mmrB = userB?.seasonStatistics?.find(stats => stats.seasonId == this.season?.id)?.mmr ?? 0;
 
@@ -274,11 +273,15 @@ export class GamePage extends LitElement {
 
 	protected renderEmptyState(): unknown {
 		return html`
-		<div class="empty-state">
-			<div class="shortcut">[SHIFT + N]</div>
-			<div class="subtitle">to start a new game!</div>
-		</div>
+			<div class="empty-state">
+				<div class="shortcut">[SHIFT + N]</div>
+				<div class="subtitle">to start a new game!</div>
+			</div>
 		`;
+	}
+
+	protected renderBottomContent(): unknown {
+		return null;
 	}
 
 	override render(): unknown {
@@ -289,109 +292,112 @@ export class GamePage extends LitElement {
 			return this.renderEmptyState();
 
 		return html`
-		<div class="player-container">
-			${ this.players.map((player, playerIndex) => {
-				const user = this.getUserFromPlayerIndex(playerIndex);
-				if (!user)
-					return;
+			<div class="page-content">
+				<div class="player-container">
+					${this.players.map((player, playerIndex) => {
+						const user = this.getUserFromPlayerIndex(playerIndex);
+						if (!user)
+							return;
 
-				const seasonStats = this.getLatestSeasonStatsForPlayer(playerIndex);
-				const mmr = seasonStats?.mmr ?? 0;
-				const rank = seasonStats?.currentRank;
+						const seasonStats = this.getLatestSeasonStatsForPlayer(playerIndex);
+						const mmr = seasonStats?.mmr ?? 0;
+						const rank = seasonStats?.currentRank;
 
-				const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
+						const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
 
-				return html`
-				<article
-					class="player"
-					@focusin=${ this.onPlayerInteract }
-					@mouseenter=${ this.onPlayerInteract }
-				>
-					<span class="player-name">
-						${ user.alias }
-					</span>
+						return html`
+							<article
+								class="player"
+								@focusin=${this.onPlayerInteract}
+								@mouseenter=${this.onPlayerInteract}
+							>
+								<span class="player-name">
+									${user.alias}
+								</span>
 
-					<span class="total-sum">
-						${ this.getCumulativePoints(player) } (${ this.getDifferenceFromBase(player) })
-					</span>
+								<span class="total-sum">
+									${this.getCumulativePoints(player)} (${this.getDifferenceFromBase(player)})
+								</span>
 
-					<div class="round-labels-container">
-						<span class="border-right">N</span>
-						<span>Throws</span>
-						<span class="border-left">Sum</span>
-					</div>
+								<div class="round-labels-container">
+									<span class="border-right">N</span>
+									<span>Throws</span>
+									<span class="border-left">Sum</span>
+								</div>
 
-					<div class="rounds-scroll-container" @scroll=${ this.onPlayerScroll }>
-						<div class="rounds-container">
-							${ player.rounds.map((round, roundIndex) => html`
-							<div class=${ classMap({
-								'victory':         hasVictory,
-								'alternate-color': roundIndex % 2 === 0 && !hasVictory,
-								'overshoot':       round.roundStatus === RoundStatus.Overshoot,
-							}) }>
-								<div class="round-grid">
-									<div class="round-number">${ roundIndex + 1 }</div>
-									<div class="throws-container">
-										${ map(round.dartThrows, (dartThrow, throwIndex) => {
-											const onThrowUpdated = async (e: CustomEvent) => {
-												const cmp = e.currentTarget as aaDartThrow;
+								<div class="rounds-scroll-container" @scroll=${this.onPlayerScroll}>
+									<div class="rounds-container">
+										${player.rounds.map((round, roundIndex) => html`
+											<div class=${classMap({
+												'victory': hasVictory,
+												'alternate-color': roundIndex % 2 === 0 && !hasVictory,
+												'overshoot': round.roundStatus === RoundStatus.Overshoot,
+											})}>
+												<div class="round-grid">
+													<div class="round-number">${roundIndex + 1}</div>
+													<div class="throws-container">
+														${map(round.dartThrows, (dartThrow, throwIndex) => {
+															const onThrowUpdated = async (e: CustomEvent) => {
+																const cmp = e.currentTarget as aaDartThrow;
 
-												cmp.isSaving = true;
-												try {
-													await this.handleThrowUpdated?.(
-														e.detail.dartThrow,
-														playerIndex,
-														roundIndex,
-													);
-												}
-												finally {
-													cmp.isSaving = false;
-												}
-											};
+																cmp.isSaving = true;
+																try {
+																	await this.handleThrowUpdated?.(
+																		e.detail.dartThrow,
+																		playerIndex,
+																		roundIndex,
+																	);
+																}
+																finally {
+																	cmp.isSaving = false;
+																}
+															};
 
-											const onFocus = (e: FocusEvent) =>
-												this.handleDartThrowFocused?.(e);
+															const onFocus = (e: FocusEvent) =>
+																this.handleDartThrowFocused?.(e);
 
-											return html`
-											<aa-dart-throw
-												id="throw-${ playerIndex }-${ roundIndex }-${ throwIndex }"
-												.dartThrow=${ dartThrow }
-												?isDisabled=${ this.isReadOnly }
-												@throw-updated=${ onThrowUpdated }
-												@focus=${ onFocus }>
-											</aa-dart-throw>
-											`;
-										}) }
-									</div>
-									<div class="cumulative-points-round">
-										<span>${ this.getRoundSum(round) }</span>
+															return html`
+																<aa-dart-throw
+																	id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
+																	.dartThrow=${dartThrow}
+																	?isDisabled=${this.isReadOnly}
+																	@throw-updated=${onThrowUpdated}
+																	@focus=${onFocus}>
+																</aa-dart-throw>
+															`;
+														})}
+													</div>
+													<div class="cumulative-points-round">
+														<span>${this.getRoundSum(round)}</span>
+													</div>
+												</div>
+											</div>
+										`)}
 									</div>
 								</div>
-							</div>
-							`) }
-						</div>
-					</div>
 
-					<div class="rank-container">
-						<div class="rank-inner-container">
-							<img
-								class="rank-icon"
-								src=${ getRankIcon(rank) }
-								alt=${ getRankDisplayValue(rank) }
-							>
-							<div class="rank-text-container">
-								<span class="rank">${ getRankDisplayValue(rank) }</span>
-								<span class="mmr">${ mmr }</span>
-							</div>
-						</div>
-					</div>
-				</article>
-				`;
-			}) }
-		</div>
+								<div class="rank-container">
+									<div class="rank-inner-container">
+										<img
+											class="rank-icon"
+											src=${getRankIcon(rank)}
+											alt=${getRankDisplayValue(rank)}
+										>
+										<div class="rank-text-container">
+											<span class="rank">${getRankDisplayValue(rank)}</span>
+											<span class="mmr">${mmr}</span>
+										</div>
+									</div>
+								</div>
+							</article>
+						`;
+					})}
+				</div>
+
+				${this.renderBottomContent()}
+			</div>
 		`;
 	}
 
 	static override styles = [ sharedStyles, unsafeCSS(gamePageStyles) ];
-
 }
