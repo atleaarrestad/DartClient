@@ -68,7 +68,24 @@ export const newUserTemplate = (options: {
   `;
 };
 
-export const postGameTemplate = (gameResult: GameResult, users: User[], achievementDefinitions: AchievementDefinitionsResponse): TemplateResult => {
+type PostGameTemplateOptions = {
+	onRematch?: () => void;
+	showRematchHint?: boolean;
+	canRematch?: boolean;
+};
+
+export const postGameTemplate = (
+	gameResult: GameResult,
+	users: User[],
+	achievementDefinitions: AchievementDefinitionsResponse,
+	options?: PostGameTemplateOptions
+): TemplateResult => {
+	const {
+		onRematch,
+		showRematchHint = true,
+		canRematch = true,
+	} = options ?? {};
+
 	const sortedPlayerResults = [ ...gameResult.playerResults ].sort((a, b) => {
 		if (a.placement === 0 && b.placement !== 0)
 			return 1;
@@ -78,190 +95,307 @@ export const postGameTemplate = (gameResult: GameResult, users: User[], achievem
 		return a.placement - b.placement;
 	});
 
+	const showRematchCta = showRematchHint && (onRematch || !canRematch);
+
 	return html`
-    <style>
-      .postgame * { width: auto; height: auto; box-sizing: border-box; }
+		<style>
+			.postgame * {
+				width: auto;
+				height: auto;
+				box-sizing: border-box;
+			}
 
-      .list {
-        display: grid;
-        gap: 1rem;
-        padding: 0.25rem 0;
-      }
+			.list {
+				display: grid;
+				gap: 1rem;
+				padding: 0.25rem 0;
+			}
 
-      .player-row {
-        display: grid;
-        gap: 0.35rem;
-      }
+			.player-row {
+				display: grid;
+				gap: 0.35rem;
+			}
 
-      .divider {
-        border-bottom: 2px dashed #000;
-        opacity: 0.35;
-        margin-top: 0.5rem;
-      }
+			.divider {
+				border-bottom: 2px dashed #000;
+				opacity: 0.35;
+				margin-top: 0.5rem;
+			}
 
-      .header-row {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 1rem;
-      }
+			.header-row {
+				display: flex;
+				align-items: baseline;
+				justify-content: space-between;
+				gap: 1rem;
+			}
 
-      .name-line {
-        font-size: 1.15rem;
-        font-weight: 800;
-        display: inline-flex;
-        align-items: baseline;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-      }
+			.name-line {
+				font-size: 1.15rem;
+				font-weight: 800;
+				display: inline-flex;
+				align-items: baseline;
+				gap: 0.5rem;
+				flex-wrap: wrap;
+			}
 
-      .mmr {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        font-weight: 800;
-        background: #fff;
-        border: 2px solid #000;
-        border-radius: 999px;
-        padding: 0.15rem 0.6rem;
-        line-height: 1.2;
-      }
-      .mmr .delta.up { color: #008000; }
-      .mmr .delta.down { color: #cc0000; }
-      .mmr .delta.flat { opacity: 0.65; }
+			.mmr {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.35rem;
+				font-weight: 800;
+				background: #fff;
+				border: 2px solid #000;
+				border-radius: 999px;
+				padding: 0.15rem 0.6rem;
+				line-height: 1.2;
+			}
 
-      .placement {
-        background: #e8f0ff;
-        border: 2px solid #000;
-        border-radius: 14px;
-        padding: 0.2rem 0.6rem;
-        font-weight: 800;
-      }
+			.mmr .delta.up { color: #008000; }
+			.mmr .delta.down { color: #cc0000; }
+			.mmr .delta.flat { opacity: 0.65; }
 
-      .rankline {
-        font-size: 0.95rem;
-        opacity: 0.85;
-      }
+			.placement {
+				background: #e8f0ff;
+				border: 2px solid #000;
+				border-radius: 14px;
+				padding: 0.2rem 0.6rem;
+				font-weight: 800;
+			}
 
-      .stats {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.4rem;
-      }
+			.rankline {
+				font-size: 0.95rem;
+				opacity: 0.85;
+			}
 
-      .pill {
-        background: #fff;
-        border: 2px solid #000;
-        border-radius: 14px;
-        padding: 0.35rem 0.55rem;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-weight: 700;
-      }
+			.stats {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.4rem;
+			}
 
-      .pill .label { opacity: 0.7; }
+			.pill {
+				background: #fff;
+				border: 2px solid #000;
+				border-radius: 14px;
+				padding: 0.35rem 0.55rem;
+				display: inline-flex;
+				align-items: center;
+				gap: 0.5rem;
+				font-weight: 700;
+			}
 
-      @media (min-width: 900px) {
-        .name-line { font-size: 1.25rem; }
-      }
-	  /* make summary look like a normal row (no default marker spacing) */
-.achievements { margin-top: 0.5rem; }
-.achievements > summary { list-style: none; }
-.achievements > summary::-webkit-details-marker { display: none; }
+			.pill .label { opacity: 0.7; }
 
-.ach-summary {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  cursor: pointer;
-  user-select: none;
-}
+			@media (min-width: 900px) {
+				.name-line { font-size: 1.25rem; }
+			}
 
-.ach-label { font-weight: 800; opacity: 0.75; }
-.ach-hint { font-weight: 800; opacity: 0.55; font-size: 0.9em; }
+			/* make summary look like a normal row (no default marker spacing) */
+			.achievements { margin-top: 0.5rem; }
+			.achievements > summary { list-style: none; }
+			.achievements > summary::-webkit-details-marker { display: none; }
 
-.achievements[open] .ach-hint { opacity: 0.35; } /* subtle change when open */
+			.ach-summary {
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+				flex-wrap: wrap;
+				cursor: pointer;
+				user-select: none;
+			}
 
-.ach-total {
-  font-weight: 900;
-  background: #fff;
-  border: 2px solid #000;
-  border-radius: 999px;
-  padding: 0.1rem 0.55rem;
-}
+			.ach-label { font-weight: 800; opacity: 0.75; }
+			.ach-hint { font-weight: 800; opacity: 0.55; font-size: 0.9em; }
+			.achievements[open] .ach-hint { opacity: 0.35; }
 
-.ach-badges { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
+			.ach-total {
+				font-weight: 900;
+				background: #fff;
+				border: 2px solid #000;
+				border-radius: 999px;
+				padding: 0.1rem 0.55rem;
+			}
 
-.ach-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  background: #fff;
-  border: 2px solid #000;
-  border-radius: 999px;
-  padding: 0.15rem 0.45rem;
-  font-weight: 800;
-}
+			.ach-badges { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
 
-.ach-icon { width: 18px; height: 18px; }
-.ach-count { line-height: 1; }
+			.ach-badge {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.25rem;
+				background: #fff;
+				border: 2px solid #000;
+				border-radius: 999px;
+				padding: 0.15rem 0.45rem;
+				font-weight: 800;
+			}
 
-.ach-list { margin-top: 0.35rem; }
-.ach-tier-group { margin-top: 0.35rem; }
-.ach-tier-header { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 900; }
-.ach-tier-group ul { margin: 0.25rem 0 0 1.1rem; padding: 0; }
-.muted { opacity: 0.7; }
+			.ach-icon { width: 18px; height: 18px; }
+			.ach-count { line-height: 1; }
 
+			.ach-list { margin-top: 0.35rem; }
+			.ach-tier-group { margin-top: 0.35rem; }
+			.ach-tier-header { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 900; }
+			.ach-tier-group ul { margin: 0.25rem 0 0 1.1rem; padding: 0; }
+			.muted { opacity: 0.7; }
 
-    </style>
+			.footer {
+				margin-top: 1rem;
+				padding-top: 0.25rem;
+			}
 
-    <div class="postgame">
-      <div class="list">
-        ${ sortedPlayerResults.map((pr, index) => {
-          const mmrDiff = pr.newMMR - pr.oldMMR;
-          const user = users.find(u => u.id === pr.userId);
-          const deltaClass = mmrDiff > 0 ? 'up' : mmrDiff < 0 ? 'down' : 'flat';
+			.rematch-callout {
+				width: 100%;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 0.65rem;
+				flex-wrap: wrap;
+				padding: 0.8rem 1rem;
+				background: #fff7d6;
+				border: 2px solid #000;
+				border-radius: 18px;
+				font: inherit;
+				font-weight: 800;
+				text-align: center;
+				box-shadow: 3px 3px 0 #000;
+				transition: transform 0.06s ease, box-shadow 0.06s ease, opacity 0.12s ease;
+			}
 
-          return html`
-            <div class="player-row">
-              <div class="header-row">
-                <div class="name-line">
-                  <span>${ user ? user.name : pr.userId }</span>
-                  <span class="mmr">
-                    <span class="delta ${ deltaClass }">${ mmrDiff > 0 ? '+' : '' }${ mmrDiff }</span>
-                    <span>(${ pr.oldMMR } → ${ pr.newMMR })</span>
-                  </span>
-                </div>
-                <span class="placement">
-                  ${ pr.placement === 0 ? 'DNF' : `${ getOrdinal(pr.placement) } Place` }
-                </span>
-              </div>
+			button.rematch-callout {
+				cursor: pointer;
+			}
 
-              <div class="rankline">
-                ${ pr.oldRank !== pr.newRank
-                  ? html`${ getRankDisplayValue(pr.oldRank) } → ${ getRankDisplayValue(pr.newRank) }`
-                  : getRankDisplayValue(pr.oldRank) }
-              </div>
+			button.rematch-callout:hover:not(:disabled) {
+				transform: translate(-1px, -1px);
+				box-shadow: 4px 4px 0 #000;
+			}
 
-              <div class="stats">
-                <div class="pill"><span class="label">Total</span> ${ pr.totalScore }</div>
-                <div class="pill"><span class="label">Rounds</span> ${ pr.roundsPlayed }</div>
-                <div class="pill"><span class="label">Overshoots</span> ${ pr.overShoots }</div>
-                <div class="pill"><span class="label">Avg</span> ${ pr.averageScore }</div>
-              </div>
-			  ${renderAchievementSummary(pr, achievementDefinitions)}
+			button.rematch-callout:active:not(:disabled) {
+				transform: translate(2px, 2px);
+				box-shadow: 1px 1px 0 #000;
+			}
 
-              ${ index < sortedPlayerResults.length - 1
-                ? html`<div class="divider"></div>`
-                : '' }
-            </div>
-          `;
-        }) }
-      </div>
-    </div>
-  `;
+			button.rematch-callout:focus-visible {
+				outline: 3px solid #000;
+				outline-offset: 3px;
+			}
+
+			.rematch-callout:disabled {
+				cursor: not-allowed;
+				opacity: 0.6;
+				box-shadow: 2px 2px 0 #000;
+			}
+
+			.rematch-label {
+				opacity: 0.75;
+			}
+
+			.rematch-keys {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.35rem;
+				font-weight: 900;
+			}
+
+			.keycap {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				min-width: 2.1rem;
+				padding: 0.2rem 0.5rem;
+				background: #fff;
+				border: 2px solid #000;
+				border-radius: 12px;
+				line-height: 1;
+				box-shadow: 2px 2px 0 #000;
+			}
+
+			.rematch-text {
+				font-weight: 900;
+			}
+
+			.rematch-subtle {
+				width: 100%;
+				font-size: 0.9rem;
+				font-weight: 700;
+				opacity: 0.65;
+			}
+		</style>
+
+		<div class="postgame">
+			<div class="list">
+				${sortedPlayerResults.map((pr, index) => {
+					const mmrDiff = pr.newMMR - pr.oldMMR;
+					const user = users.find(u => u.id === pr.userId);
+					const deltaClass = mmrDiff > 0 ? 'up' : mmrDiff < 0 ? 'down' : 'flat';
+
+					return html`
+						<div class="player-row">
+							<div class="header-row">
+								<div class="name-line">
+									<span>${user ? user.name : pr.userId}</span>
+									<span class="mmr">
+										<span class="delta ${deltaClass}">
+											${mmrDiff > 0 ? '+' : ''}${mmrDiff}
+										</span>
+										<span>(${pr.oldMMR} → ${pr.newMMR})</span>
+									</span>
+								</div>
+								<span class="placement">
+									${pr.placement === 0 ? 'DNF' : `${getOrdinal(pr.placement)} Place`}
+								</span>
+							</div>
+
+							<div class="rankline">
+								${pr.oldRank !== pr.newRank
+									? html`${getRankDisplayValue(pr.oldRank)} → ${getRankDisplayValue(pr.newRank)}`
+									: getRankDisplayValue(pr.oldRank)}
+							</div>
+
+							<div class="stats">
+								<div class="pill"><span class="label">Total</span> ${pr.totalScore}</div>
+								<div class="pill"><span class="label">Rounds</span> ${pr.roundsPlayed}</div>
+								<div class="pill"><span class="label">Overshoots</span> ${pr.overShoots}</div>
+								<div class="pill"><span class="label">Avg</span> ${pr.averageScore}</div>
+							</div>
+
+							${renderAchievementSummary(pr, achievementDefinitions)}
+
+							${index < sortedPlayerResults.length - 1
+								? html`<div class="divider"></div>`
+								: ''}
+						</div>
+					`;
+				})}
+			</div>
+
+			${showRematchCta ? html`
+				<div class="footer">
+					<button
+						type="button"
+						class="rematch-callout"
+						title=${canRematch ? 'Start a rematch' : 'Rematch unavailable'}
+						?disabled=${!canRematch || !onRematch}
+						@click=${() => {
+							if (canRematch && onRematch)
+								onRematch();
+						}}
+					>
+						<span class="rematch-label">Ready for another?</span>
+						<span class="rematch-keys" aria-hidden="true">
+							<span class="keycap">Shift</span>
+							<span>+</span>
+							<span class="keycap">R</span>
+						</span>
+						<span class="rematch-text">for rematch!</span>
+						${!canRematch
+							? html`<span class="rematch-subtle">Rematch is unavailable right now</span>`
+							: ''}
+					</button>
+				</div>
+			` : ''}
+		</div>
+	`;
 };
 
 

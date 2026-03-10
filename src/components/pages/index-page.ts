@@ -24,10 +24,11 @@ export class IndexPage extends GamePage {
 
 	protected override isReadOnly: boolean = false;
 	protected blockThrowUpdates:   boolean = false;
+	protected lastPlayedUserIds:   string[] = [];
 
 	override connectedCallback(): void {
 		super.connectedCallback();
-
+		this.lastPlayedUserIds = this.cacheService.getLastPlayedUserIds();
 		window.addEventListener('keydown', this.onKeyDown);
 	}
 
@@ -85,49 +86,56 @@ export class IndexPage extends GamePage {
 	protected handleKeyDown(event: KeyboardEvent): void {
 		if (event.shiftKey) {
 			switch (event.code) {
-			case 'ArrowUp':
-			case 'ArrowLeft':
-			case 'ArrowRight':
-			case 'ArrowDown': {
-				this.moveFreeFocus(event.code);
+				case 'ArrowUp':
+				case 'ArrowLeft':
+				case 'ArrowRight':
+				case 'ArrowDown': {
+					this.moveFreeFocus(event.code);
 
-				event.preventDefault();
+					event.preventDefault();
 
-				return;
-			}
+					return;
+				}
 			}
 
 			if (event.repeat)
 				return;
 
 			switch (event.code) {
-			case 'Minus':
-			case 'NumpadAdd':
-				this.addNewPlayer();
+				case 'Minus':
+				case 'NumpadAdd':
+					this.addNewPlayer();
 
-				event.preventDefault();
-				break;
+					event.preventDefault();
+					break;
 
-			case 'Slash':
-			case 'NumpadSubtract':
-				this.removeLastPlayer();
-				event.preventDefault();
-				break;
+				case 'Slash':
+				case 'NumpadSubtract':
+					this.removeLastPlayer();
+					event.preventDefault();
+					break;
 
-			case 'Tab':
-				this.moveFocus('backward');
-				event.preventDefault();
-				break;
+				case 'Tab':
+					this.moveFocus('backward');
+					event.preventDefault();
+					break;
 
-			case 'KeyN':
-				this.createGame();
-				event.preventDefault();
-				break;
+				case 'KeyN':
+					this.createGame();
+					event.preventDefault();
+					break;
 
-			case 'KeyS':
-				this.saveGame();
-				event.preventDefault();
-				break;
+				case 'KeyS':
+					this.saveGame();
+					event.preventDefault();
+					break;
+
+				case 'KeyR':
+					if (this.isRematchPermissible()){
+						this.rematch()
+					}
+					event.preventDefault();
+					break;
 			}
 		}
 		else {
@@ -135,16 +143,23 @@ export class IndexPage extends GamePage {
 				return;
 
 			switch (event.code) {
-			case 'Tab':
-			case 'Enter':
-			case 'NumpadEnter':
-				this.moveFocus('forward');
-				event.preventDefault();
+				case 'Tab':
+				case 'Enter':
+				case 'NumpadEnter':
+					this.moveFocus('forward');
+					event.preventDefault();
 			}
 		}
 	}
 
+	private isRematchPermissible(): boolean{
+		return true
+	}
 
+	private rematch(): void{
+		console.log(this.lastPlayedUserIds)
+		console.log(this.users);
+	}
 	protected debounceBlockThrowUpdates = (() => {
 		let timeout: number | undefined;
 
@@ -333,6 +348,10 @@ export class IndexPage extends GamePage {
 			}
 
 			const gameResult: GameResult = await this.dataService.SubmitGame(this.gameIdFromLocalStorage);
+			var lastPlayedUserIds = this.players.map(player => player.playerId);
+			this.lastPlayedUserIds = lastPlayedUserIds;
+			this.cacheService.setLastPlayedUserIds(lastPlayedUserIds);
+
 			this.gameIdFromLocalStorage = undefined;
 			this.isActiveGame = false;
 

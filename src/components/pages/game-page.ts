@@ -22,6 +22,7 @@ import gamePageStyles from './game-page.css?inline';
 import { aaDartThrow } from "../aa-dart-throw-cmp.js";
 import { achievementService } from "../../services/achievementService.js";
 import { signalRService } from "../../services/signalRService.js";
+import { CacheService } from "../../services/cacheService.js";
 
 
 export class GamePage extends LitElement {
@@ -40,6 +41,7 @@ export class GamePage extends LitElement {
 	protected notificationService:    NotificationService;
 	protected dialogService:          DialogService;
 	protected gameService:            GameService;
+	protected cacheService:           CacheService;
 	protected gameIdFromLocalStorage: string | undefined = undefined;
 	protected creatingGame:           boolean = false;
 	protected selectedId?:            string;
@@ -59,6 +61,7 @@ export class GamePage extends LitElement {
 		this.userService         = container.resolve(UserService);
 		this.gameService         = container.resolve(GameService);
 		this.signalRService      = container.resolve(signalRService);
+		this.cacheService        = container.resolve(CacheService);
 	}
 
 	override connectedCallback(): void {
