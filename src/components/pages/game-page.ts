@@ -125,7 +125,7 @@ export class GamePage extends LitElement {
 			return achievementName.replace(/([a-z])([A-Z])/g, '$1 $2');
 		});
 
-		this.notificationService.addNotification({type: 'achievement', achievementNames});
+		this.notificationService.addNotification({type: 'achievement', achievementNames, timeout: 5000});
 	}
 
 	protected async healthCheckServer(): Promise<void> {
