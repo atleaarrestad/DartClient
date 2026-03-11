@@ -596,7 +596,6 @@ export class IndexPage extends GamePage {
 				'rematch-callout': true,
 				'compact': compact,
 			})}>
-				<span class="rematch-label">Ready for another?</span>
 				<span class="rematch-keys" aria-hidden="true">
 					<span class="keycap">Shift</span>
 					<span>+</span>
@@ -648,6 +647,8 @@ export class IndexPage extends GamePage {
 	}
 
 	protected override renderBottomContent(): unknown {
+		return null;
+		
 		if (!this.isActiveGame)
 			return null;
 
