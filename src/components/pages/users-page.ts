@@ -49,8 +49,8 @@ export class UsersPage extends LitElement {
 	}
 
 	protected async initialize(): Promise<void> {
-		this.users = await this.userService.getAllUsers() ?? [];
 		this.season = await this.seasonService.getCurrentSeason();
+		this.users = await this.userService.getAllUsers({ forceRefresh: false , query: {includeSeasonStatistics: true, limitToSeasonId: this.season!.id}}) ?? [];
 		this.sortUsers(this.sortKey);
 	}
 
@@ -120,7 +120,7 @@ export class UsersPage extends LitElement {
 				onSave: (name, alias) => {
 					this.userService.addUser(name, alias)
 						.then(() => {
-							this.userService.getAllUsers()
+							this.userService.getAllUsers({ forceRefresh: false })
 								.then((users: User[]) => {
 									this.users = users;
 									this.requestUpdate();

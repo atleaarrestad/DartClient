@@ -405,7 +405,7 @@ export class IndexPage extends GamePage {
 			this.gameIdFromLocalStorage = undefined;
 			this.isActiveGame = false;
 
-			await this.loadUsers();
+			await this.loadUsers({forceRefresh: true, query: {includeSeasonStatistics: true, limitToSeasonId: this.season!.id}});
 
 			this.players = [];
 			this.requestUpdate();
@@ -637,7 +637,6 @@ export class IndexPage extends GamePage {
 								</span>
 							</div>
 
-							<div class="shortcut-subtext">Players</div>
 							${this.renderLastPlayedUserBadges()}
 						</div>
 					` : ''}

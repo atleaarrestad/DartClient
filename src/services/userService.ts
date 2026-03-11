@@ -4,39 +4,52 @@ import { UserQueryOptions } from '../api/users.requests.js';
 import { User } from '../models/schemas.js';
 import { DataService } from './dataService.js';
 
+export interface GetAllUsersOptions {
+	forceRefresh?: boolean;
+	query?: UserQueryOptions;
+}
 
 @injectable()
 export class UserService {
-
-	private users?:        User[];
-	private usersPromise?: Promise<User[]>;
-	private dataService:   DataService;
+	private usersCache = new Map<string, User[]>();
+	private usersPromiseCache = new Map<string, Promise<User[]>>();
+	private dataService: DataService;
 
 	constructor() {
 		this.dataService = container.resolve(DataService);
 	}
 
 	async getAllUsers(
-		forceGetFromDatabase: boolean = false,
+		options?: GetAllUsersOptions,
 	): Promise<User[]> {
-		if (!forceGetFromDatabase && this.users)
-			return this.users;
+		const forceRefresh = options?.forceRefresh ?? false;
+		const query = options?.query;
+		const cacheKey = this.getUsersCacheKey(query);
 
+		if (!forceRefresh) {
+			const cachedUsers = this.usersCache.get(cacheKey);
+			if (cachedUsers) {
+				return cachedUsers;
+			}
 
-		if (!forceGetFromDatabase && this.usersPromise)
-			return this.usersPromise;
+			const existingPromise = this.usersPromiseCache.get(cacheKey);
+			if (existingPromise) {
+				return existingPromise;
+			}
+		}
 
-
-		this.usersPromise = (async () => {
-			const users = await this.dataService.getAllUsers();
-			this.users = users;
+		const promise = (async () => {
+			const users = await this.dataService.getAllUsers(query);
+			this.usersCache.set(cacheKey, users);
 
 			return users;
 		})().finally(() => {
-			this.usersPromise = undefined;
+			this.usersPromiseCache.delete(cacheKey);
 		});
 
-		return this.usersPromise;
+		this.usersPromiseCache.set(cacheKey, promise);
+
+		return promise;
 	}
 
 	async getUserById(
@@ -47,7 +60,22 @@ export class UserService {
 	}
 
 	async addUser(name: string, alias: string): Promise<void> {
-		return this.dataService.addUser(name, alias);
+		await this.dataService.addUser(name, alias);
+		this.clearUsersCache();
 	}
 
+	private clearUsersCache(): void {
+		this.usersCache.clear();
+		this.usersPromiseCache.clear();
+	}
+
+	private getUsersCacheKey(options?: UserQueryOptions): string {
+		return JSON.stringify({
+			includeSeasonStatistics: options?.includeSeasonStatistics ?? false,
+			includeMatchSnapshots: options?.includeMatchSnapshots ?? false,
+			includeHitCounts: options?.includeHitCounts ?? false,
+			includeFinishCounts: options?.includeFinishCounts ?? false,
+			limitToSeasonId: options?.limitToSeasonId ?? null,
+		});
+	}
 }

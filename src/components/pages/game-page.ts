@@ -16,7 +16,7 @@ import { DialogService } from '../../services/dialogService.js';
 import { GameService } from '../../services/gameService.js';
 import { NotificationService } from '../../services/notificationService.js';
 import { SeasonService } from '../../services/seasonService.js';
-import { UserService } from '../../services/userService.js';
+import { UserService, GetAllUsersOptions } from '../../services/userService.js';
 import { sharedStyles } from '../../styles.js';
 import gamePageStyles from './game-page.css?inline';
 import { aaDartThrow } from '../aa-dart-throw-cmp.js';
@@ -82,8 +82,8 @@ export class GamePage extends LitElement {
 		this.loading = true;
 
 		await this.healthCheckServer();
-		await this.loadUsers();
 		await this.GetLatestSeason();
+		await this.loadUsers({query: {includeSeasonStatistics: true, limitToSeasonId: this.season!.id}});
 
 		const locallyCachedGameSessionId = this.gameService.getCachedGameId();
 		if (locallyCachedGameSessionId !== undefined) {
@@ -144,8 +144,9 @@ export class GamePage extends LitElement {
 			.catch(error => this.notificationService.addNotification({ type: 'danger', message: error }));
 	}
 
-	protected async loadUsers(): Promise<void> {
-		const usersPromise = this.userService.getAllUsers();
+	protected async loadUsers(options?: GetAllUsersOptions): Promise<void> {
+		const usersPromise = this.userService.getAllUsers(options);
+
 		this.notificationService.addNotification({
 			type: 'info',
 			message: 'Fetching users..',
@@ -154,13 +155,13 @@ export class GamePage extends LitElement {
 
 		return usersPromise
 			.then((users) => {
-				if (users)
-					this.users = [ ...users ];
-				else
-					this.users = [];
+				this.users = users ? [...users] : [];
 			})
 			.catch((error) => {
-				this.notificationService.addNotification({ type: 'danger', message: error });
+				this.notificationService.addNotification({
+					type: 'danger',
+					message: error,
+				});
 			});
 	}
 

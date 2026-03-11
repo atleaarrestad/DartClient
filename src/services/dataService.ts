@@ -1,156 +1,169 @@
 import { injectable } from 'tsyringe';
 import { z } from 'zod';
 
-import { buildGetUserByIdUrl, UserQueryOptions } from '../api/users.requests.js';
+import {
+	buildGetAllUsersUrl,
+	buildGetUserByIdUrl,
+	UserQueryOptions,
+} from '../api/users.requests.js';
 import { DartThrow } from '../models/dartThrowSchema.js';
 import {
 	AchievementDefinitionsResponse,
 	AchievementDefinitionsResponseSchema,
-	GameResult, GameResultSchema, GameTracker, GameTrackerSchema, PlayerRounds,
-	type RuleDefinitionsResponse, RuleDefinitionsResponseSchema, Season, SeasonSchema, User, UserSchema,
+	GameResult,
+	GameResultSchema,
+	GameTracker,
+	GameTrackerSchema,
+	type RuleDefinitionsResponse,
+	RuleDefinitionsResponseSchema,
+	Season,
+	SeasonSchema,
+	User,
+	UserSchema,
 } from '../models/schemas.js';
-
 
 export type ApiResponse<T> =
 	| { ok: true; data: T; }
 	| { ok: false; status: number; statusText: string; body: unknown; };
 
-
 @injectable()
 export class DataService {
-
 	private backendURL = import.meta.env.VITE_SERVER_URL;
 	private abortTimeout = 500000;
 	private addThrowQueue: Promise<unknown> = Promise.resolve();
 
 	async Ping(): Promise<string> {
 		const result = await this.get<string>('ping');
-		if (result.ok)
-			return result.data;
 
-		else
-			throw new Error('Unable to reach server');
+		if (result.ok) {
+			return result.data;
+		}
+
+		throw new Error('Unable to reach server');
 	}
 
 	async GetRuleDefinitions(): Promise<RuleDefinitionsResponse> {
-		const resp = await this.get<RuleDefinitionsResponse>(`rule/definitions`);
+		const resp = await this.get<RuleDefinitionsResponse>('rule/definitions');
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch ruledefinitions: ${ resp.status } ${ resp.statusText }`,
+				`Failed to fetch ruledefinitions: ${resp.status} ${resp.statusText}`,
 			);
 		}
 
 		try {
 			return RuleDefinitionsResponseSchema.parse(resp.data);
 		}
-		catch (e) {
+		catch {
 			throw new Error('Invalid rule-definition data received from the API');
 		}
 	}
 
 	async GetAchievementDefinitions(): Promise<AchievementDefinitionsResponse> {
-		const resp = await this.get<AchievementDefinitionsResponse>(`achievement/definitions`);
+		const resp = await this.get<AchievementDefinitionsResponse>('achievement/definitions');
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch achievement definitions: ${ resp.status } ${ resp.statusText }`,
+				`Failed to fetch achievement definitions: ${resp.status} ${resp.statusText}`,
 			);
 		}
 
 		try {
 			return AchievementDefinitionsResponseSchema.parse(resp.data);
 		}
-		catch (e) {
+		catch {
 			throw new Error('Invalid achievement definition data received from the API');
 		}
 	}
 
 	async RequestNewGame(): Promise<string> {
 		const result = await this.post<undefined, string>('games/sessions/new', undefined);
-		if (result.ok)
-			return result.data;
 
-		else
-			throw new Error('Failed to create new game');
+		if (result.ok) {
+			return result.data;
+		}
+
+		throw new Error('Failed to create new game');
 	}
 
-	async getActiveGameSession(
-		gameId: string,
-	): Promise<GameTracker | undefined> {
-		const resp = await this.get<GameTracker>(`games/sessions/${ gameId }`);
+	async getActiveGameSession(gameId: string): Promise<GameTracker | undefined> {
+		const resp = await this.get<GameTracker>(`games/sessions/${gameId}`);
 
-		if (!resp.ok && resp.status === 404)
+		if (!resp.ok && resp.status === 404) {
 			return undefined;
-
+		}
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch active game: ${ resp.status } ${ resp.statusText }`,
+				`Failed to fetch active game: ${resp.status} ${resp.statusText}`,
 			);
 		}
 
 		try {
 			return GameTrackerSchema.parse(resp.data);
 		}
-		catch (e) {
+		catch {
 			throw new Error('Invalid game tracker data received from the API');
 		}
 	}
 
-	async getActiveGameSessions(
-	): Promise<GameTracker[] | undefined> {
-		const resp = await this.get<GameTracker[]>(`games/sessions`);
+	async getActiveGameSessions(): Promise<GameTracker[] | undefined> {
+		const resp = await this.get<GameTracker[]>('games/sessions');
 
-		if (!resp.ok && resp.status === 404)
+		if (!resp.ok && resp.status === 404) {
 			return undefined;
-
+		}
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch active games: ${ resp.status } ${ resp.statusText }`,
+				`Failed to fetch active games: ${resp.status} ${resp.statusText}`,
 			);
 		}
 
 		try {
 			return z.array(GameTrackerSchema).parse(resp.data);
 		}
-		catch (e) {
+		catch {
 			throw new Error('Invalid game tracker data received from the API');
 		}
 	}
 
 	async AddPlayerToGameSession(gameId: string, playerId: string): Promise<GameTracker> {
-		const result = await this.post<undefined, GameTracker>(`games/sessions/${ gameId }/player/${ playerId }`, undefined);
+		const result = await this.post<undefined, GameTracker>(
+			`games/sessions/${gameId}/player/${playerId}`,
+			undefined,
+		);
+
 		if (!result.ok) {
 			throw new Error(
-				`Failed to add player to active game: ${ result.status } ${ result.statusText }`,
+				`Failed to add player to active game: ${result.status} ${result.statusText}`,
 			);
 		}
-		else {
-			try {
-				return GameTrackerSchema.parse(result.data);
-			}
-			catch {
-				throw new Error('Invalid game tracker data received from the API');
-			}
+
+		try {
+			return GameTrackerSchema.parse(result.data);
+		}
+		catch {
+			throw new Error('Invalid game tracker data received from the API');
 		}
 	}
 
 	async removePlayerFromGameSession(gameId: string, playerId: string): Promise<GameTracker> {
-		const result = await this.delete<GameTracker>(`games/sessions/${ gameId }/player/${ playerId }`);
+		const result = await this.delete<GameTracker>(
+			`games/sessions/${gameId}/player/${playerId}`,
+		);
+
 		if (!result.ok) {
 			throw new Error(
-				`Failed to delete player from active game: ${ result.status } ${ result.statusText }`,
+				`Failed to delete player from active game: ${result.status} ${result.statusText}`,
 			);
 		}
-		else {
-			try {
-				return GameTrackerSchema.parse(result.data);
-			}
-			catch {
-				throw new Error('Invalid game tracker data received from the API');
-			}
+
+		try {
+			return GameTrackerSchema.parse(result.data);
+		}
+		catch {
+			throw new Error('Invalid game tracker data received from the API');
 		}
 	}
 
@@ -166,15 +179,14 @@ export class DataService {
 		playerId: string,
 		roundNumber: number,
 		dartThrow: DartThrow,
-		): Promise<GameTracker> {
-
+	): Promise<GameTracker> {
 		return this.enqueueAddThrow(async () => {
 			const request = {
 				HitLocation: dartThrow.hitLocation,
-				ThrowType:   dartThrow.throwType,
+				ThrowType: dartThrow.throwType,
 			};
 
-			const result = await this.post<object, PlayerRounds>(
+			const result = await this.post<object, GameTracker>(
 				`games/sessions/${gameId}/player/${playerId}/round/${roundNumber}/throw/${dartThrow.throwIndex}`,
 				request,
 			);
@@ -189,18 +201,17 @@ export class DataService {
 				return GameTrackerSchema.parse(result.data);
 			}
 			catch {
-				throw new Error("Invalid game tracker data received from the API");
+				throw new Error('Invalid game tracker data received from the API');
 			}
 		});
 	}
-
 
 	async getCurrentSeason(): Promise<Season> {
 		const resp = await this.get<Season>('season/latest');
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch latest season from server: ${ resp.status } ${ resp.statusText }`,
+				`Failed to fetch latest season from server: ${resp.status} ${resp.statusText}`,
 			);
 		}
 
@@ -217,7 +228,7 @@ export class DataService {
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch all seasons from server: ${ resp.status } ${ resp.statusText }`,
+				`Failed to fetch all seasons from server: ${resp.status} ${resp.statusText}`,
 			);
 		}
 
@@ -230,46 +241,52 @@ export class DataService {
 	}
 
 	async SubmitGame(gameId: string): Promise<GameResult> {
-		const response = await this.post<undefined, GameResult>(`games/sessions/${ gameId }`, undefined);
+		const response = await this.post<undefined, GameResult>(
+			`games/sessions/${gameId}`,
+			undefined,
+		);
+
 		if (!response.ok) {
 			throw new Error(
-				`Failed to submit game! ${ response.status } ${ response.statusText }`,
+				`Failed to submit game! ${response.status} ${response.statusText}`,
 			);
 		}
 
-		try	{
+		try {
 			return GameResultSchema.parse(response.data);
 		}
-		catch (error) {
+		catch {
 			throw new Error('Unable to parse game result from server');
 		}
 	}
 
 	async addUser(name: string, alias: string): Promise<void> {
-		const request = { name: name, alias: alias };
+		const request = { name, alias };
 		const resp = await this.post<object, undefined>('users/add', request);
 
 		if (!resp.ok) {
-			if (resp.status == 409)
+			if (resp.status === 409) {
 				throw new Error('A user with same name/alias already exists');
+			}
 
 			throw new Error('An error occured when creating a new user');
 		}
 	}
 
-	async getAllUsers(): Promise<User[]> {
-		const resp = await this.get<User[]>('users/getall');
+	async getAllUsers(options?: UserQueryOptions): Promise<User[]> {
+		const url = buildGetAllUsersUrl(options);
+		const resp = await this.get<User[]>(url);
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch users from server: ${ resp.status } ${ resp.statusText }`,
+				`Failed to fetch users from server: ${resp.status} ${resp.statusText}`,
 			);
 		}
 
 		try {
 			return resp.data.map(u => UserSchema.parse(u));
 		}
-		catch(e) {
+		catch {
 			throw new Error('Invalid user data received from the API');
 		}
 	}
@@ -281,20 +298,20 @@ export class DataService {
 		const url = buildGetUserByIdUrl(userId, options);
 		const resp = await this.get<User>(url);
 
-		if (!resp.ok && resp.status === 404)
+		if (!resp.ok && resp.status === 404) {
 			return null;
-
+		}
 
 		if (!resp.ok) {
 			throw new Error(
-				`Failed to fetch user from server: ${ resp.status } ${ resp.statusText }`,
+				`Failed to fetch user from server: ${resp.status} ${resp.statusText}`,
 			);
 		}
 
 		try {
 			return UserSchema.parse(resp.data);
 		}
-		catch(e) {
+		catch {
 			throw new Error('Invalid user data received from the API');
 		}
 	}
@@ -303,14 +320,13 @@ export class DataService {
 		endpoint: string,
 		options: RequestInit,
 	): Promise<ApiResponse<T>> {
-		// Build headers conditionally (MINIMAL CHANGE)
 		const hasBody = options.body !== undefined && options.body !== null;
 		const headers = {
 			...(hasBody ? { 'Content-Type': 'application/json' } : {}),
 			...(options.headers || {}),
 		};
 
-		const res = await fetch(`${ this.backendURL }${ endpoint }`, {
+		const res = await fetch(`${this.backendURL}${endpoint}`, {
 			...options,
 			headers,
 			signal: this.createTimeoutSignal(this.abortTimeout),
@@ -318,6 +334,7 @@ export class DataService {
 
 		const text = await res.text();
 		let body: unknown;
+
 		try {
 			body = JSON.parse(text);
 		}
@@ -327,15 +344,15 @@ export class DataService {
 
 		if (!res.ok) {
 			return {
-				ok:         false,
-				status:     res.status,
+				ok: false,
+				status: res.status,
 				statusText: res.statusText,
 				body,
 			};
 		}
 
 		return {
-			ok:   true,
+			ok: true,
 			data: body as T,
 		};
 	}
@@ -346,7 +363,7 @@ export class DataService {
 	): Promise<ApiResponse<Res>> {
 		return this.request<Res>(endpoint, {
 			method: 'POST',
-			body:   JSON.stringify(body),
+			body: JSON.stringify(body),
 		});
 	}
 
@@ -360,7 +377,7 @@ export class DataService {
 	): Promise<ApiResponse<Res>> {
 		return this.request<Res>(endpoint, {
 			method: 'PUT',
-			body:   JSON.stringify(body),
+			body: JSON.stringify(body),
 		});
 	}
 
@@ -374,5 +391,4 @@ export class DataService {
 
 		return controller.signal;
 	}
-
 }

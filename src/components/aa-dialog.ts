@@ -176,7 +176,7 @@ export class AaDialog extends LitElement {
 			box-shadow: 2px 2px 0 #000;
 		}
 		.close-btn {
-			composes: btn;
+			line-height: 1;
 		}
 	`;
 

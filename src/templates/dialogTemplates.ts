@@ -3,10 +3,244 @@ import { createRef, ref } from 'lit/directives/ref.js';
 
 import { AaDialog } from '../components/aa-dialog.js';
 import { getRankDisplayValue } from '../models/rank.js';
-import { AchievementDefinitionsResponse, GameResult, User } from '../models/schemas.js';
+import { AchievementDefinitionsResponse, GameResult, User, RuleDefinition } from '../models/schemas.js';
 import { SessionAchievement } from "../models/enums.js";
 import { renderAchievementSummary } from "../helpers/achievementHelper.js";
 
+export type SeasonRuleDialogItem = {
+	value: number;
+	execOrder?: number;
+};
+
+type SeasonRuleDialogTemplateOptions = {
+	title: string;
+	description?: string;
+	items: SeasonRuleDialogItem[];
+	definitions: RuleDefinition[];
+	renderRuleCode: (code: string) => TemplateResult;
+};
+
+export const seasonRuleDialogTemplate = ({
+	title,
+	description,
+	items,
+	definitions,
+	renderRuleCode,
+}: SeasonRuleDialogTemplateOptions): TemplateResult => {
+	const resolvedRules = items
+		.map((item) => ({
+			item,
+			definition: definitions.find((def) => def.value === item.value),
+		}))
+		.filter((x): x is { item: SeasonRuleDialogItem; definition: RuleDefinition } => !!x.definition);
+
+	const closeDialog = (e: Event) => {
+		const dialog = (e.currentTarget as HTMLElement).closest('aa-dialog') as any;
+		dialog?.close();
+	};
+
+	return html`
+		<style>
+			.rules-dialog {
+				display: grid;
+				gap: 1rem;
+			}
+
+			.rules-dialog-intro {
+				margin: 0;
+				font-size: 0.95rem;
+				line-height: 1.45;
+				opacity: 0.82;
+			}
+
+			.rules-dialog-list {
+				display: grid;
+				gap: 0.9rem;
+			}
+
+			.rules-dialog-card {
+				background: #fffdf8;
+				border: 2px solid black;
+				border-right-width: 4px;
+				border-bottom-width: 4px;
+				border-radius: 16px;
+				box-shadow: 5px 6px 0 0 black;
+				overflow: hidden;
+			}
+
+			.rules-dialog-card-header {
+				padding: 0.9rem 1rem 0.65rem;
+				border-bottom: 1px dashed #cfcfcf;
+				background: rgba(255, 255, 255, 0.8);
+			}
+
+			.rules-dialog-title-row {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 0.45rem;
+				margin-bottom: 0.35rem;
+			}
+
+			.rules-dialog-title {
+				font-size: 1rem;
+				font-weight: 900;
+				line-height: 1.2;
+			}
+
+			.rules-dialog-pill {
+				display: inline-flex;
+				align-items: center;
+				padding: 0.12rem 0.5rem;
+				border: 2px solid black;
+				border-right-width: 3px;
+				border-bottom-width: 3px;
+				border-radius: 999px;
+				background: #f5f5f5;
+				font-size: 0.78rem;
+				font-weight: 800;
+				white-space: nowrap;
+			}
+
+			.rules-dialog-description {
+				margin: 0;
+				font-size: 0.9rem;
+				line-height: 1.4;
+				opacity: 0.82;
+			}
+
+			.rules-dialog-body {
+				padding: 0.85rem 1rem 1rem;
+			}
+
+			.rules-dialog-footer {
+				display: flex;
+				justify-content: flex-end;
+				padding-top: 0.2rem;
+			}
+
+			.rules-dialog-btn {
+				appearance: none;
+				background: white;
+				border: 2px solid black;
+				border-right-width: 4px;
+				border-bottom-width: 4px;
+				border-radius: 14px;
+				padding: 0.5rem 0.9rem;
+				font-weight: 800;
+				cursor: pointer;
+				box-shadow: 4px 4px 0 black;
+			}
+
+			.rules-dialog-btn:active {
+				transform: translate(2px, 2px);
+				box-shadow: 2px 2px 0 black;
+			}
+
+			.rule-code {
+				max-width: 100%;
+				max-height: min(52vh, 520px);
+				overflow: auto;
+				white-space: pre;
+			}
+
+			pre.hljs {
+				display: block;
+				overflow: auto;
+				padding: 1rem;
+				border-radius: 12px;
+				background: #f6f8fa;
+				color: #24292e;
+				line-height: 1.45;
+				font-family: 'Cascadia Code', 'Consolas', monospace;
+				font-size: 0.88rem;
+				margin: 0;
+				border: 1px solid #d0d7de;
+			}
+
+			.hljs-comment,
+			.hljs-quote {
+				color: #6a737d;
+				font-style: italic;
+			}
+
+			.hljs-keyword,
+			.hljs-selector-tag,
+			.hljs-literal,
+			.hljs-name {
+				color: #d73a49;
+			}
+
+			.hljs-variable,
+			.hljs-template-variable,
+			.hljs-attribute {
+				color: #005cc5;
+			}
+
+			.hljs-string,
+			.hljs-doctag,
+			.hljs-title,
+			.hljs-section,
+			.hljs-type {
+				color: #032f62;
+			}
+
+			.hljs-number,
+			.hljs-symbol,
+			.hljs-bullet {
+				color: #005cc5;
+			}
+
+			.hljs-built_in,
+			.hljs-builtin-name,
+			.hljs-class .hljs-title {
+				color: #6f42c1;
+			}
+
+			.hljs-meta {
+				color: #22863a;
+			}
+
+			.hljs-emphasis {
+				font-style: italic;
+			}
+
+			.hljs-strong {
+				font-weight: 700;
+			}
+		</style>
+
+		<div class="rules-dialog">
+			${description ? html`<p class="rules-dialog-intro">${description}</p>` : null}
+
+			<div class="rules-dialog-list">
+				${resolvedRules.map(
+					({ item, definition }) => html`
+						<article class="rules-dialog-card">
+							<div class="rules-dialog-card-header">
+								<div class="rules-dialog-title-row">
+									${item.execOrder !== undefined
+										? html`<span class="rules-dialog-pill">Order #${item.execOrder}</span>`
+										: html`<span class="rules-dialog-pill">Rule</span>`}
+									<div class="rules-dialog-title">${definition.name}</div>
+								</div>
+								<p class="rules-dialog-description">${definition.description}</p>
+							</div>
+
+							<div class="rules-dialog-body">
+								${renderRuleCode(definition.codeImplementation)}
+							</div>
+						</article>
+					`,
+				)}
+			</div>
+
+			<div class="rules-dialog-footer">
+				<button class="rules-dialog-btn" @click=${closeDialog}>Close</button>
+			</div>
+		</div>
+	`;
+};
 
 const getOrdinal = (n: number): string => {
 	const s = [ 'th', 'st', 'nd', 'rd' ],
