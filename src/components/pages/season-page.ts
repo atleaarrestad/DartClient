@@ -826,7 +826,6 @@ export class SeasonPage extends LitElement {
 					? html`<div class="empty">No players found for this season.</div>`
 					: html`
 							<section class="podium-stage">
-								<div class="podium-glow"></div>
 								<div class="podium">
 									<div class="column second">
 										${this.podiumCell(p[0], '2nd')}
@@ -956,15 +955,6 @@ export class SeasonPage extends LitElement {
 				position: relative;
 				margin: 1rem 0 0.5rem;
 				padding: 0.25rem 0 0;
-			}
-
-			.podium-glow {
-				position: absolute;
-				inset: 1.5rem 12% auto 12%;
-				height: 120px;
-				background: radial-gradient(circle, rgba(242, 209, 78, 0.28) 0%, rgba(242, 209, 78, 0) 70%);
-				filter: blur(10px);
-				pointer-events: none;
 			}
 
 			.podium {
