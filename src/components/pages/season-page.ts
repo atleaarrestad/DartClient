@@ -649,7 +649,7 @@ export class SeasonPage extends LitElement {
 					this.getSpotlightIconClass('rangeKing'),
 					this.rangeKing,
 					this.rangeKing?.highestRoundScoreForVictory ?? 0,
-					'Best victory-securing round score.',
+					'Highest round score leading to victory',
 				)}
 				${this.renderSpotlightCard(
 					'Rim magnet',
@@ -663,21 +663,14 @@ export class SeasonPage extends LitElement {
 					this.getSpotlightIconClass('miss'),
 					this.cleanestThrower,
 					this.formatPercent(this.cleanestThrower?.missPercent),
-					'Lowest miss percentage among qualified players',
-				)}
-				${this.renderSpotlightCard(
-					'Crowded table regular',
-					this.getSpotlightIconClass('players'),
-					this.crowdedTableRegular,
-					this.crowdedTableRegular?.averagePlayersPerMatch.toFixed(1) ?? '-',
-					'Highest average number of players per match',
+					'Lowest miss percentage',
 				)}
 				${this.renderSpotlightCard(
 					'Earliest finisher',
 					this.getSpotlightIconClass('finishRound'),
 					this.earliestFinisher,
 					this.formatNumber(this.earliestFinisher?.averageFinishRound),
-					'Lowest average round number when securing finishes',
+					'Lowest average round number for finish',
 				)}
 			</section>
 		`;
@@ -776,7 +769,6 @@ export class SeasonPage extends LitElement {
 				<div class="section-heading-row">
 					<div>
 						<h3 class="section-title">Season rules</h3>
-						<div class="section-subtitle">Optional details for this season’s scoring and win logic.</div>
 					</div>
 				</div>
 
