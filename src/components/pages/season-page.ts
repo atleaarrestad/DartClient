@@ -4,9 +4,11 @@ import { LitElement } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { container } from 'tsyringe';
+import { faIcons } from '../../faIcons.js';
 
 import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
 import { RuleDefinition, Season, SeasonStatistics, User } from '../../models/schemas.js';
+import { ThrowType } from '../../models/enums.js';
 import { DialogService } from '../../services/dialogService.js';
 import { RuleService } from '../../services/ruleService.js';
 import { SeasonService } from '../../services/seasonService.js';
@@ -22,9 +24,12 @@ export class SeasonPage extends LitElement {
 	private dialogService: DialogService;
 	private winConditions: RuleDefinition[] = [];
 	private scoreModifiers: RuleDefinition[] = [];
+	private readonly minimumQualifiedThrows = 100;
+	private readonly minimumQualifiedMatchesForGroupSize = 10;
 
 	@state() private season?: Season;
 	@state() private users: User[] = [];
+	@state() private isLoading = true;
 
 	constructor() {
 		super();
@@ -36,23 +41,28 @@ export class SeasonPage extends LitElement {
 
 	override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
-		this.season = await this.seasonService.getCurrentSeason();
-		this.users = await this.userService.getAllUsers(
-			{ forceRefresh: true,
-				 query: {
+		this.isLoading = true;
+
+		try {
+			this.season = await this.seasonService.getCurrentSeason();
+			this.users = await this.userService.getAllUsers({
+				forceRefresh: true,
+				query: {
 					includeFinishCounts: true,
 					includeHitCounts: true,
 					includeMatchSnapshots: true,
 					includeSeasonStatistics: true,
-					limitToSeasonId: this.season!.id
-				}
-			}
-		);
+					limitToSeasonId: this.season!.id,
+				},
+			});
 
-		const ruleDefinitions = await this.ruleService.GetDefinitions();
-		this.winConditions = ruleDefinitions.winConditions;
-		this.scoreModifiers = ruleDefinitions.scoreModifiers;
-		this.requestUpdate();
+			const ruleDefinitions = await this.ruleService.GetDefinitions();
+			this.winConditions = ruleDefinitions.winConditions;
+			this.scoreModifiers = ruleDefinitions.scoreModifiers;
+		} finally {
+			this.isLoading = false;
+			this.requestUpdate();
+		}
 	}
 
 	private renderRuleCode(code: string) {
@@ -87,22 +97,176 @@ export class SeasonPage extends LitElement {
 		} as unknown as SeasonStatistics;
 	}
 
+	private round1(value: number): number {
+		return Math.round((value + Number.EPSILON) * 10) / 10;
+	}
+
+	private getNonZeroHitCounts(stats: SeasonStatistics) {
+		return (stats?.hitCounts ?? []).filter((x) => x.hitLocation !== 0);
+	}
+
+	private getAllHitCounts(stats: SeasonStatistics) {
+		return stats?.hitCounts ?? [];
+	}
+
+	private getTotalThrowCount(stats: SeasonStatistics): number {
+		return this.getAllHitCounts(stats).reduce((sum, x) => sum + (x.count ?? 0), 0);
+	}
+
+	private getNonZeroHitCount(stats: SeasonStatistics): number {
+		return this.getNonZeroHitCounts(stats).reduce((sum, x) => sum + (x.count ?? 0), 0);
+	}
+
+	private getHitLocationPercent(stats: SeasonStatistics, hitLocation: number): number | undefined {
+		const totalThrowCount = this.getTotalThrowCount(stats);
+		if (totalThrowCount < this.minimumQualifiedThrows) {
+			return undefined;
+		}
+
+		const hitCounts = this.getNonZeroHitCounts(stats);
+		const totalThrows = hitCounts.reduce((sum, x) => sum + (x.count ?? 0), 0);
+		const locationHits = hitCounts
+			.filter((x) => x.hitLocation === hitLocation)
+			.reduce((sum, x) => sum + (x.count ?? 0), 0);
+
+		return totalThrows > 0 ? this.round1((locationHits / totalThrows) * 100) : undefined;
+	}
+
+	private getThrowTypePercent(stats: SeasonStatistics, throwType: ThrowType): number | undefined {
+		const totalThrowCount = this.getTotalThrowCount(stats);
+		if (totalThrowCount < this.minimumQualifiedThrows) {
+			return undefined;
+		}
+
+		const hitCounts = this.getAllHitCounts(stats);
+		const totalThrows = hitCounts.reduce((sum, x) => sum + (x.count ?? 0), 0);
+		const matchingThrows = hitCounts
+			.filter((x) => x.throwType === throwType)
+			.reduce((sum, x) => sum + (x.count ?? 0), 0);
+
+		return totalThrows > 0 ? this.round1((matchingThrows / totalThrows) * 100) : undefined;
+	}
+
+	private getAveragePlayersPerMatch(stats: SeasonStatistics): number {
+		const snapshots = stats?.matchSnapshots ?? [];
+		const matchCount = snapshots.length;
+		const totalPlayers = snapshots.reduce((sum, x) => sum + (x.playerCount ?? 0), 0);
+
+		return matchCount > 0 ? this.round1(totalPlayers / matchCount) : 0;
+	}
+
+	private getAverageFinishRound(stats: SeasonStatistics): number | undefined {
+		const finishCounts = stats?.finishCount ?? [];
+		const totalFinishes = finishCounts.reduce((sum, x) => sum + (x.count ?? 0), 0);
+
+		if (totalFinishes === 0) {
+			return undefined;
+		}
+
+		const weightedRoundSum = finishCounts.reduce(
+			(sum, x) => sum + ((x.roundNumber ?? 0) * (x.count ?? 0)),
+			0,
+		);
+
+		return this.round1(weightedRoundSum / totalFinishes);
+	}
+
+	private hasQualifiedThrowSample(row: (typeof this.seasonRows)[number]): boolean {
+		return row.totalThrowCount >= this.minimumQualifiedThrows;
+	}
+
+	private hasQualifiedGroupSizeSample(row: (typeof this.seasonRows)[number]): boolean {
+		return row.matchCount >= this.minimumQualifiedMatchesForGroupSize;
+	}
+
+	private formatPercent(value?: number): string {
+		return value === undefined ? '-' : `${value.toFixed(1)}%`;
+	}
+
+	private formatNumber(value?: number): string {
+		return value === undefined ? '-' : value.toFixed(1);
+	}
+
+	private getPlacementFaClass(placement?: string): string {
+		switch (placement) {
+			case '1st':
+				return 'fas fa-trophy';
+			case '2nd':
+				return 'fas fa-medal';
+			case '3rd':
+				return 'fas fa-award';
+			default:
+				return 'fas fa-star';
+		}
+	}
+
+	private getSpotlightIconClass(kind: string): string {
+		switch (kind) {
+			case 'leader':
+				return 'fas fa-crown';
+			case 'grinder':
+				return 'fas fa-hammer';
+			case 'twenty':
+				return 'fas fa-bullseye';
+			case 'nineteen':
+				return 'fas fa-crosshairs';
+			case 'sixteen':
+				return 'fas fa-location-crosshairs';
+			case 'fourteen':
+				return 'fas fa-star';
+			case 'finisher':
+				return 'fas fa-flag-checkered';
+			case 'achievements':
+				return 'fas fa-trophy';
+			case 'assistedSkill':
+				return 'fas fa-bolt';
+			case 'pureSkill':
+				return 'fas fa-brain';
+			case 'rangeKing':
+				return 'fas fa-fire';
+			case 'rim':
+				return 'fas fa-circle';
+			case 'miss':
+				return 'fas fa-ban';
+			case 'players':
+				return 'fas fa-users';
+			case 'finishRound':
+				return 'fas fa-hourglass-half';
+			case 'bigGroup':
+				return 'fas fa-users';
+			case 'smallGroup':
+				return 'fas fa-user';
+			default:
+				return 'fas fa-star';
+		}
+	}
+
 	private get seasonRows() {
 		return this.users
 			.map((user) => {
 				const stats = this.getStatsForCurrentSeason(user);
+
 				return {
 					user,
 					stats,
 					alias: user.alias ?? user.name,
 					mmr: stats?.mmr ?? 0,
 					rank: stats?.currentRank,
+					totalThrowCount: this.getTotalThrowCount(stats),
 					highestRank: stats?.highestAchievedRank,
 					highestRoundScore: stats?.highestRoundScore ?? 0,
 					highestRoundScoreForVictory: stats?.highestRoundScoreForVictory ?? 0,
 					highestRoundScoreNoSeasonRules: stats?.highestRoundScoreNoSeasonRules ?? 0,
 					matchCount: stats?.matchSnapshots?.length ?? 0,
-					hitEvents: stats?.hitCounts?.reduce((sum, x) => sum + (x.count ?? 0), 0) ?? 0,
+					nonZeroHitCount: this.getNonZeroHitCount(stats),
+					twentyHitPercent: this.getHitLocationPercent(stats, 20),
+					nineteenHitPercent: this.getHitLocationPercent(stats, 19),
+					sixteenHitPercent: this.getHitLocationPercent(stats, 16),
+					fourteenHitPercent: this.getHitLocationPercent(stats, 14),
+					missPercent: this.getThrowTypePercent(stats, ThrowType.Miss),
+					rimPercent: this.getThrowTypePercent(stats, ThrowType.Rim),
+					averagePlayersPerMatch: this.getAveragePlayersPerMatch(stats),
+					averageFinishRound: this.getAverageFinishRound(stats),
 					finishEvents: stats?.finishCount?.reduce((sum, x) => sum + (x.count ?? 0), 0) ?? 0,
 					progressAchievements: stats?.unlockedProgressAchievements?.length ?? 0,
 					sessionAchievements: stats?.unlockedSessionAchievements?.length ?? 0,
@@ -130,8 +294,70 @@ export class SeasonPage extends LitElement {
 		return [...this.seasonRows].sort((a, b) => b.matchCount - a.matchCount || b.mmr - a.mmr)[0];
 	}
 
-	private get bossDamageDealer() {
-		return [...this.seasonRows].sort((a, b) => b.hitEvents - a.hitEvents || b.mmr - a.mmr)[0];
+	private get biggestGroupPlayer() {
+		return [...this.seasonRows]
+			.filter((x) => this.hasQualifiedGroupSizeSample(x))
+			.sort(
+				(a, b) =>
+					(b.averagePlayersPerMatch - a.averagePlayersPerMatch) ||
+					(b.matchCount - a.matchCount) ||
+					(b.mmr - a.mmr),
+			)[0];
+	}
+
+	private get smallestGroupPlayer() {
+		return [...this.seasonRows]
+			.filter((x) => this.hasQualifiedGroupSizeSample(x))
+			.sort(
+				(a, b) =>
+					(a.averagePlayersPerMatch - b.averagePlayersPerMatch) ||
+					(b.matchCount - a.matchCount) ||
+					(b.mmr - a.mmr),
+			)[0];
+	}
+
+	private get twentyMaster() {
+		return [...this.seasonRows]
+			.filter((x) => this.hasQualifiedThrowSample(x) && x.twentyHitPercent !== undefined)
+			.sort(
+				(a, b) =>
+					(b.twentyHitPercent! - a.twentyHitPercent!) ||
+					(b.totalThrowCount - a.totalThrowCount) ||
+					(b.mmr - a.mmr),
+			)[0];
+	}
+
+	private get nineteenMaster() {
+		return [...this.seasonRows]
+			.filter((x) => this.hasQualifiedThrowSample(x) && x.nineteenHitPercent !== undefined)
+			.sort(
+				(a, b) =>
+					(b.nineteenHitPercent! - a.nineteenHitPercent!) ||
+					(b.totalThrowCount - a.totalThrowCount) ||
+					(b.mmr - a.mmr),
+			)[0];
+	}
+
+	private get sixteenMaster() {
+		return [...this.seasonRows]
+			.filter((x) => this.hasQualifiedThrowSample(x) && x.sixteenHitPercent !== undefined)
+			.sort(
+				(a, b) =>
+					(b.sixteenHitPercent! - a.sixteenHitPercent!) ||
+					(b.totalThrowCount - a.totalThrowCount) ||
+					(b.mmr - a.mmr),
+			)[0];
+	}
+
+	private get fourteenMaster() {
+		return [...this.seasonRows]
+			.filter((x) => this.hasQualifiedThrowSample(x) && x.fourteenHitPercent !== undefined)
+			.sort(
+				(a, b) =>
+					(b.fourteenHitPercent! - a.fourteenHitPercent!) ||
+					(b.totalThrowCount - a.totalThrowCount) ||
+					(b.mmr - a.mmr),
+			)[0];
 	}
 
 	private get finisher() {
@@ -142,7 +368,7 @@ export class SeasonPage extends LitElement {
 		return [...this.seasonRows].sort((a, b) => b.totalAchievements - a.totalAchievements || b.mmr - a.mmr)[0];
 	}
 
-	private get roundMonster() {
+	private get powerPlayer() {
 		return [...this.seasonRows].sort((a, b) => b.highestRoundScore - a.highestRoundScore || b.mmr - a.mmr)[0];
 	}
 
@@ -152,28 +378,69 @@ export class SeasonPage extends LitElement {
 		)[0];
 	}
 
-	private get clutchPlayer() {
+	private get rangeKing() {
 		return [...this.seasonRows].sort(
 			(a, b) => b.highestRoundScoreForVictory - a.highestRoundScoreForVictory || b.mmr - a.mmr,
 		)[0];
 	}
 
+	private get rimKing() {
+		return [...this.seasonRows]
+			.filter((x) => this.hasQualifiedThrowSample(x) && x.rimPercent !== undefined)
+			.sort(
+				(a, b) =>
+					(b.rimPercent! - a.rimPercent!) ||
+					(b.totalThrowCount - a.totalThrowCount) ||
+					(b.mmr - a.mmr),
+			)[0];
+	}
+
+	private get cleanestThrower() {
+		return [...this.seasonRows]
+			.filter((x) => this.hasQualifiedThrowSample(x) && x.missPercent !== undefined)
+			.sort(
+				(a, b) =>
+					(a.missPercent! - b.missPercent!) ||
+					(b.totalThrowCount - a.totalThrowCount) ||
+					(b.mmr - a.mmr),
+			)[0];
+	}
+
+	private get crowdedTableRegular() {
+		return [...this.seasonRows].sort(
+			(a, b) => b.averagePlayersPerMatch - a.averagePlayersPerMatch || b.mmr - a.mmr,
+		)[0];
+	}
+
+	private get earliestFinisher() {
+		return [...this.seasonRows]
+			.filter((x) => x.averageFinishRound !== undefined)
+			.sort(
+				(a, b) =>
+					(a.averageFinishRound! - b.averageFinishRound!) ||
+					(b.finishEvents - a.finishEvents) ||
+					(b.mmr - a.mmr),
+			)[0];
+	}
+
 	private get overviewStats() {
 		const rows = this.seasonRows;
 		const totalPlayers = rows.length;
-		const totalMatches = rows.reduce((sum, row) => sum + row.matchCount, 0);
-		const totalHits = rows.reduce((sum, row) => sum + row.hitEvents, 0);
+		const totalNonZeroHits = rows.reduce((sum, row) => sum + row.nonZeroHitCount, 0);
 		const totalFinishes = rows.reduce((sum, row) => sum + row.finishEvents, 0);
 		const totalAchievements = rows.reduce((sum, row) => sum + row.totalAchievements, 0);
 		const avgMmr = totalPlayers ? Math.round(rows.reduce((sum, row) => sum + row.mmr, 0) / totalPlayers) : 0;
+		const avgPlayersPerMatch = totalPlayers
+			? this.round1(rows.reduce((sum, row) => sum + row.averagePlayersPerMatch, 0) / totalPlayers)
+			: 0;
 
 		return [
 			{ label: 'Players', value: totalPlayers },
 			{ label: 'Avg MMR', value: avgMmr },
-			{ label: 'Matches', value: totalMatches },
-			{ label: 'Hits', value: totalHits },
-			{ label: 'Finishes', value: totalFinishes },
+			{ label: 'Board Hits', value: totalNonZeroHits },
+			{ label: 'Individual Finishes', value: totalFinishes },
 			{ label: 'Achievements', value: totalAchievements },
+			{ label: 'Avg Players / Match', value: avgPlayersPerMatch },
 		];
 	}
 
@@ -227,10 +494,18 @@ export class SeasonPage extends LitElement {
 		const icon = getRankIcon(entry.rank);
 		const label = getRankDisplayValue(entry.rank);
 		const highestLabel = entry.highestRank ? getRankDisplayValue(entry.highestRank) : '—';
+		const placementFaClass = this.getPlacementFaClass(placement);
 
 		return html`
 			<div class="player player-card">
-				${placement ? html`<div class="placement">${placement}</div>` : nothing}
+				${placement
+					? html`
+							<div class="placement">
+								<i class=${placementFaClass} aria-hidden="true"></i>
+								<span>${placement}</span>
+							</div>
+						`
+					: nothing}
 				<div class="alias">${entry.alias}</div>
 				<img class="rank-icon" src=${icon} alt=${label} />
 				<div class="rank-label">${label}</div>
@@ -238,8 +513,8 @@ export class SeasonPage extends LitElement {
 				<div class="player-meta-grid">
 					<div><span>Peak</span><strong>${highestLabel}</strong></div>
 					<div><span>Matches</span><strong>${entry.matchCount}</strong></div>
-					<div><span>Hits</span><strong>${entry.hitEvents}</strong></div>
-					<div><span>Finishes</span><strong>${entry.finishEvents}</strong></div>
+					<div><span>Avg players</span><strong>${entry.averagePlayersPerMatch.toFixed(1)}</strong></div>
+					<div><span>Avg finish rnd</span><strong>${this.formatNumber(entry.averageFinishRound)}</strong></div>
 				</div>
 			</div>
 		`;
@@ -265,7 +540,7 @@ export class SeasonPage extends LitElement {
 
 	private renderSpotlightCard(
 		title: string,
-		emoji: string,
+		iconClass: string,
 		entry: (typeof this.seasonRows)[number] | undefined,
 		value: string | number,
 		subtext: string,
@@ -275,7 +550,9 @@ export class SeasonPage extends LitElement {
 		return html`
 			<article class="spotlight-card">
 				<div class="spotlight-header">
-					<span class="spotlight-emoji">${emoji}</span>
+					<span class="spotlight-icon" aria-hidden="true">
+						<i class=${iconClass}></i>
+					</span>
 					<div>
 						<h3>${title}</h3>
 						<p>${entry.alias}</p>
@@ -291,60 +568,116 @@ export class SeasonPage extends LitElement {
 		return html`
 			<section class="spotlights">
 				${this.renderSpotlightCard(
-					'Season leader',
-					'👑',
-					this.champion,
-					`${this.champion?.mmr ?? 0} MMR`,
-					`Peak rank: ${this.champion?.highestRank ? getRankDisplayValue(this.champion.highestRank) : '—'}`,
-				)}
-				${this.renderSpotlightCard(
 					'Biggest grinder',
-					'🛠️',
+					this.getSpotlightIconClass('grinder'),
 					this.biggestGrinder,
 					this.biggestGrinder?.matchCount ?? 0,
-					'Most match snapshots played this season.',
+					'Most games played this season',
 				)}
 				${this.renderSpotlightCard(
-					'Hit machine',
-					'💥',
-					this.bossDamageDealer,
-					this.bossDamageDealer?.hitEvents ?? 0,
-					'Highest accumulated hit count.',
+					'Biggest group player',
+					this.getSpotlightIconClass('bigGroup'),
+					this.biggestGroupPlayer,
+					this.biggestGroupPlayer ? this.biggestGroupPlayer.averagePlayersPerMatch.toFixed(1) : '-',
+					'Highest average players per match among players with at least 10 games',
+				)}
+				${this.renderSpotlightCard(
+					'Smallest group player',
+					this.getSpotlightIconClass('smallGroup'),
+					this.smallestGroupPlayer,
+					this.smallestGroupPlayer ? this.smallestGroupPlayer.averagePlayersPerMatch.toFixed(1) : '-',
+					'Lowest average players per match among players with at least 10 games',
+				)}
+				${this.renderSpotlightCard(
+					'Master of 20',
+					this.getSpotlightIconClass('twenty'),
+					this.twentyMaster,
+					this.formatPercent(this.twentyMaster?.twentyHitPercent),
+					'Percent of throws landing in 20 (excludes misses)',
+				)}
+				${this.renderSpotlightCard(
+					'Master of 19',
+					this.getSpotlightIconClass('nineteen'),
+					this.nineteenMaster,
+					this.formatPercent(this.nineteenMaster?.nineteenHitPercent),
+					'Percent of throws landing in 19 (excludes misses)',
+				)}
+				${this.renderSpotlightCard(
+					'Master of 16',
+					this.getSpotlightIconClass('sixteen'),
+					this.sixteenMaster,
+					this.formatPercent(this.sixteenMaster?.sixteenHitPercent),
+					'Percent of throws landing in 16 (excludes misses)',
+				)}
+				${this.renderSpotlightCard(
+					'Master of 14',
+					this.getSpotlightIconClass('fourteen'),
+					this.fourteenMaster,
+					this.formatPercent(this.fourteenMaster?.fourteenHitPercent),
+					'Percent of throws landing in 14 (excludes misses)',
 				)}
 				${this.renderSpotlightCard(
 					'Closer',
-					'🎯',
+					this.getSpotlightIconClass('finisher'),
 					this.finisher,
 					this.finisher?.finishEvents ?? 0,
 					'Most finishes secured.',
 				)}
 				${this.renderSpotlightCard(
 					'Achievement hunter',
-					'🏆',
+					this.getSpotlightIconClass('achievements'),
 					this.achievementHunter,
 					this.achievementHunter?.totalAchievements ?? 0,
 					'Progress + session achievements unlocked.',
 				)}
 				${this.renderSpotlightCard(
-					'Round monster',
-					'⚡',
-					this.roundMonster,
-					this.roundMonster?.highestRoundScore ?? 0,
-					'Highest single-round score with season rules.',
+					'Assisted skill',
+					this.getSpotlightIconClass('assistedSkill'),
+					this.powerPlayer,
+					this.powerPlayer?.highestRoundScore ?? 0,
+					'Highest single-round score with season modifiers.',
 				)}
 				${this.renderSpotlightCard(
 					'Pure skill',
-					'🧠',
+					this.getSpotlightIconClass('pureSkill'),
 					this.cleanPowerPlayer,
 					this.cleanPowerPlayer?.highestRoundScoreNoSeasonRules ?? 0,
-					'Best round score without season modifiers.',
+					'Highest single-round score without season modifiers.',
 				)}
 				${this.renderSpotlightCard(
-					'Clutch factor',
-					'🔥',
-					this.clutchPlayer,
-					this.clutchPlayer?.highestRoundScoreForVictory ?? 0,
+					'Range king',
+					this.getSpotlightIconClass('rangeKing'),
+					this.rangeKing,
+					this.rangeKing?.highestRoundScoreForVictory ?? 0,
 					'Best victory-securing round score.',
+				)}
+				${this.renderSpotlightCard(
+					'Rim magnet',
+					this.getSpotlightIconClass('rim'),
+					this.rimKing,
+					this.formatPercent(this.rimKing?.rimPercent),
+					'Highest percentage of throws landing in the rim',
+				)}
+				${this.renderSpotlightCard(
+					'Cleanest thrower',
+					this.getSpotlightIconClass('miss'),
+					this.cleanestThrower,
+					this.formatPercent(this.cleanestThrower?.missPercent),
+					'Lowest miss percentage among qualified players',
+				)}
+				${this.renderSpotlightCard(
+					'Crowded table regular',
+					this.getSpotlightIconClass('players'),
+					this.crowdedTableRegular,
+					this.crowdedTableRegular?.averagePlayersPerMatch.toFixed(1) ?? '-',
+					'Highest average number of players per match',
+				)}
+				${this.renderSpotlightCard(
+					'Earliest finisher',
+					this.getSpotlightIconClass('finishRound'),
+					this.earliestFinisher,
+					this.formatNumber(this.earliestFinisher?.averageFinishRound),
+					'Lowest average round number when securing finishes',
 				)}
 			</section>
 		`;
@@ -363,8 +696,10 @@ export class SeasonPage extends LitElement {
 						<span>Player</span>
 						<span>Rank</span>
 						<span>MMR</span>
-						<span>Matches</span>
-						<span>Achievements</span>
+						<span>20%</span>
+						<span>Miss%</span>
+						<span>Avg players</span>
+						<span>Avg finish rnd</span>
 					</div>
 					${rows.map(
 						(row, index) => html`
@@ -380,8 +715,10 @@ export class SeasonPage extends LitElement {
 								</span>
 								<span>${getRankDisplayValue(row.rank)}</span>
 								<span>${row.mmr}</span>
-								<span>${row.matchCount}</span>
-								<span>${row.totalAchievements}</span>
+								<span>${this.formatPercent(row.twentyHitPercent)}</span>
+								<span>${this.formatPercent(row.missPercent)}</span>
+								<span>${row.averagePlayersPerMatch.toFixed(1)}</span>
+								<span>${this.formatNumber(row.averageFinishRound)}</span>
 							</div>
 						`,
 					)}
@@ -449,7 +786,7 @@ export class SeasonPage extends LitElement {
 						'View score modifiers',
 						modifierItems,
 						this.scoreModifiers,
-						'These modifiers affect how season scoring is calculated. Open a rule to inspect its implementation.',
+						'',
 					)}
 
 					${this.renderRulesSummaryCard(
@@ -457,14 +794,32 @@ export class SeasonPage extends LitElement {
 						'View win conditions',
 						winConditionItems,
 						this.winConditions,
-						'These win conditions define how a match win is determined for the season.',
+						'',
 					)}
 				</div>
 			</section>
 		`;
 	}
 
+	private renderLoading() {
+		return html`
+			<section class="wrap">
+				<div class="loading-card" role="status" aria-live="polite">
+					<div class="loading-spinner">
+						<i class="fas fa-spinner fa-spin"></i>
+					</div>
+					<div class="loading-title">Loading season stats</div>
+					<div class="loading-subtitle">Fetching players, rankings, achievements, and rules...</div>
+				</div>
+			</section>
+		`;
+	}
+
 	override render(): unknown {
+		if (this.isLoading) {
+			return this.renderLoading();
+		}
+
 		const p = this.podium;
 
 		return html`
@@ -501,6 +856,7 @@ export class SeasonPage extends LitElement {
 
 	static override styles = [
 		sharedStyles,
+		faIcons,
 		css`
 			:host {
 				display: block;
@@ -516,6 +872,39 @@ export class SeasonPage extends LitElement {
 				padding: 1rem;
 				max-width: 1400px;
 				margin: 0 auto;
+			}
+
+			.loading-card {
+				min-height: 340px;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				text-align: center;
+				gap: 0.65rem;
+				background: #fffdf8;
+				border: 2px solid black;
+				border-right-width: 4px;
+				border-bottom-width: 4px;
+				border-radius: 18px;
+				box-shadow: 6px 7px 0 0 black;
+				padding: 2rem 1rem;
+			}
+
+			.loading-spinner {
+				font-size: 2.5rem;
+				line-height: 1;
+			}
+
+			.loading-title {
+				font-size: 1.15rem;
+				font-weight: 900;
+			}
+
+			.loading-subtitle {
+				font-size: 0.9rem;
+				opacity: 0.72;
+				max-width: 420px;
 			}
 
 			.overview-section {
@@ -598,7 +987,7 @@ export class SeasonPage extends LitElement {
 			}
 
 			.player-card {
-				width: min(100%, 300px);
+				width: min(100%, 320px);
 				padding: 0.75rem;
 				background: #fff;
 				border: 2px solid black;
@@ -607,7 +996,7 @@ export class SeasonPage extends LitElement {
 				border-radius: 18px;
 				box-shadow: 6px 7px 0 0 black;
 				margin-bottom: 0.45rem;
-				max-height: min(44vh, 360px);
+				max-height: min(52vh, 430px);
 				overflow: auto;
 			}
 
@@ -615,6 +1004,7 @@ export class SeasonPage extends LitElement {
 				display: inline-flex;
 				align-items: center;
 				justify-content: center;
+				gap: 0.35rem;
 				padding: 0.14rem 0.48rem;
 				margin-bottom: 0.45rem;
 				border: 2px solid black;
@@ -760,8 +1150,19 @@ export class SeasonPage extends LitElement {
 				overflow-wrap: anywhere;
 			}
 
-			.spotlight-emoji {
-				font-size: 1.4rem;
+			.spotlight-icon {
+				width: 42px;
+				height: 42px;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				border: 2px solid black;
+				border-right-width: 3px;
+				border-bottom-width: 3px;
+				border-radius: 12px;
+				background: white;
+				font-size: 1.1rem;
+				flex: 0 0 auto;
 			}
 
 			.spotlight-value {
@@ -810,7 +1211,7 @@ export class SeasonPage extends LitElement {
 
 			.leaderboard-row {
 				display: grid;
-				grid-template-columns: 50px minmax(180px, 1.5fr) minmax(130px, 1fr) 90px 90px 120px;
+				grid-template-columns: 50px minmax(180px, 1.6fr) minmax(120px, 1fr) 90px 90px 90px 110px 120px;
 				gap: 0.75rem;
 				align-items: center;
 				padding: 0.8rem 0.7rem;
@@ -1002,7 +1403,7 @@ export class SeasonPage extends LitElement {
 				}
 
 				.leaderboard-row {
-					grid-template-columns: 42px minmax(140px, 1.2fr) minmax(100px, 1fr) 70px 75px 90px;
+					grid-template-columns: 42px minmax(140px, 1.2fr) minmax(100px, 1fr) 70px 75px 75px 95px 105px;
 					font-size: 0.9rem;
 				}
 			}
