@@ -430,15 +430,9 @@ export class SeasonPage extends LitElement {
 		const totalFinishes = rows.reduce((sum, row) => sum + row.finishEvents, 0);
 		const totalAchievements = rows.reduce((sum, row) => sum + row.totalAchievements, 0);
 		const avgMmr = totalPlayers ? Math.round(rows.reduce((sum, row) => sum + row.mmr, 0) / totalPlayers) : 0;
-		const allSnapshots = rows.flatMap((row) => row.stats.matchSnapshots ?? []);
-		const totalSnapshots = allSnapshots.length;
-		const estimatedMatchCount = allSnapshots.reduce(
-			(sum, snapshot) => sum + (snapshot.playerCount > 0 ? 1 / snapshot.playerCount : 0),
-			0,
-		);
-		const avgPlayersPerMatch = estimatedMatchCount > 0
-			? this.round1(totalSnapshots / estimatedMatchCount)
-			: 0;
+		const avgPlayersPerMatch = totalPlayers
+			? this.round1(rows.reduce((sum, row) => sum + row.averagePlayersPerMatch, 0) / totalPlayers) : 0;
+
 
 		return [
 			{ label: 'Players', value: totalPlayers },
