@@ -7,7 +7,7 @@ import { container } from 'tsyringe';
 import { faIcons } from '../../faIcons.js';
 
 import { getRankDisplayValue, getRankIcon } from '../../models/rank.js';
-import { RuleDefinition, Season, SeasonStatistics, User } from '../../models/schemas.js';
+import { HitCount, RuleDefinition, Season, SeasonStatistics, User } from '../../models/schemas.js';
 import { ThrowType } from '../../models/enums.js';
 import { DialogService } from '../../services/dialogService.js';
 import { RuleService } from '../../services/ruleService.js';
@@ -24,7 +24,7 @@ export class SeasonPage extends LitElement {
 	private dialogService: DialogService;
 	private winConditions: RuleDefinition[] = [];
 	private scoreModifiers: RuleDefinition[] = [];
-	private readonly minimumQualifiedThrows = 100;
+	private readonly minimumQualifiedThrows = 250;
 	private readonly minimumQualifiedMatchesForGroupSize = 10;
 
 	@state() private season?: Season;
@@ -59,7 +59,8 @@ export class SeasonPage extends LitElement {
 			const ruleDefinitions = await this.ruleService.GetDefinitions();
 			this.winConditions = ruleDefinitions.winConditions;
 			this.scoreModifiers = ruleDefinitions.scoreModifiers;
-		} finally {
+		}
+		finally {
 			this.isLoading = false;
 			this.requestUpdate();
 		}
@@ -187,6 +188,10 @@ export class SeasonPage extends LitElement {
 		return value === undefined ? '-' : value.toFixed(1);
 	}
 
+	private formatWholeNumber(value?: number): string {
+		return value === undefined ? '-' : value.toString();
+	}
+
 	private getPlacementFaClass(placement?: string): string {
 		switch (placement) {
 			case '1st':
@@ -236,6 +241,14 @@ export class SeasonPage extends LitElement {
 				return 'fas fa-users';
 			case 'smallGroup':
 				return 'fas fa-user';
+			case 'hits':
+				return 'fas fa-chart-bar';
+			case 'bull':
+				return 'fas fa-bullseye';
+			case 'qualifiedThrows':
+				return 'fas fa-crosshairs';
+			case 'qualifiedGames':
+				return 'fas fa-dice';
 			default:
 				return 'fas fa-star';
 		}
@@ -252,6 +265,7 @@ export class SeasonPage extends LitElement {
 					alias: user.alias ?? user.name,
 					mmr: stats?.mmr ?? 0,
 					rank: stats?.currentRank,
+					bullPercent: this.getBullPercent(stats),
 					totalThrowCount: this.getTotalThrowCount(stats),
 					highestRank: stats?.highestAchievedRank,
 					highestRoundScore: stats?.highestRoundScore ?? 0,
@@ -278,6 +292,33 @@ export class SeasonPage extends LitElement {
 			.sort((a, b) => b.mmr - a.mmr);
 	}
 
+	private get aggregatedHitCounts(): HitCount[] {
+		const map = new Map<string, HitCount>();
+
+		for (const row of this.seasonRows) {
+			for (const hit of row.stats.hitCounts ?? []) {
+				const key = `${hit.throwType}:${hit.hitLocation}`;
+				const existing = map.get(key);
+
+				if (existing) {
+					existing.count = (existing.count ?? 0) + (hit.count ?? 0);
+				}
+				else {
+					map.set(key, {
+						throwType: hit.throwType,
+						hitLocation: hit.hitLocation,
+						count: hit.count ?? 0,
+					} as HitCount);
+				}
+			}
+		}
+
+		return [...map.values()].sort((a, b) => {
+			if (a.hitLocation !== b.hitLocation) return a.hitLocation - b.hitLocation;
+			return (a.throwType ?? 0) - (b.throwType ?? 0);
+		});
+	}
+
 	private get podium() {
 		const rows = this.seasonRows.slice(0, 3);
 
@@ -292,6 +333,32 @@ export class SeasonPage extends LitElement {
 
 	private get biggestGrinder() {
 		return [...this.seasonRows].sort((a, b) => b.matchCount - a.matchCount || b.mmr - a.mmr)[0];
+	}
+
+	private getBullPercent(stats: SeasonStatistics): number | undefined {
+		const totalThrowCount = this.getTotalThrowCount(stats);
+		if (totalThrowCount < this.minimumQualifiedThrows) {
+			return undefined;
+		}
+
+		const hitCounts = this.getAllHitCounts(stats);
+		const totalThrows = hitCounts.reduce((sum, x) => sum + (x.count ?? 0), 0);
+		const bullHits = hitCounts
+			.filter((x) => x.hitLocation === 25 || x.hitLocation === 50)
+			.reduce((sum, x) => sum + (x.count ?? 0), 0);
+
+		return totalThrows > 0 ? this.round1((bullHits / totalThrows) * 100) : undefined;
+	}
+
+	private get bullSpecialist() {
+		return [...this.seasonRows]
+			.filter((x) => this.hasQualifiedThrowSample(x) && x.bullPercent !== undefined)
+			.sort(
+				(a, b) =>
+					(b.bullPercent! - a.bullPercent!) ||
+					(b.totalThrowCount - a.totalThrowCount) ||
+					(b.mmr - a.mmr),
+			)[0];
 	}
 
 	private get biggestGroupPlayer() {
@@ -429,7 +496,10 @@ export class SeasonPage extends LitElement {
 		const totalNonZeroHits = rows.reduce((sum, row) => sum + row.nonZeroHitCount, 0);
 		const totalFinishes = rows.reduce((sum, row) => sum + row.finishEvents, 0);
 		const totalAchievements = rows.reduce((sum, row) => sum + row.totalAchievements, 0);
-		const avgMmr = totalPlayers ? Math.round(rows.reduce((sum, row) => sum + row.mmr, 0) / totalPlayers) : 0;
+		const qualifiedRowsForAvgMmr = rows.filter(row => row.matchCount >= 10);
+		const avgMmr = qualifiedRowsForAvgMmr.length
+			? Math.round(qualifiedRowsForAvgMmr.reduce((sum, row) => sum + row.mmr, 0) / qualifiedRowsForAvgMmr.length)
+			: 0;
 		const allSnapshots = rows.flatMap((row) => row.stats.matchSnapshots ?? []);
 		const totalSnapshots = allSnapshots.length;
 		const estimatedMatchCount = allSnapshots.reduce(
@@ -440,11 +510,9 @@ export class SeasonPage extends LitElement {
 			? this.round1(totalSnapshots / estimatedMatchCount)
 			: 0;
 
-
-
 		return [
 			{ label: 'Players', value: totalPlayers },
-			{ label: 'Avg MMR', value: avgMmr },
+			{ label: 'Avg MMR (10+ games)', value: avgMmr },
 			{ label: 'Board Hits', value: totalNonZeroHits },
 			{ label: 'Individual Finishes', value: totalFinishes },
 			{ label: 'Achievements', value: totalAchievements },
@@ -508,11 +576,11 @@ export class SeasonPage extends LitElement {
 			<div class="player player-card">
 				${placement
 					? html`
-							<div class="placement">
-								<i class=${placementFaClass} aria-hidden="true"></i>
-								<span>${placement}</span>
-							</div>
-						`
+						<div class="placement">
+							<i class=${placementFaClass} aria-hidden="true"></i>
+							<span>${placement}</span>
+						</div>
+					`
 					: nothing}
 				<div class="alias">${entry.alias}</div>
 				<img class="rank-icon" src=${icon} alt=${label} />
@@ -546,26 +614,92 @@ export class SeasonPage extends LitElement {
 		`;
 	}
 
+	private renderSeasonHitChart() {
+		const hits = this.aggregatedHitCounts;
+		if (!hits.length) return html``;
+
+		return html`
+			<section class="season-hits-section">
+				<div class="season-hits-card">
+					<div class="season-hits-header">
+						<div class="season-hits-title-wrap">
+							<div class="season-hits-icon" aria-hidden="true">
+								<i class=${this.getSpotlightIconClass('hits')}></i>
+							</div>
+							<div>
+								<h3 class="section-title">Season hit distribution</h3>
+								<p class="season-hits-subtitle">All tracked hits combined across all players in this season</p>
+							</div>
+						</div>
+					</div>
+
+					<div class="season-hits-chart-frame">
+						<aa-hit-count-chart .hits=${hits}></aa-hit-count-chart>
+					</div>
+				</div>
+			</section>
+		`;
+	}
+
+	private renderQualificationBadge(
+		type: 'throws' | 'games',
+		minimum: number,
+		explanation: string,
+	) {
+		const iconClass = type === 'throws'
+			? this.getSpotlightIconClass('qualifiedThrows')
+			: this.getSpotlightIconClass('qualifiedGames');
+
+		const shortLabel = type === 'throws' ? `${minimum}+ throws` : `${minimum}+ games`;
+
+		return html`
+			<span
+				class="qualification-badge"
+				title=${explanation}
+				aria-label=${explanation}
+			>
+				<i class=${iconClass} aria-hidden="true"></i>
+				<span>${shortLabel}</span>
+			</span>
+		`;
+	}
+
 	private renderSpotlightCard(
 		title: string,
 		iconClass: string,
 		entry: (typeof this.seasonRows)[number] | undefined,
 		value: string | number,
 		subtext: string,
+		qualification?: {
+			type: 'throws' | 'games';
+			minimum: number;
+			explanation: string;
+		},
 	) {
 		if (!entry) return html``;
 
 		return html`
 			<article class="spotlight-card">
-				<div class="spotlight-header">
-					<span class="spotlight-icon" aria-hidden="true">
-						<i class=${iconClass}></i>
-					</span>
-					<div>
-						<h3>${title}</h3>
-						<p>${entry.alias}</p>
+				<div class="spotlight-card-top">
+					<div class="spotlight-header">
+						<span class="spotlight-icon" aria-hidden="true">
+							<i class=${iconClass}></i>
+						</span>
+						<div>
+							<h3>${title}</h3>
+							<p>${entry.alias}</p>
+						</div>
 					</div>
+
+					${qualification
+						? this.renderQualificationBadge(
+							qualification.type,
+							qualification.minimum,
+							qualification.explanation,
+						)
+						: nothing}
 				</div>
+
 				<div class="spotlight-value">${value}</div>
 				<div class="spotlight-sub">${subtext}</div>
 			</article>
@@ -575,6 +709,18 @@ export class SeasonPage extends LitElement {
 	private renderSpotlights() {
 		return html`
 			<section class="spotlights">
+				${this.renderSpotlightCard(
+					'Bully',
+					this.getSpotlightIconClass('bull'),
+					this.bullSpecialist,
+					this.formatPercent(this.bullSpecialist?.bullPercent),
+					'Most amount of throws landing in bull (25 or 50)',
+					{
+						type: 'throws',
+						minimum: this.minimumQualifiedThrows,
+						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
+					},
+				)}
 				${this.renderSpotlightCard(
 					'Biggest grinder',
 					this.getSpotlightIconClass('grinder'),
@@ -587,14 +733,24 @@ export class SeasonPage extends LitElement {
 					this.getSpotlightIconClass('bigGroup'),
 					this.biggestGroupPlayer,
 					this.biggestGroupPlayer ? this.biggestGroupPlayer.averagePlayersPerMatch.toFixed(1) : '-',
-					'Highest average players per match among players with at least 10 games',
+					'Highest average player count per match',
+					{
+						type: 'games',
+						minimum: this.minimumQualifiedMatchesForGroupSize,
+						explanation: `Only players with at least ${this.minimumQualifiedMatchesForGroupSize} games are eligible for this spotlight.`,
+					},
 				)}
 				${this.renderSpotlightCard(
 					'Smallest group player',
 					this.getSpotlightIconClass('smallGroup'),
 					this.smallestGroupPlayer,
 					this.smallestGroupPlayer ? this.smallestGroupPlayer.averagePlayersPerMatch.toFixed(1) : '-',
-					'Lowest average players per match among players with at least 10 games',
+					'Lowest average player count per match',
+					{
+						type: 'games',
+						minimum: this.minimumQualifiedMatchesForGroupSize,
+						explanation: `Only players with at least ${this.minimumQualifiedMatchesForGroupSize} games are eligible for this spotlight.`,
+					},
 				)}
 				${this.renderSpotlightCard(
 					'Master of 20',
@@ -602,6 +758,11 @@ export class SeasonPage extends LitElement {
 					this.twentyMaster,
 					this.formatPercent(this.twentyMaster?.twentyHitPercent),
 					'Percent of throws landing in 20 (excludes misses)',
+					{
+						type: 'throws',
+						minimum: this.minimumQualifiedThrows,
+						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
+					},
 				)}
 				${this.renderSpotlightCard(
 					'Master of 19',
@@ -609,6 +770,11 @@ export class SeasonPage extends LitElement {
 					this.nineteenMaster,
 					this.formatPercent(this.nineteenMaster?.nineteenHitPercent),
 					'Percent of throws landing in 19 (excludes misses)',
+					{
+						type: 'throws',
+						minimum: this.minimumQualifiedThrows,
+						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
+					},
 				)}
 				${this.renderSpotlightCard(
 					'Master of 16',
@@ -616,6 +782,11 @@ export class SeasonPage extends LitElement {
 					this.sixteenMaster,
 					this.formatPercent(this.sixteenMaster?.sixteenHitPercent),
 					'Percent of throws landing in 16 (excludes misses)',
+					{
+						type: 'throws',
+						minimum: this.minimumQualifiedThrows,
+						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
+					},
 				)}
 				${this.renderSpotlightCard(
 					'Master of 14',
@@ -623,6 +794,11 @@ export class SeasonPage extends LitElement {
 					this.fourteenMaster,
 					this.formatPercent(this.fourteenMaster?.fourteenHitPercent),
 					'Percent of throws landing in 14 (excludes misses)',
+					{
+						type: 'throws',
+						minimum: this.minimumQualifiedThrows,
+						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
+					},
 				)}
 				${this.renderSpotlightCard(
 					'Closer',
@@ -665,6 +841,11 @@ export class SeasonPage extends LitElement {
 					this.rimKing,
 					this.formatPercent(this.rimKing?.rimPercent),
 					'Highest percentage of throws landing in the rim',
+					{
+						type: 'throws',
+						minimum: this.minimumQualifiedThrows,
+						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
+					},
 				)}
 				${this.renderSpotlightCard(
 					'Cleanest thrower',
@@ -672,6 +853,11 @@ export class SeasonPage extends LitElement {
 					this.cleanestThrower,
 					this.formatPercent(this.cleanestThrower?.missPercent),
 					'Lowest miss percentage',
+					{
+						type: 'throws',
+						minimum: this.minimumQualifiedThrows,
+						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
+					},
 				)}
 				${this.renderSpotlightCard(
 					'Earliest finisher',
@@ -697,8 +883,8 @@ export class SeasonPage extends LitElement {
 						<span>Player</span>
 						<span>Rank</span>
 						<span>MMR</span>
-						<span>20%</span>
-						<span>Miss%</span>
+						<span>Rim%</span>
+						<span>Achievs</span>
 						<span>Avg players</span>
 						<span>Avg finish rnd</span>
 					</div>
@@ -716,8 +902,8 @@ export class SeasonPage extends LitElement {
 								</span>
 								<span>${getRankDisplayValue(row.rank)}</span>
 								<span>${row.mmr}</span>
-								<span>${this.formatPercent(row.twentyHitPercent)}</span>
-								<span>${this.formatPercent(row.missPercent)}</span>
+								<span>${this.formatPercent(row.rimPercent)}</span>
+								<span>${this.formatWholeNumber(row.totalAchievements)}</span>
 								<span>${row.averagePlayersPerMatch.toFixed(1)}</span>
 								<span>${this.formatNumber(row.averageFinishRound)}</span>
 							</div>
@@ -827,25 +1013,26 @@ export class SeasonPage extends LitElement {
 				${p.length === 0
 					? html`<div class="empty">No players found for this season.</div>`
 					: html`
-							<section class="podium-stage">
-								<div class="podium">
-									<div class="column second">
-										${this.podiumCell(p[0], '2nd')}
-										<div class="step step-2"></div>
-									</div>
-									<div class="column first">
-										${this.podiumCell(p[1] ?? p[0], '1st')}
-										<div class="step step-1"></div>
-									</div>
-									<div class="column third">
-										${this.podiumCell(p[2], '3rd')}
-										<div class="step step-3"></div>
-									</div>
+						<section class="podium-stage">
+							<div class="podium">
+								<div class="column second">
+									${this.podiumCell(p[0], '2nd')}
+									<div class="step step-2"></div>
 								</div>
-							</section>
-						`}
+								<div class="column first">
+									${this.podiumCell(p[1] ?? p[0], '1st')}
+									<div class="step step-1"></div>
+								</div>
+								<div class="column third">
+									${this.podiumCell(p[2], '3rd')}
+									<div class="step step-3"></div>
+								</div>
+							</div>
+						</section>
+					`}
 
 				${this.renderOverview()}
+				${this.renderSeasonHitChart()}
 				${this.renderSpotlights()}
 				${this.renderLeaderboard()}
 				${this.renderSeasonRulesArea()}
@@ -914,7 +1101,8 @@ export class SeasonPage extends LitElement {
 			.leaderboard-card,
 			.spotlight-card,
 			.empty,
-			.rules-summary-card {
+			.rules-summary-card,
+			.season-hits-card {
 				background: #fffdf8;
 				border: 2px solid black;
 				border-right-width: 4px;
@@ -951,6 +1139,57 @@ export class SeasonPage extends LitElement {
 				font-size: 0.72rem;
 				opacity: 0.75;
 				margin-top: 0.15rem;
+			}
+
+			.season-hits-section {
+				margin: 0 0 1.25rem;
+			}
+
+			.season-hits-card {
+				padding: 0.85rem;
+			}
+
+			.season-hits-header {
+				display: flex;
+				align-items: flex-start;
+				justify-content: space-between;
+				gap: 1rem;
+				margin-bottom: 0.75rem;
+			}
+
+			.season-hits-title-wrap {
+				display: flex;
+				align-items: center;
+				gap: 0.75rem;
+			}
+
+			.season-hits-icon {
+				width: 44px;
+				height: 44px;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				border: 2px solid black;
+				border-right-width: 3px;
+				border-bottom-width: 3px;
+				border-radius: 12px;
+				background: white;
+				font-size: 1.15rem;
+				flex: 0 0 auto;
+			}
+
+			.season-hits-subtitle {
+				margin: 0.2rem 0 0 0;
+				font-size: 0.88rem;
+				opacity: 0.72;
+			}
+
+			.season-hits-chart-frame {
+				height: 360px;
+				border: 2px dashed rgba(0, 0, 0, 0.22);
+				border-radius: 14px;
+				background: rgba(255, 255, 255, 0.7);
+				padding: 0.5rem;
 			}
 
 			.podium-stage {
@@ -1121,10 +1360,18 @@ export class SeasonPage extends LitElement {
 				overflow: hidden;
 			}
 
+			.spotlight-card-top {
+				display: flex;
+				align-items: flex-start;
+				justify-content: space-between;
+				gap: 0.5rem;
+			}
+
 			.spotlight-header {
 				display: flex;
 				gap: 0.75rem;
 				align-items: center;
+				min-width: 0;
 			}
 
 			.spotlight-header h3 {
@@ -1153,6 +1400,28 @@ export class SeasonPage extends LitElement {
 				background: white;
 				font-size: 1.1rem;
 				flex: 0 0 auto;
+			}
+
+			.qualification-badge {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.28rem;
+				padding: 0.2rem 0.42rem;
+				border: 2px solid black;
+				border-right-width: 3px;
+				border-bottom-width: 3px;
+				border-radius: 999px;
+				background: #eef6ff;
+				font-size: 0.7rem;
+				font-weight: 900;
+				line-height: 1;
+				flex: 0 0 auto;
+				white-space: nowrap;
+				cursor: help;
+			}
+
+			.qualification-badge i {
+				font-size: 0.74rem;
 			}
 
 			.spotlight-value {
@@ -1375,6 +1644,10 @@ export class SeasonPage extends LitElement {
 				.overview-grid {
 					grid-template-columns: repeat(2, minmax(0, 1fr));
 				}
+
+				.season-hits-chart-frame {
+					height: 320px;
+				}
 			}
 
 			@media (max-width: 640px) {
@@ -1395,6 +1668,24 @@ export class SeasonPage extends LitElement {
 				.leaderboard-row {
 					grid-template-columns: 42px minmax(140px, 1.2fr) minmax(100px, 1fr) 70px 75px 75px 95px 105px;
 					font-size: 0.9rem;
+				}
+
+				.season-hits-title-wrap {
+					align-items: flex-start;
+				}
+
+				.season-hits-chart-frame {
+					height: 280px;
+					padding: 0.35rem;
+				}
+
+				.spotlight-card-top {
+					flex-direction: column;
+					align-items: stretch;
+				}
+
+				.qualification-badge {
+					align-self: flex-start;
 				}
 			}
 		`,
