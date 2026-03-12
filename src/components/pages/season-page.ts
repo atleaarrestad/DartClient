@@ -14,7 +14,7 @@ import { RuleService } from '../../services/ruleService.js';
 import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
 import { sharedStyles } from '../../styles.js';
-import { seasonRuleDialogTemplate } from '../../templates/dialogTemplates.js';
+import { seasonRuleDialogTemplate, seasonSpotlightDialogTemplate, SeasonSpotlightLeaderboardRow } from '../../templates/dialogTemplates.js';
 
 @customElement('season-page')
 export class SeasonPage extends LitElement {
@@ -564,6 +564,392 @@ export class SeasonPage extends LitElement {
 		);
 	}
 
+	private buildSpotlightTop10<T>(
+		rows: T[],
+		mapper: (row: T, index: number) => SeasonSpotlightLeaderboardRow,
+	): SeasonSpotlightLeaderboardRow[] {
+		return rows.slice(0, 10).map(mapper);
+	}
+
+	private async openSpotlightDialog(options: {
+		title: string;
+		description: string;
+		valueLabel: string;
+		rows: SeasonSpotlightLeaderboardRow[];
+	}): Promise<void> {
+		await this.dialogService.open(
+			seasonSpotlightDialogTemplate({
+				title: options.title,
+				description: options.description,
+				valueLabel: options.valueLabel,
+				rows: options.rows,
+			}),
+			{ title: options.title },
+		);
+	}
+
+	private async openBullSpecialistDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows]
+				.filter((x) => this.hasQualifiedThrowSample(x) && x.bullPercent !== undefined)
+				.sort(
+					(a, b) =>
+						(b.bullPercent! - a.bullPercent!) ||
+						(b.totalThrowCount - a.totalThrowCount) ||
+						(b.mmr - a.mmr),
+				),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatPercent(row.bullPercent),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Bully',
+			description: `Top 10 players by bull hit percentage. Eligible players need at least ${this.minimumQualifiedThrows} total throws.`,
+			valueLabel: 'Bull%',
+			rows,
+		});
+	}
+
+	private async openBiggestGrinderDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows].sort((a, b) => b.matchCount - a.matchCount || b.mmr - a.mmr),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatWholeNumber(row.matchCount),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Biggest grinder',
+			description: 'Top 10 players by total matches played this season.',
+			valueLabel: 'Matches',
+			rows,
+		});
+	}
+
+	private async openBiggestGroupPlayerDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows]
+				.filter((x) => this.hasQualifiedGroupSizeSample(x))
+				.sort(
+					(a, b) =>
+						(b.averagePlayersPerMatch - a.averagePlayersPerMatch) ||
+						(b.matchCount - a.matchCount) ||
+						(b.mmr - a.mmr),
+				),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: row.averagePlayersPerMatch.toFixed(1),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Biggest group player',
+			description: `Top 10 players by highest average players per match. Eligible players need at least ${this.minimumQualifiedMatchesForGroupSize} games.`,
+			valueLabel: 'Avg players',
+			rows,
+		});
+	}
+
+	private async openSmallestGroupPlayerDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows]
+				.filter((x) => this.hasQualifiedGroupSizeSample(x))
+				.sort(
+					(a, b) =>
+						(a.averagePlayersPerMatch - b.averagePlayersPerMatch) ||
+						(b.matchCount - a.matchCount) ||
+						(b.mmr - a.mmr),
+				),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: row.averagePlayersPerMatch.toFixed(1),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Smallest group player',
+			description: `Top 10 players by lowest average players per match. Eligible players need at least ${this.minimumQualifiedMatchesForGroupSize} games.`,
+			valueLabel: 'Avg players',
+			rows,
+		});
+	}
+
+	private async openTwentyMasterDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows]
+				.filter((x) => this.hasQualifiedThrowSample(x) && x.twentyHitPercent !== undefined)
+				.sort(
+					(a, b) =>
+						(b.twentyHitPercent! - a.twentyHitPercent!) ||
+						(b.totalThrowCount - a.totalThrowCount) ||
+						(b.mmr - a.mmr),
+				),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatPercent(row.twentyHitPercent),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Master of 20',
+			description: `Top 10 players by percentage of non-miss throws landing in 20. Eligible players need at least ${this.minimumQualifiedThrows} total throws.`,
+			valueLabel: '20%',
+			rows,
+		});
+	}
+
+	private async openNineteenMasterDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows]
+				.filter((x) => this.hasQualifiedThrowSample(x) && x.nineteenHitPercent !== undefined)
+				.sort(
+					(a, b) =>
+						(b.nineteenHitPercent! - a.nineteenHitPercent!) ||
+						(b.totalThrowCount - a.totalThrowCount) ||
+						(b.mmr - a.mmr),
+				),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatPercent(row.nineteenHitPercent),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Master of 19',
+			description: `Top 10 players by percentage of non-miss throws landing in 19. Eligible players need at least ${this.minimumQualifiedThrows} total throws.`,
+			valueLabel: '19%',
+			rows,
+		});
+	}
+
+	private async openSixteenMasterDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows]
+				.filter((x) => this.hasQualifiedThrowSample(x) && x.sixteenHitPercent !== undefined)
+				.sort(
+					(a, b) =>
+						(b.sixteenHitPercent! - a.sixteenHitPercent!) ||
+						(b.totalThrowCount - a.totalThrowCount) ||
+						(b.mmr - a.mmr),
+				),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatPercent(row.sixteenHitPercent),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Master of 16',
+			description: `Top 10 players by percentage of non-miss throws landing in 16. Eligible players need at least ${this.minimumQualifiedThrows} total throws.`,
+			valueLabel: '16%',
+			rows,
+		});
+	}
+
+	private async openFourteenMasterDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows]
+				.filter((x) => this.hasQualifiedThrowSample(x) && x.fourteenHitPercent !== undefined)
+				.sort(
+					(a, b) =>
+						(b.fourteenHitPercent! - a.fourteenHitPercent!) ||
+						(b.totalThrowCount - a.totalThrowCount) ||
+						(b.mmr - a.mmr),
+				),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatPercent(row.fourteenHitPercent),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Master of 14',
+			description: `Top 10 players by percentage of non-miss throws landing in 14. Eligible players need at least ${this.minimumQualifiedThrows} total throws.`,
+			valueLabel: '14%',
+			rows,
+		});
+	}
+
+	private async openFinisherDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows].sort((a, b) => b.finishEvents - a.finishEvents || b.mmr - a.mmr),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatWholeNumber(row.finishEvents),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Closer',
+			description: 'Top 10 players by total finishes secured this season.',
+			valueLabel: 'Finishes',
+			rows,
+		});
+	}
+
+	private async openAchievementHunterDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows].sort((a, b) => b.totalAchievements - a.totalAchievements || b.mmr - a.mmr),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatWholeNumber(row.totalAchievements),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Achievement hunter',
+			description: 'Top 10 players by total unlocked achievements this season.',
+			valueLabel: 'Achievements',
+			rows,
+		});
+	}
+
+	private async openPowerPlayerDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows].sort((a, b) => b.highestRoundScore - a.highestRoundScore || b.mmr - a.mmr),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatWholeNumber(row.highestRoundScore),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Assisted skill',
+			description: 'Top 10 players by highest single-round score with season modifiers applied.',
+			valueLabel: 'Score',
+			rows,
+		});
+	}
+
+	private async openCleanPowerPlayerDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows].sort(
+				(a, b) => b.highestRoundScoreNoSeasonRules - a.highestRoundScoreNoSeasonRules || b.mmr - a.mmr,
+			),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatWholeNumber(row.highestRoundScoreNoSeasonRules),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Pure skill',
+			description: 'Top 10 players by highest single-round score without season modifiers.',
+			valueLabel: 'Score',
+			rows,
+		});
+	}
+
+	private async openRangeKingDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows].sort(
+				(a, b) => b.highestRoundScoreForVictory - a.highestRoundScoreForVictory || b.mmr - a.mmr,
+			),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatWholeNumber(row.highestRoundScoreForVictory),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Range king',
+			description: 'Top 10 players by highest round score that resulted in victory.',
+			valueLabel: 'Score',
+			rows,
+		});
+	}
+
+	private async openRimKingDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows]
+				.filter((x) => this.hasQualifiedThrowSample(x) && x.rimPercent !== undefined)
+				.sort(
+					(a, b) =>
+						(b.rimPercent! - a.rimPercent!) ||
+						(b.totalThrowCount - a.totalThrowCount) ||
+						(b.mmr - a.mmr),
+				),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatPercent(row.rimPercent),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Rim magnet',
+			description: `Top 10 players by rim percentage. Eligible players need at least ${this.minimumQualifiedThrows} total throws.`,
+			valueLabel: 'Rim%',
+			rows,
+		});
+	}
+
+	private async openCleanestThrowerDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows]
+				.filter((x) => this.hasQualifiedThrowSample(x) && x.missPercent !== undefined)
+				.sort(
+					(a, b) =>
+						(a.missPercent! - b.missPercent!) ||
+						(b.totalThrowCount - a.totalThrowCount) ||
+						(b.mmr - a.mmr),
+				),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatPercent(row.missPercent),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Cleanest thrower',
+			description: `Top 10 players by lowest miss percentage. Eligible players need at least ${this.minimumQualifiedThrows} total throws.`,
+			valueLabel: 'Miss%',
+			rows,
+		});
+	}
+
+	private async openEarliestFinisherDialog(): Promise<void> {
+		const rows = this.buildSpotlightTop10(
+			[...this.seasonRows]
+				.filter((x) => x.averageFinishRound !== undefined)
+				.sort(
+					(a, b) =>
+						(a.averageFinishRound! - b.averageFinishRound!) ||
+						(b.finishEvents - a.finishEvents) ||
+						(b.mmr - a.mmr),
+				),
+			(row, index) => ({
+				position: index + 1,
+				alias: row.alias,
+				value: this.formatNumber(row.averageFinishRound),
+			}),
+		);
+
+		await this.openSpotlightDialog({
+			title: 'Earliest finisher',
+			description: 'Top 10 players by lowest average round number needed to finish.',
+			valueLabel: 'Avg round',
+			rows,
+		});
+	}
+
 	private podiumCell(entry?: (typeof this.seasonRows)[number], placement?: string) {
 		if (!entry) return html``;
 
@@ -675,11 +1061,25 @@ export class SeasonPage extends LitElement {
 			minimum: number;
 			explanation: string;
 		},
+		onClick?: () => void | Promise<void>,
 	) {
 		if (!entry) return html``;
 
 		return html`
-			<article class="spotlight-card">
+			<article
+				class="spotlight-card clickable"
+				@click=${() => onClick?.()}
+				@keydown=${(e: KeyboardEvent) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						void onClick?.();
+					}
+				}}
+				tabindex="0"
+				role="button"
+				aria-label=${`Open ${title} top 10`}
+				title="Open top 10"
+			>
 				<div class="spotlight-card-top">
 					<div class="spotlight-header">
 						<span class="spotlight-icon" aria-hidden="true">
@@ -720,6 +1120,7 @@ export class SeasonPage extends LitElement {
 						minimum: this.minimumQualifiedThrows,
 						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
 					},
+					() => this.openBullSpecialistDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Biggest grinder',
@@ -727,6 +1128,8 @@ export class SeasonPage extends LitElement {
 					this.biggestGrinder,
 					this.biggestGrinder?.matchCount ?? 0,
 					'Most games played this season',
+					undefined,
+					() => this.openBiggestGrinderDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Biggest group player',
@@ -739,6 +1142,7 @@ export class SeasonPage extends LitElement {
 						minimum: this.minimumQualifiedMatchesForGroupSize,
 						explanation: `Only players with at least ${this.minimumQualifiedMatchesForGroupSize} games are eligible for this spotlight.`,
 					},
+					() => this.openBiggestGroupPlayerDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Smallest group player',
@@ -751,6 +1155,7 @@ export class SeasonPage extends LitElement {
 						minimum: this.minimumQualifiedMatchesForGroupSize,
 						explanation: `Only players with at least ${this.minimumQualifiedMatchesForGroupSize} games are eligible for this spotlight.`,
 					},
+					() => this.openSmallestGroupPlayerDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Master of 20',
@@ -763,6 +1168,7 @@ export class SeasonPage extends LitElement {
 						minimum: this.minimumQualifiedThrows,
 						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
 					},
+					() => this.openTwentyMasterDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Master of 19',
@@ -775,6 +1181,7 @@ export class SeasonPage extends LitElement {
 						minimum: this.minimumQualifiedThrows,
 						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
 					},
+					() => this.openNineteenMasterDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Master of 16',
@@ -787,6 +1194,7 @@ export class SeasonPage extends LitElement {
 						minimum: this.minimumQualifiedThrows,
 						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
 					},
+					() => this.openSixteenMasterDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Master of 14',
@@ -799,6 +1207,7 @@ export class SeasonPage extends LitElement {
 						minimum: this.minimumQualifiedThrows,
 						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
 					},
+					() => this.openFourteenMasterDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Closer',
@@ -806,6 +1215,8 @@ export class SeasonPage extends LitElement {
 					this.finisher,
 					this.finisher?.finishEvents ?? 0,
 					'Most finishes secured.',
+					undefined,
+					() => this.openFinisherDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Achievement hunter',
@@ -813,6 +1224,8 @@ export class SeasonPage extends LitElement {
 					this.achievementHunter,
 					this.achievementHunter?.totalAchievements ?? 0,
 					'Progress + session achievements unlocked.',
+					undefined,
+					() => this.openAchievementHunterDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Assisted skill',
@@ -820,6 +1233,8 @@ export class SeasonPage extends LitElement {
 					this.powerPlayer,
 					this.powerPlayer?.highestRoundScore ?? 0,
 					'Highest single-round score with season modifiers.',
+					undefined,
+					() => this.openPowerPlayerDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Pure skill',
@@ -827,6 +1242,8 @@ export class SeasonPage extends LitElement {
 					this.cleanPowerPlayer,
 					this.cleanPowerPlayer?.highestRoundScoreNoSeasonRules ?? 0,
 					'Highest single-round score without season modifiers.',
+					undefined,
+					() => this.openCleanPowerPlayerDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Range king',
@@ -834,6 +1251,8 @@ export class SeasonPage extends LitElement {
 					this.rangeKing,
 					this.rangeKing?.highestRoundScoreForVictory ?? 0,
 					'Highest round score leading to victory',
+					undefined,
+					() => this.openRangeKingDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Rim magnet',
@@ -846,6 +1265,7 @@ export class SeasonPage extends LitElement {
 						minimum: this.minimumQualifiedThrows,
 						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
 					},
+					() => this.openRimKingDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Cleanest thrower',
@@ -858,6 +1278,7 @@ export class SeasonPage extends LitElement {
 						minimum: this.minimumQualifiedThrows,
 						explanation: `Only players with at least ${this.minimumQualifiedThrows} total throws are eligible for this spotlight.`,
 					},
+					() => this.openCleanestThrowerDialog(),
 				)}
 				${this.renderSpotlightCard(
 					'Earliest finisher',
@@ -865,6 +1286,8 @@ export class SeasonPage extends LitElement {
 					this.earliestFinisher,
 					this.formatNumber(this.earliestFinisher?.averageFinishRound),
 					'Lowest average round number for finish',
+					undefined,
+					() => this.openEarliestFinisherDialog(),
 				)}
 			</section>
 		`;
@@ -1358,6 +1781,20 @@ export class SeasonPage extends LitElement {
 				text-align: left;
 				min-width: 0;
 				overflow: hidden;
+			}
+
+			.spotlight-card.clickable {
+				cursor: pointer;
+				transition: transform 120ms ease;
+			}
+
+			.spotlight-card.clickable:hover {
+				transform: translate(-1px, -1px);
+			}
+
+			.spotlight-card.clickable:focus-visible {
+				outline: 3px solid #000;
+				outline-offset: 3px;
 			}
 
 			.spotlight-card-top {

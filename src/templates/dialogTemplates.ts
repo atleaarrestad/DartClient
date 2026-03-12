@@ -2,7 +2,7 @@ import { html, TemplateResult } from 'lit';
 import { createRef, ref } from 'lit/directives/ref.js';
 
 import { AaDialog } from '../components/aa-dialog.js';
-import { getRankDisplayValue } from '../models/rank.js';
+import { getRankDisplayValue, getRankIcon, Rank } from '../models/rank.js';
 import { AchievementDefinitionsResponse, GameResult, User, RuleDefinition } from '../models/schemas.js';
 import { SessionAchievement } from "../models/enums.js";
 import { renderAchievementSummary } from "../helpers/achievementHelper.js";
@@ -711,6 +711,157 @@ export const postGameTemplate = (
 		</div>
 	`;
 };
+
+export type SeasonSpotlightLeaderboardRow = {
+	position: number;
+	alias: string;
+	value: string;
+};
+
+export const seasonSpotlightDialogTemplate = (options: {
+	title: string;
+	description?: string;
+	valueLabel?: string;
+	rows: SeasonSpotlightLeaderboardRow[];
+	emptyText?: string;
+}): TemplateResult => {
+	const rows = options.rows ?? [];
+	const valueLabel = options.valueLabel ?? 'Value';
+
+	return html`
+		<style>
+			.spotlight-dialog {
+				display: grid;
+				gap: 0.9rem;
+				min-width: 0;
+			}
+
+			.description {
+				margin: 0;
+				font-size: 0.92rem;
+				line-height: 1.4;
+				opacity: 0.8;
+			}
+
+			.empty {
+				padding: 1rem;
+				text-align: center;
+				font-weight: 700;
+				border: 2px solid black;
+				border-right-width: 4px;
+				border-bottom-width: 4px;
+				border-radius: 16px;
+				background: #fff;
+				box-shadow: 5px 5px 0 0 black;
+			}
+
+			.table-wrap {
+				overflow: auto;
+				border: 2px solid black;
+				border-right-width: 4px;
+				border-bottom-width: 4px;
+				border-radius: 16px;
+				background: #fff;
+				box-shadow: 5px 5px 0 0 black;
+			}
+
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				font-size: 0.95rem;
+			}
+
+			thead th {
+				text-align: left;
+				padding: 0.8rem 0.9rem;
+				font-size: 0.82rem;
+				font-weight: 900;
+				text-transform: uppercase;
+				letter-spacing: 0.03em;
+				background: #eef6ff;
+				border-bottom: 2px solid black;
+				white-space: nowrap;
+			}
+
+			tbody td {
+				padding: 0.8rem 0.9rem;
+				vertical-align: middle;
+			}
+
+			tbody tr:nth-child(even) {
+				background: rgba(0, 0, 0, 0.05);
+			}
+
+			tbody tr + tr td {
+				border-top: 1px solid rgba(0, 0, 0, 0.12);
+			}
+
+			.col-pos {
+				width: 70px;
+				font-weight: 900;
+				white-space: nowrap;
+			}
+
+			.col-name {
+				font-weight: 800;
+				overflow-wrap: anywhere;
+			}
+
+			.col-value {
+				text-align: right;
+				font-weight: 900;
+				white-space: nowrap;
+			}
+
+			@media (max-width: 640px) {
+				table {
+					font-size: 0.9rem;
+				}
+
+				thead th,
+				tbody td {
+					padding: 0.7rem 0.65rem;
+				}
+
+				.col-pos {
+					width: 54px;
+				}
+			}
+		</style>
+
+		<div class="spotlight-dialog">
+			${options.description
+				? html`<p class="description">${options.description}</p>`
+				: null}
+
+			${rows.length === 0
+				? html`<div class="empty">${options.emptyText ?? 'No eligible players found.'}</div>`
+				: html`
+					<div class="table-wrap">
+						<table>
+							<thead>
+								<tr>
+									<th class="col-pos">#</th>
+									<th>Name</th>
+									<th class="col-value">${valueLabel}</th>
+								</tr>
+							</thead>
+							<tbody>
+								${rows.map((row) => html`
+									<tr>
+										<td class="col-pos">${row.position}</td>
+										<td class="col-name">${row.alias}</td>
+										<td class="col-value">${row.value}</td>
+									</tr>
+								`)}
+							</tbody>
+						</table>
+					</div>
+				`}
+		</div>
+	`;
+};
+
 
 
 export const gameResultDummyData: GameResult = {
