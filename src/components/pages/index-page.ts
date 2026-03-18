@@ -339,6 +339,7 @@ export class IndexPage extends GamePage {
 		if (this.gameIdFromLocalStorage && user) {
 			const gameTracker = await this.gameService.addPlayerToGame(this.gameIdFromLocalStorage, user.id);
 			this.updateGameState(gameTracker);
+			this.focusFirstUnplayedRound();
 		}
 	}
 
@@ -437,6 +438,22 @@ export class IndexPage extends GamePage {
 		const element = this.renderRoot.querySelector(`#throw-${playerIndex}-${rowIndex}-${throwIndex}`) as aaDartThrow;
 		element?.focus();
 	}
+
+	protected focusFirstUnplayedRound(): void{
+		for (let roundIndex = 0; roundIndex < 15; roundIndex++) {
+			for (let playerIndex = 0; playerIndex < this.players.length; playerIndex++){
+				const player = this.players[playerIndex];
+				const round = player?.rounds[roundIndex];
+				if (round?.roundStatus === RoundStatus.Unplayed){
+					this.focusDartThrow(playerIndex, roundIndex, 0)
+					return;
+				}
+			}
+		}
+		this.focusDartThrow(0, 0 ,0);
+	}
+
+
 
 	protected getNextFocusablePlayer(
 		currentPlayerIndex: number,
