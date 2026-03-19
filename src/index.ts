@@ -3,6 +3,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import './router.js';
 import './components/navigationbar-cmp.js';
 import './components/pages/index-page.js';
+import './components/pages/changelog-page.js';
 import './components/pages/users-page.js';
 import './components/pages/user-page.js';
 import './components/pages/season-page.js';

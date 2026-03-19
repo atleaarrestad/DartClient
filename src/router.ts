@@ -8,6 +8,7 @@ const base = getAbsoluteBase();
 const router = new Router(outlet, { baseUrl: base });
 router.setRoutes([
 	{ path: '/', component: 'index-page' },
+	{ path: '/changelog', component: 'changelog-page' },
 	{ path: '/users', component: 'users-page' },
 	{ path: '/user/:id', component: 'user-page' },
 	{ path: '/season/:id', component: 'season-page' },
