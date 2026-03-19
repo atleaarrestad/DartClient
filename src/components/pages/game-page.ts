@@ -48,6 +48,11 @@ export class GamePage extends LitElement {
 	protected isActiveGame: boolean = false;
 	protected scrollLeader: HTMLElement | null = null;
 	protected signalRService: signalRService;
+	private readonly onSessionAchievementUnlocked = (
+		gameId: string,
+		playerId: string,
+		sessionAchievements: SessionAchievement[],
+	) => this.HandleSessionAchievementUnlocked(gameId, playerId, sessionAchievements);
 
 	constructor() {
 		super();
@@ -112,8 +117,8 @@ export class GamePage extends LitElement {
 	}
 
 	public async subscribeToAchievementEvents(gameId: string) {
-		this.signalRService.on('OnSessionAchievementUnlocked', (gameId, playerId, sessionAchievements) =>
-			this.HandleSessionAchievementUnlocked(gameId, playerId, sessionAchievements));
+		this.signalRService.off('OnSessionAchievementUnlocked');
+		this.signalRService.on('OnSessionAchievementUnlocked', this.onSessionAchievementUnlocked);
 		await this.signalRService.invoke<void>('SubscribeAchievement', gameId);
 	}
 

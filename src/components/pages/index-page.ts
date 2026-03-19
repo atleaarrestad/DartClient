@@ -400,6 +400,9 @@ export class IndexPage extends GamePage {
 			const gameResult: GameResult = await this.dataService.SubmitGame(this.gameIdFromLocalStorage);
 			const lastPlayedUserIds = this.players.map(player => player.playerId);
 
+			await this.unSubscribeToAchievementEvents(this.gameIdFromLocalStorage);
+			this.gameService.removeCachedGameId();
+
 			this.lastPlayedUserIds = lastPlayedUserIds;
 			this.cacheService.setLastPlayedUserIds(lastPlayedUserIds);
 
