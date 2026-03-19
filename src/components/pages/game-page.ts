@@ -288,6 +288,10 @@ export class GamePage extends LitElement {
 		`;
 	}
 
+	protected renderTopContent(): unknown {
+		return null;
+	}
+
 	protected renderBottomContent(): unknown {
 		return null;
 	}
@@ -304,112 +308,116 @@ export class GamePage extends LitElement {
 			return this.renderEmptyState();
 
 		return html`
-			<div class="page-content">
-				<div class="player-container">
-					${this.players.map((player, playerIndex) => {
-						const user = this.getUserFromPlayerIndex(playerIndex);
-						if (!user)
-							return;
+			<div class="page-shell">
+				${this.renderTopContent()}
 
-						const seasonStats = this.getLatestSeasonStatsForPlayer(playerIndex);
-						const mmr = seasonStats?.mmr ?? 0;
-						const rank = seasonStats?.currentRank;
+				<div class="page-content">
+					<div class="player-container">
+						${this.players.map((player, playerIndex) => {
+							const user = this.getUserFromPlayerIndex(playerIndex);
+							if (!user)
+								return;
 
-						const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
+							const seasonStats = this.getLatestSeasonStatsForPlayer(playerIndex);
+							const mmr = seasonStats?.mmr ?? 0;
+							const rank = seasonStats?.currentRank;
 
-						return html`
-							<article
-								class="player"
-								@focusin=${this.onPlayerInteract}
-								@mouseenter=${this.onPlayerInteract}
-							>
-								<span class=${classMap({
-									'player-name': true,
-									'active-player-name': this.isPlayerActive(playerIndex),
-								})}>
-									${user.alias}
-								</span>
+							const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
 
-								<span class="total-sum">
-									${this.getCumulativePoints(player)} (${this.getDifferenceFromBase(player)})
-								</span>
+							return html`
+								<article
+									class="player"
+									@focusin=${this.onPlayerInteract}
+									@mouseenter=${this.onPlayerInteract}
+								>
+									<span class=${classMap({
+										'player-name': true,
+										'active-player-name': this.isPlayerActive(playerIndex),
+									})}>
+										${user.alias}
+									</span>
 
-								<div class="round-labels-container">
-									<span class="border-right">N</span>
-									<span>Throws</span>
-									<span class="border-left">Sum</span>
-								</div>
+									<span class="total-sum">
+										${this.getCumulativePoints(player)} (${this.getDifferenceFromBase(player)})
+									</span>
 
-								<div class="rounds-scroll-container" @scroll=${this.onPlayerScroll}>
-									<div class="rounds-container">
-										${player.rounds.map((round, roundIndex) => html`
-											<div class=${classMap({
-												'victory': hasVictory,
-												'alternate-color': roundIndex % 2 === 0 && !hasVictory,
-												'overshoot': round.roundStatus === RoundStatus.Overshoot,
-											})}>
-												<div class="round-grid">
-													<div class="round-number">${roundIndex + 1 }</div>
-													<div class="throws-container">
-														${map(round.dartThrows, (dartThrow, throwIndex) => {
-															const onThrowUpdated = async (e: CustomEvent) => {
-																const cmp = e.currentTarget as aaDartThrow;
+									<div class="round-labels-container">
+										<span class="border-right">N</span>
+										<span>Throws</span>
+										<span class="border-left">Sum</span>
+									</div>
 
-																cmp.isSaving = true;
-																try {
-																	await this.handleThrowUpdated?.(
-																		e.detail.dartThrow,
-																		playerIndex,
-																		roundIndex,
-																	);
-																}
-																finally {
-																	cmp.isSaving = false;
-																}
-															};
+									<div class="rounds-scroll-container" @scroll=${this.onPlayerScroll}>
+										<div class="rounds-container">
+											${player.rounds.map((round, roundIndex) => html`
+												<div class=${classMap({
+													'victory': hasVictory,
+													'alternate-color': roundIndex % 2 === 0 && !hasVictory,
+													'overshoot': round.roundStatus === RoundStatus.Overshoot,
+												})}>
+													<div class="round-grid">
+														<div class="round-number">${roundIndex + 1 }</div>
+														<div class="throws-container">
+															${map(round.dartThrows, (dartThrow, throwIndex) => {
+																const onThrowUpdated = async (e: CustomEvent) => {
+																	const cmp = e.currentTarget as aaDartThrow;
 
-															const onFocus = (e: FocusEvent) =>
-																this.handleDartThrowFocused?.(e);
+																	cmp.isSaving = true;
+																	try {
+																		await this.handleThrowUpdated?.(
+																			e.detail.dartThrow,
+																			playerIndex,
+																			roundIndex,
+																		);
+																	}
+																	finally {
+																		cmp.isSaving = false;
+																	}
+																};
 
-															return html`
-																<aa-dart-throw
-																	id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
-																	.dartThrow=${dartThrow}
-																	?isDisabled=${this.isReadOnly}
-																	@throw-updated=${onThrowUpdated}
-																	@focus=${onFocus}>
-																</aa-dart-throw>
-															`;
-														})}
-													</div>
-													<div class="cumulative-points-round">
-														<span>${this.getRoundSum(round)}</span>
+																const onFocus = (e: FocusEvent) =>
+																	this.handleDartThrowFocused?.(e);
+
+																return html`
+																	<aa-dart-throw
+																		id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
+																		.dartThrow=${dartThrow}
+																		?isDisabled=${this.isReadOnly}
+																		@throw-updated=${onThrowUpdated}
+																		@focus=${onFocus}>
+																	</aa-dart-throw>
+																`;
+															})}
+														</div>
+														<div class="cumulative-points-round">
+															<span>${this.getRoundSum(round)}</span>
+														</div>
 													</div>
 												</div>
-											</div>
-										`)}
-									</div>
-								</div>
-
-								<div class="rank-container">
-									<div class="rank-inner-container">
-										<img
-											class="rank-icon"
-											src=${getRankIcon(rank)}
-											alt=${getRankDisplayValue(rank)}
-										>
-										<div class="rank-text-container">
-											<span class="rank">${getRankDisplayValue(rank)}</span>
-											<span class="mmr">${mmr}</span>
+											`)}
 										</div>
 									</div>
-								</div>
-							</article>
-						`;
-					})}
-				</div>
 
-				${this.renderBottomContent()}
+									<div class="rank-container">
+										<div class="rank-inner-container">
+											<img
+												class="rank-icon"
+												src=${getRankIcon(rank)}
+												alt=${getRankDisplayValue(rank)}
+											>
+											<div class="rank-text-container">
+												<span class="rank">${getRankDisplayValue(rank)}</span>
+												<span class="mmr">${mmr}</span>
+											</div>
+										</div>
+									</div>
+								</article>
+							`;
+						})}
+					</div>
+
+					${this.renderBottomContent()}
+				</div>
 			</div>
 		`;
 	}

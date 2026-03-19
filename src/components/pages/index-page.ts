@@ -6,7 +6,12 @@ import { classMap } from 'lit/directives/class-map.js';
 
 import { RoundStatus } from '../../models/enums.js';
 import type { GameResult, Round, User } from '../../models/schemas.js';
-import { postGameTemplate, selectUserTemplate, confirmRematchTemplate } from '../../templates/dialogTemplates.js';
+import {
+	confirmRematchTemplate,
+	gameplayShortcutsTemplate,
+	postGameTemplate,
+	selectUserTemplate,
+} from '../../templates/dialogTemplates.js';
 import type { AaCombobox } from '../aa-combobox-cmp.js';
 import type { aaDartThrow } from '../aa-dart-throw-cmp.js';
 import { GamePage } from './game-page.js';
@@ -139,6 +144,11 @@ export class IndexPage extends GamePage {
 					if (this.isRematchPermissible()) {
 						void this.rematch();
 					}
+					event.preventDefault();
+					break;
+
+				case 'KeyH':
+					void this.openShortcutHelp();
 					event.preventDefault();
 					break;
 			}
@@ -345,6 +355,29 @@ export class IndexPage extends GamePage {
 		}
 	}
 
+	protected override renderTopContent(): unknown {
+		if (!this.isActiveGame)
+			return null;
+
+		return html`
+			<div class="top-bar">
+				<button
+					class="shortcut-help-trigger"
+					type="button"
+					aria-label="Open gameplay shortcuts help"
+					@click=${() => void this.openShortcutHelp()}
+				>
+					<span class="shortcut-keys" aria-hidden="true">
+						<span class="keycap">Shift</span>
+						<span>+</span>
+						<span class="keycap">H</span>
+					</span>
+					<span class="shortcut-help-trigger-text">Shortcuts</span>
+				</button>
+			</div>
+		`;
+	}
+
 	protected async removeFocusedPlayer(): Promise<void> {
 		if (!this.isActiveGame)
 			return;
@@ -410,6 +443,16 @@ export class IndexPage extends GamePage {
 		const safeThrowIndex = Math.min(throwIndex, Math.max((round?.dartThrows.length ?? 1) - 1, 0));
 
 		this.focusDartThrow(playerIndex, safeRowIndex, safeThrowIndex);
+	}
+
+	private async openShortcutHelp(): Promise<void> {
+		if (!this.isActiveGame)
+			return;
+
+		await this.dialogService.open(
+			gameplayShortcutsTemplate(),
+			{ title: 'Gameplay Shortcuts' },
+		);
 	}
 
 	protected async createGame(): Promise<void> {

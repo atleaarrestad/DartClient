@@ -4,6 +4,14 @@
 	height: 100%;
 }
 
+.page-shell {
+	min-height: 0;
+	height: 100%;
+	display: grid;
+	grid-template-rows: minmax(0, 1fr);
+	position: relative;
+}
+
 .page-content {
 	min-height: 0;
 	height: 100%;
@@ -68,7 +76,8 @@
 	grid-auto-rows: max-content;
 	justify-items: center;
 	align-items: start;
-	padding-block: 24px;
+	padding-top: 24px;
+	padding-bottom: 88px;
 	padding-left: 12px;
 	padding-right: calc(12px - var(--scrollbar-width));
 
@@ -267,6 +276,57 @@
 	border-radius: 12px;
 	line-height: 1;
 	box-shadow: 2px 2px 0 #000;
+}
+
+.top-bar {
+	position: absolute;
+	left: 1rem;
+	bottom: 1rem;
+	z-index: 2;
+	pointer-events: none;
+}
+
+.shortcut-help-trigger {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	flex-wrap: wrap;
+	padding: 0.35rem 0.55rem;
+	background: #fffdf6;
+	border: 2px solid #000;
+	border-radius: 14px;
+	box-shadow: 2px 2px 0 #000;
+	font: inherit;
+	font-weight: 900;
+	cursor: pointer;
+	max-width: max-content;
+	pointer-events: auto;
+}
+
+.shortcut-help-trigger:hover {
+	background: #fff7d6;
+}
+
+.shortcut-help-trigger:active {
+	transform: translate(1px, 1px);
+	box-shadow: 1px 1px 0 #000;
+}
+
+.shortcut-help-trigger-text {
+	font-size: 0.85rem;
+	line-height: 1;
+}
+
+.shortcut-help-trigger .shortcut-keys {
+	gap: 0.25rem;
+}
+
+.shortcut-help-trigger .keycap {
+	min-width: 1.75rem;
+	padding: 0.15rem 0.4rem;
+	border-radius: 10px;
+	box-shadow: 1px 1px 0 #000;
+	font-size: 0.8rem;
 }
 
 .bottom-bar {

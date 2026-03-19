@@ -242,6 +242,285 @@ export const seasonRuleDialogTemplate = ({
 	`;
 };
 
+type ShortcutEntry = {
+	label: string;
+	subtext?: string;
+	combos: string[][];
+};
+
+type ShortcutSection = {
+	title: string;
+	items: ShortcutEntry[];
+};
+
+const gameplayShortcutSections: ShortcutSection[] = [
+	{
+		title: 'Navigation',
+		items: [
+			{
+				label: 'Open shortcut help',
+				subtext: 'Shows this quick reference during a game.',
+				combos: [[ 'Shift', 'H' ]],
+			},
+			{
+				label: 'Move to next throw',
+				subtext: 'Follows the normal throw order.',
+				combos: [[ 'Tab' ], [ 'Enter' ]],
+			},
+			{
+				label: 'Move to previous throw',
+				subtext: 'Steps backward through the throw order.',
+				combos: [[ 'Shift', 'Tab' ]],
+			},
+			{
+				label: 'Move freely around the grid',
+				subtext: 'Ignores turn order and follows the arrow direction.',
+				combos: [[ 'Shift', 'Arrow Keys' ]],
+			},
+		],
+	},
+	{
+		title: 'Players and game actions',
+		items: [
+			{
+				label: 'Add a new player',
+				subtext: 'Adds another player to the current game.',
+				combos: [[ 'Shift', '+' ]],
+			},
+			{
+				label: 'Delete focused player',
+				subtext: 'Removes the player for the currently focused throw.',
+				combos: [[ 'Shift', '-' ]],
+			},
+			{
+				label: 'Save and submit the game',
+				subtext: 'Submits the current game when it is valid.',
+				combos: [[ 'Shift', 'S' ]],
+			},
+			{
+				label: 'Start a fresh game',
+				subtext: 'Starts over with a new game session.',
+				combos: [[ 'Shift', 'N' ]],
+			},
+			{
+				label: 'Rematch last finished game',
+				subtext: 'Re-adds the players from the previous completed game.',
+				combos: [[ 'Shift', 'R' ]],
+			},
+		],
+	},
+	{
+		title: 'Throw editing',
+		items: [
+			{
+				label: 'Increase throw modifier',
+				subtext: 'Cycles through miss, rim, single, double, and triple.',
+				combos: [[ 'Arrow Up' ]],
+			},
+			{
+				label: 'Decrease throw modifier',
+				subtext: 'Cycles back down through the throw modifiers.',
+				combos: [[ 'Arrow Down' ]],
+			},
+		],
+	},
+];
+
+const renderShortcutCombo = (combo: string[]): TemplateResult => html`
+	<span class="shortcut-keys" aria-hidden="true">
+		${combo.map((part, index) => html`
+			${index > 0 ? html`<span>+</span>` : null}
+			<span class="keycap">${part}</span>
+		`)}
+	</span>
+`;
+
+export const gameplayShortcutsTemplate = (): TemplateResult => {
+	const closeDialog = (e: Event) => {
+		const dialog = (e.currentTarget as HTMLElement).closest('aa-dialog') as any;
+		dialog?.close();
+	};
+
+	return html`
+		<style>
+			.shortcut-help-dialog {
+				display: grid;
+				gap: 1rem;
+			}
+
+			.shortcut-help-intro {
+				margin: 0;
+				font-size: 0.95rem;
+				line-height: 1.45;
+				opacity: 0.82;
+			}
+
+			.shortcut-help-grid {
+				display: grid;
+				gap: 1rem;
+			}
+
+			.empty-shortcuts-card {
+				display: grid;
+				gap: 0;
+				background: #fffdf6;
+				border: 2px solid #000;
+				border-radius: 20px;
+				box-shadow: 4px 4px 0 #000;
+				overflow: hidden;
+			}
+
+			.shortcut-section {
+				display: grid;
+				gap: 0.75rem;
+				padding: 1rem 1.1rem;
+			}
+
+			.shortcut-section-title {
+				margin: 0;
+				font-size: 0.9rem;
+				font-weight: 900;
+				text-transform: uppercase;
+				letter-spacing: 0.04em;
+				opacity: 0.65;
+				text-align: left;
+			}
+
+			.shortcut-divider {
+				height: 2px;
+				background: repeating-linear-gradient(to right,
+						#000 0 10px,
+						transparent 10px 16px);
+				opacity: 0.35;
+				margin: 0 1rem;
+			}
+
+			.shortcut-row {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+
+			.shortcut-text {
+				display: grid;
+				gap: 0.2rem;
+				flex: 1 1 16rem;
+			}
+
+			.shortcut-label {
+				font-size: 1.05rem;
+				font-weight: 900;
+				text-align: left;
+			}
+
+			.shortcut-subtext {
+				font-size: 0.85rem;
+				font-weight: 800;
+				opacity: 0.65;
+				text-align: left;
+			}
+
+			.shortcut-key-group {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.5rem;
+				flex-wrap: wrap;
+			}
+
+			.shortcut-keys {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.35rem;
+				font-weight: 900;
+			}
+
+			.shortcut-separator {
+				font-size: 0.85rem;
+				font-weight: 900;
+				opacity: 0.55;
+			}
+
+			.keycap {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				min-width: 2.1rem;
+				padding: 0.2rem 0.5rem;
+				background: #fff;
+				border: 2px solid #000;
+				border-radius: 12px;
+				line-height: 1;
+				box-shadow: 2px 2px 0 #000;
+			}
+
+			.shortcut-help-footer {
+				display: flex;
+				justify-content: flex-end;
+			}
+
+			.shortcut-help-btn {
+				appearance: none;
+				background: white;
+				border: 2px solid black;
+				border-right-width: 4px;
+				border-bottom-width: 4px;
+				border-radius: 14px;
+				padding: 0.5rem 0.9rem;
+				font-weight: 800;
+				cursor: pointer;
+				box-shadow: 4px 4px 0 black;
+			}
+
+			.shortcut-help-btn:active {
+				transform: translate(2px, 2px);
+				box-shadow: 2px 2px 0 black;
+			}
+		</style>
+
+		<div class="shortcut-help-dialog">
+			<p class="shortcut-help-intro">
+				The game supports fast keyboard play. Use these shortcuts whenever a game is active.
+			</p>
+
+			<div class="shortcut-help-grid">
+				<div class="empty-shortcuts-card">
+					${gameplayShortcutSections.map((section, sectionIndex) => html`
+						<div class="shortcut-section">
+							<h3 class="shortcut-section-title">${section.title}</h3>
+
+							${section.items.map(item => html`
+								<div class="shortcut-row">
+									<div class="shortcut-text">
+										<span class="shortcut-label">${item.label}</span>
+										${item.subtext ? html`<span class="shortcut-subtext">${item.subtext}</span>` : null}
+									</div>
+
+									<span class="shortcut-key-group">
+										${item.combos.map((combo, comboIndex) => html`
+											${comboIndex > 0 ? html`<span class="shortcut-separator">/</span>` : null}
+											${renderShortcutCombo(combo)}
+										`)}
+									</span>
+								</div>
+							`)}
+						</div>
+
+						${sectionIndex < gameplayShortcutSections.length - 1
+							? html`<div class="shortcut-divider"></div>`
+							: null}
+					`)}
+				</div>
+			</div>
+
+			<div class="shortcut-help-footer">
+				<button class="shortcut-help-btn" @click=${closeDialog}>Close</button>
+			</div>
+		</div>
+	`;
+};
+
 const getOrdinal = (n: number): string => {
 	const s = [ 'th', 'st', 'nd', 'rd' ],
 		v = n % 100;
