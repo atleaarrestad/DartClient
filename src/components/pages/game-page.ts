@@ -140,7 +140,7 @@ export class GamePage extends LitElement {
 		this.notificationService.addNotification({
 			type: 'achievement',
 			achievementNames,
-			timeout: 5000,
+			timeout: 6000,
 		});
 	}
 

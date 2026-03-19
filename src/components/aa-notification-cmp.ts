@@ -66,16 +66,22 @@ export class NotificationElement extends LitElement {
 		case 'success': return 'var(--color-success)';
 		case 'danger': return 'var(--color-danger)';
 		case 'info': return 'var(--color-info)';
-		case 'achievement': return 'linear-gradient(135deg, #ffe082 0%, #ffca28 100%)';
+		case 'achievement': return 'linear-gradient(135deg, #f7d8ff 0%, #dff1ff 100%)';
 		default: return '#333';
 		}
 	}
 
 	private renderContent() {
 		if (this.type === 'achievement') {
+			const achievementCount = this.achievementNames.length || 1;
+
 			return html`
 				<div class="content achievement-content">
-					<div class="title">Achievement Unlocked</div>
+					<div class="achievement-eyebrow">Session achievement</div>
+					<div class="achievement-header">
+						<div class="title">Achievement Unlocked</div>
+						<div class="achievement-count">${achievementCount}</div>
+					</div>
 
 					${this.achievementNames.length > 0
 						? html`
@@ -181,38 +187,117 @@ export class NotificationElement extends LitElement {
 		}
 
 		.achievement-notification {
-			width: 360px;
-			padding: 14px 20px;
+			grid-template-columns: auto 1fr;
+			width: 420px;
+			padding: 18px 22px 20px;
 			border-width: 3px;
-			box-shadow: 4px 4px 0px 0px black;
+			border-color: black;
+			color: black;
+			box-shadow: 6px 6px 0 0 black;
 		}
 
 		.achievement-notification .icon {
-			font-size: 1.5rem;
+			position: relative;
+			display: grid;
+			place-items: center;
 			align-self: start;
-			padding-top: 2px;
+			width: 64px;
+			height: 64px;
+			margin-right: 1rem;
+			padding: 0;
+			border: 3px solid black;
+			border-radius: 50%;
+			font-size: 1.75rem;
+			color: #4a2a00;
+			background: #ffe69b;
+			box-shadow: 4px 4px 0 0 black;
+		}
+
+		.achievement-notification .icon::before,
+		.achievement-notification .icon::after {
+			position: absolute;
+			color: #ff79c6;
+			font-size: 0.85rem;
+		}
+
+		.achievement-notification .icon::before {
+			content: '✦';
+			top: 2px;
+			right: -2px;
+		}
+
+		.achievement-notification .icon::after {
+			content: '✦';
+			bottom: 6px;
+			left: -6px;
 		}
 
 		.achievement-content {
 			display: flex;
 			flex-direction: column;
+			gap: 0.4rem;
+		}
+
+		.achievement-eyebrow {
+			width: fit-content;
+			padding: 0.2rem 0.6rem;
+			border: 2px solid black;
+			border-radius: 999px;
+			background: #fff7b8;
+			color: black;
+			font-size: 0.68rem;
+			font-weight: 900;
+			letter-spacing: 0.16em;
+			text-transform: uppercase;
+			box-shadow: 2px 2px 0 0 black;
+		}
+
+		.achievement-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 0.75rem;
+		}
+
+		.achievement-count {
+			flex-shrink: 0;
+			min-width: 2rem;
+			padding: 0.18rem 0.55rem;
+			border-radius: 999px;
+			background: #c9f0ff;
+			border: 2px solid black;
+			color: black;
+			font-size: 0.85rem;
+			font-weight: 900;
+			text-align: center;
+			box-shadow: 2px 2px 0 0 black;
+		}
+
+		.achievement-subtitle {
+			color: #3c3351;
+			font-size: 0.92rem;
+			font-family: var(--font-family-second);
 		}
 
 		.achievement-list {
 			margin: 0;
-			padding-left: 1.2rem;
 			display: flex;
-			flex-direction: column;
-			gap: 0.25rem;
+			flex-wrap: wrap;
+			gap: 0.45rem;
 			font-family: var(--font-family-second);
 		}
 
 		.achievement-item {
-			font-size: 0.95rem;
-			line-height: 1.3;
-			white-space: nowrap;
-			overflow: hidden;
-			text-overflow: ellipsis;
+			max-width: 100%;
+			padding: 0.45rem 0.75rem;
+			border: 2px solid black;
+			border-radius: 999px;
+			background: #fffefb;
+			color: black;
+			font-size: 0.9rem;
+			line-height: 1.25;
+			box-shadow: 2px 2px 0 0 black;
+			overflow-wrap: anywhere;
 		}
 
 		.progress-track {
@@ -224,12 +309,22 @@ export class NotificationElement extends LitElement {
 			background: rgba(0, 0, 0, 0.12);
 		}
 
+		.achievement-notification .progress-track {
+			height: 8px;
+			background: rgba(255, 255, 255, 0.55);
+			border-top: 2px solid black;
+		}
+
 		.progress-bar {
 			height: 100%;
 			width: 100%;
 			background: rgba(58, 254, 104, 0.95);
 			transform: scaleX(1);
 			transform-origin: left;
+		}
+
+		.achievement-notification .progress-bar {
+			background: linear-gradient(90deg, #ff9ecb 0%, #ffd37a 45%, #b7f0c2 100%);
 		}
 
 		.progress-bar.active {
