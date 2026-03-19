@@ -480,10 +480,6 @@ export const gameplayShortcutsTemplate = (): TemplateResult => {
 		</style>
 
 		<div class="shortcut-help-dialog">
-			<p class="shortcut-help-intro">
-				The game supports fast keyboard play. Use these shortcuts whenever a game is active.
-			</p>
-
 			<div class="shortcut-help-grid">
 				<div class="empty-shortcuts-card">
 					${gameplayShortcutSections.map((section, sectionIndex) => html`
