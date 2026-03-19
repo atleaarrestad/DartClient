@@ -78,6 +78,8 @@ export class IndexPage extends GamePage {
 					round.dartThrows[selectedDartThrowDetails.throwIndex!] = storedOldValue;
 				}
 			}
+
+			this.focusNextValidPlayerAfterRoundFailure(playerIndex, roundNumber);
 		}
 		catch {
 			/* */
@@ -456,7 +458,48 @@ export class IndexPage extends GamePage {
 		this.focusDartThrow(0, 0 ,0);
 	}
 
+	protected focusNextValidPlayerAfterRoundFailure(playerIndex: number, roundIndex: number): void {
+		const roundStatus = this.players[playerIndex]?.rounds[roundIndex]?.roundStatus;
+		if (roundStatus !== RoundStatus.Overshoot
+			&& roundStatus !== RoundStatus.WinConditionFailed)
+			return;
 
+		const nextTurnStart = this.getNextPlayerTurnStart(playerIndex, roundIndex);
+		if (!nextTurnStart || this.isFocusAlreadyOnTurn(nextTurnStart))
+			return;
+
+		this.focusDartThrow(
+			nextTurnStart.nextPlayerIndex,
+			nextTurnStart.nextRoundIndex,
+			nextTurnStart.nextThrowIndex,
+		);
+	}
+
+	protected getNextPlayerTurnStart(
+		playerIndex: number,
+		roundIndex: number,
+	): { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number; } | null {
+		const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'forward');
+
+		if (nextFocusablePlayer === undefined)
+			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
+
+		if (nextFocusablePlayer < playerIndex)
+			return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
+
+		return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
+	}
+
+	protected isFocusAlreadyOnTurn(
+		target: { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number; },
+	): boolean {
+		const selectedElementDetails = this.getSelectedElementDetails();
+		if (selectedElementDetails.type !== 'throw')
+			return false;
+
+		return selectedElementDetails.playerIndex === target.nextPlayerIndex
+			&& selectedElementDetails.rowIndex === target.nextRoundIndex;
+	}
 
 	protected getNextFocusablePlayer(
 		currentPlayerIndex: number,
