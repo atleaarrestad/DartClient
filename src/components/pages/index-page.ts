@@ -116,7 +116,7 @@ export class IndexPage extends GamePage {
 
 				case 'Slash':
 				case 'NumpadSubtract':
-					void this.removeLastPlayer();
+					void this.removeFocusedPlayer();
 					event.preventDefault();
 					break;
 
@@ -345,15 +345,71 @@ export class IndexPage extends GamePage {
 		}
 	}
 
-	protected async removeLastPlayer(): Promise<void> {
+	protected async removeFocusedPlayer(): Promise<void> {
 		if (!this.isActiveGame)
 			return;
 
-		const playerId = this.players.at(-1)?.playerId;
+		const selectedElementDetails = this.getSelectedElementDetails();
+		if (selectedElementDetails.type !== 'throw')
+			return;
+
+		const playerIndex = selectedElementDetails.playerIndex;
+		if (playerIndex === undefined)
+			return;
+
+		const playerId = this.players[playerIndex]?.playerId;
 		if (playerId && this.gameIdFromLocalStorage) {
+			const targetFocus = this.getFocusTargetAfterPlayerRemoval(
+				playerIndex,
+				selectedElementDetails.rowIndex ?? 0,
+				selectedElementDetails.throwIndex ?? 0,
+			);
+
 			const gameTracker = await this.gameService.removePlayer(this.gameIdFromLocalStorage, playerId);
 			this.updateGameState(gameTracker);
+
+			if (!targetFocus) {
+				this.selectedId = undefined;
+				this.selectedCellElement = undefined;
+				this.requestUpdate();
+				return;
+			}
+
+			await this.updateComplete;
+			this.focusClosestDartThrow(targetFocus.playerIndex, targetFocus.rowIndex, targetFocus.throwIndex);
 		}
+	}
+
+	private getFocusTargetAfterPlayerRemoval(
+		playerIndex: number,
+		rowIndex: number,
+		throwIndex: number,
+	): { playerIndex: number; rowIndex: number; throwIndex: number; } | undefined {
+		const remainingPlayerCount = this.players.length - 1;
+		if (remainingPlayerCount <= 0)
+			return;
+
+		return {
+			playerIndex: Math.min(playerIndex, remainingPlayerCount - 1),
+			rowIndex,
+			throwIndex,
+		};
+	}
+
+	private focusClosestDartThrow(playerIndex: number, rowIndex: number, throwIndex: number): void {
+		const player = this.players[playerIndex];
+		if (!player) {
+			this.selectedId = undefined;
+			this.selectedCellElement = undefined;
+			this.requestUpdate();
+			return;
+		}
+
+		const safeRowIndex = Math.min(rowIndex, Math.max(player.rounds.length - 1, 0));
+		const round = player.rounds[safeRowIndex];
+		const safeThrowIndex = Math.min(throwIndex, Math.max((round?.dartThrows.length ?? 1) - 1, 0));
+
+		this.focusDartThrow(playerIndex, safeRowIndex, safeThrowIndex);
 	}
 
 	protected async createGame(): Promise<void> {
