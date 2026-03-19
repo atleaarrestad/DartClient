@@ -37,6 +37,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
+        env:
+          PUBLIC_BASE: /${{ github.event.repository.name }}/
         run: pnpm run build
 
       - name: Setup Pages
