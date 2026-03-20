@@ -14,6 +14,15 @@ type ChangelogEntry = {
 const changelogEntries: ChangelogEntry[] = [
 	{
 		date: '2026-03-19',
+		title: 'SignalR resilience',
+		tag: 'feature',
+		changes: [
+			'Added feature to restore connections automatically after problems with signalR are solved',
+			'Added small GUI hint bottom left during gameplay to indicate connection status',
+		],
+	},
+	{
+		date: '2026-03-19',
 		title: 'Shortcut menu',
 		tag: 'feature',
 		changes: [
