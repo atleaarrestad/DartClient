@@ -13,7 +13,7 @@ type ChangelogEntry = {
 
 const changelogEntries: ChangelogEntry[] = [
 	{
-		date: '2026-03-19',
+		date: '2026-03-20',
 		title: 'SignalR resilience',
 		tag: 'feature',
 		changes: [
