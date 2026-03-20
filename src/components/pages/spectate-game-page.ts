@@ -1,4 +1,5 @@
 import '../aa-button-cmp.js';
+import { html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { GamePage } from './game-page.js';
 import { GameResult, GameTracker } from "../../models/schemas.js";
@@ -23,6 +24,20 @@ export class SpectateGamePage extends GamePage {
 		this.signalRService.off("OnGameUpdated", this.onGameUpdated);
 		this.signalRService.off("OnGameFinished", this.onGameFinished);
 		await super.disconnectedCallback();
+	}
+
+	protected override renderTopContent(): unknown {
+		return html`
+			<div class="top-bar spectate-top-bar">
+				<div class="spectate-indicator" role="note" aria-label="You are spectating this game">
+					<span class="spectate-indicator__eyebrow">
+						<span class="spectate-indicator__live-dot" aria-hidden="true"></span>
+						Spectating
+					</span>
+					<span class="spectate-indicator__text">Inputs are locked. Use Home to return to your play board.</span>
+				</div>
+			</div>
+		`;
 	}
 
 	protected override async registerSignalRSubscriptions(): Promise<void> {
