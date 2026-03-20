@@ -21,8 +21,9 @@ import { sharedStyles } from '../../styles.js';
 import gamePageStyles from './game-page.css?inline';
 import { aaDartThrow } from '../aa-dart-throw-cmp.js';
 import { achievementService } from '../../services/achievementService.js';
-import { signalRService } from '../../services/signalRService.js';
+import { SignalRConnectionStatus, signalRService } from '../../services/signalRService.js';
 import { CacheService } from '../../services/cacheService.js';
+import { getErrorMessage } from '../../helpers/getErrorMessage.js';
 
 export class GamePage extends LitElement {
 
@@ -32,6 +33,9 @@ export class GamePage extends LitElement {
 	@state() protected season?: Season;
 	@state() protected loading: boolean = true;
 	@state() protected isReadOnly: boolean = true;
+	@state() protected syncStatus: SignalRConnectionStatus = 'disconnected';
+	@state() protected syncStatusMessage = 'Live sync offline';
+	@state() protected browserOnline = navigator.onLine;
 
 	protected dataService: DataService;
 	protected seasonService: SeasonService;
@@ -48,6 +52,9 @@ export class GamePage extends LitElement {
 	protected isActiveGame: boolean = false;
 	protected scrollLeader: HTMLElement | null = null;
 	protected signalRService: signalRService;
+	private removeSignalRStatusListener?: () => void;
+	private hasShownInitialSyncFailure = false;
+	private readonly achievementSubscriptionKey = 'session-achievement';
 	private readonly onSessionAchievementUnlocked = (
 		gameId: string,
 		playerId: string,
@@ -70,17 +77,19 @@ export class GamePage extends LitElement {
 
 	override connectedCallback(): void {
 		super.connectedCallback();
+		window.addEventListener('offline', this.handleBrowserOffline);
+		window.addEventListener('online', this.handleBrowserOnline);
 		void this.initialize();
 	}
 
 	override async disconnectedCallback(): Promise<void> {
 		super.disconnectedCallback();
 
-		if (this.gameIdFromLocalStorage) {
-			await this.unSubscribeToAchievementEvents(this.gameIdFromLocalStorage);
-		}
-
-		this.signalRService.stop();
+		window.removeEventListener('offline', this.handleBrowserOffline);
+		window.removeEventListener('online', this.handleBrowserOnline);
+		this.removeSignalRStatusListener?.();
+		await this.beforeSignalRStop();
+		await this.signalRService.stop();
 	}
 
 	protected async initialize(): Promise<void> {
@@ -108,23 +117,32 @@ export class GamePage extends LitElement {
 
 		void this.scrollToEndInPlayerRounds();
 
-		this.signalRService.buildHubConnection('hubs/main');
-		await this.signalRService.start();
+		await this.signalRService.buildHubConnection('hubs/main');
+		this.bindSignalRState();
 
-		if (this.gameIdFromLocalStorage) {
-			await this.subscribeToAchievementEvents(this.gameIdFromLocalStorage);
+		try {
+			await this.signalRService.start();
+			await this.registerSignalRSubscriptions();
+		}
+		catch (error) {
+			this.reportError(error, 'Live updates are unavailable right now. Retrying automatically...');
 		}
 	}
 
 	public async subscribeToAchievementEvents(gameId: string) {
 		this.signalRService.off('OnSessionAchievementUnlocked');
 		this.signalRService.on('OnSessionAchievementUnlocked', this.onSessionAchievementUnlocked);
-		await this.signalRService.invoke<void>('SubscribeAchievement', gameId);
+		await this.signalRService.subscribe(
+			this.achievementSubscriptionKey,
+			'SubscribeAchievement',
+			[ gameId ],
+			'UnsubscribeAchievement',
+		);
 	}
 
 	public async unSubscribeToAchievementEvents(gameId: string) {
 		this.signalRService.off('OnSessionAchievementUnlocked');
-		await this.signalRService.invoke<void>('UnsubscribeAchievement', gameId);
+		await this.signalRService.unsubscribe(this.achievementSubscriptionKey);
 	}
 
 	private async HandleSessionAchievementUnlocked(
@@ -145,8 +163,12 @@ export class GamePage extends LitElement {
 	}
 
 	protected async healthCheckServer(): Promise<void> {
-		this.dataService.Ping()
-			.catch(error => this.notificationService.addNotification({ type: 'danger', message: error }));
+		try {
+			await this.dataService.Ping();
+		}
+		catch (error) {
+			this.reportError(error, 'Unable to reach the server.');
+		}
 	}
 
 	protected async loadUsers(options?: GetAllUsersOptions): Promise<void> {
@@ -163,11 +185,137 @@ export class GamePage extends LitElement {
 				this.users = users ? [...users] : [];
 			})
 			.catch((error) => {
-				this.notificationService.addNotification({
-					type: 'danger',
-					message: error,
-				});
+				this.reportError(error, 'Unable to load users.');
 			});
+	}
+
+	protected async registerSignalRSubscriptions(): Promise<void> {
+		if (this.gameIdFromLocalStorage)
+			await this.subscribeToAchievementEvents(this.gameIdFromLocalStorage);
+	}
+
+	protected async beforeSignalRStop(): Promise<void> {
+		if (this.gameIdFromLocalStorage)
+			await this.unSubscribeToAchievementEvents(this.gameIdFromLocalStorage);
+	}
+
+	protected reportError(error: unknown, fallback: string): void {
+		this.notificationService.addNotification({
+			type: 'danger',
+			message: getErrorMessage(error, fallback),
+		});
+	}
+
+	protected renderSyncStatus(): unknown {
+		const displayStatus = this.getDisplaySyncStatus();
+		if (!this.isActiveGame && displayStatus === 'connected')
+			return null;
+
+		const statusText = displayStatus === 'connected'
+			? 'Sync connected'
+			: displayStatus === 'connecting'
+				? 'Sync connecting...'
+				: displayStatus === 'reconnecting'
+					? 'Sync reconnecting...'
+					: 'Sync offline';
+		const statusMessage = this.getDisplaySyncStatusMessage();
+		const showDetails = displayStatus !== 'connected';
+
+		return html`
+			<div class="sync-status sync-status--${ displayStatus }" role="status" aria-live="polite">
+				<span class="sync-status__dot" aria-hidden="true"></span>
+				<div class="sync-status__copy">
+					<span class="sync-status__title">${ statusText }</span>
+					${ showDetails
+						? html`<span class="sync-status__message">${ statusMessage }</span>`
+						: null }
+				</div>
+			</div>
+		`;
+	}
+
+	private bindSignalRState(): void {
+		this.removeSignalRStatusListener?.();
+
+		this.removeSignalRStatusListener = this.signalRService.addStatusListener(
+			(status, error) => this.handleSignalRStatusChanged(status, error),
+		);
+	}
+
+	private handleSignalRStatusChanged(status: SignalRConnectionStatus, error?: Error): void {
+		const previousStatus = this.syncStatus;
+		this.syncStatus = status;
+		this.syncStatusMessage = this.getSignalRStatusMessage(status, error);
+
+		if (status === 'disconnected' && previousStatus === 'connecting' && !this.hasShownInitialSyncFailure) {
+			this.hasShownInitialSyncFailure = true;
+			this.reportError(error, 'Unable to connect to live updates. Retrying automatically...');
+		}
+		else if (status === 'reconnecting' && previousStatus !== 'reconnecting') {
+			this.notificationService.addNotification({
+				type: 'info',
+				message: 'Live sync was interrupted. Reconnecting...',
+			});
+		}
+		else if (status === 'connected') {
+			if (previousStatus === 'reconnecting' || this.hasShownInitialSyncFailure) {
+				this.notificationService.addNotification({
+					type: 'success',
+					message: 'Live sync restored.',
+				});
+			}
+			this.hasShownInitialSyncFailure = false;
+		}
+	}
+
+	private readonly handleBrowserOffline = (): void => {
+		this.browserOnline = false;
+		this.notificationService.addNotification({
+			type: 'danger',
+			message: 'Browser is offline. Live sync will resume when your connection returns.',
+		});
+	};
+
+	private readonly handleBrowserOnline = (): void => {
+		const wasOffline = !this.browserOnline;
+		this.browserOnline = true;
+
+		if (wasOffline) {
+			this.notificationService.addNotification({
+				type: 'info',
+				message: 'Browser connection restored. Reconnecting live sync...',
+			});
+		}
+
+		void this.signalRService.start().catch(() => {});
+	};
+
+	private getSignalRStatusMessage(status: SignalRConnectionStatus, error?: Error): string {
+		switch (status) {
+		case 'connected':
+			return 'Real-time updates are active.';
+		case 'connecting':
+			return 'Connecting to the game hub...';
+		case 'reconnecting':
+			return getErrorMessage(error, 'Trying to restore live updates...');
+		case 'disconnected':
+		default:
+			return getErrorMessage(error, 'Updates may be delayed until the connection returns.');
+		}
+	}
+
+	private getDisplaySyncStatus(): SignalRConnectionStatus {
+		if (!this.browserOnline)
+			return 'disconnected';
+
+		return this.syncStatus;
+	}
+
+	private getDisplaySyncStatusMessage(): string {
+		if (!this.browserOnline)
+			return 'Browser offline. Waiting for network...';
+
+		return this.syncStatusMessage;
 	}
 
 	protected async GetLatestSeason(): Promise<void> {
@@ -309,7 +457,10 @@ export class GamePage extends LitElement {
 
 		return html`
 			<div class="page-shell">
-				${this.renderTopContent()}
+				<div class="floating-controls">
+					${this.renderTopContent()}
+					${this.renderSyncStatus()}
+				</div>
 
 				<div class="page-content">
 					<div class="player-container">
@@ -361,6 +512,7 @@ export class GamePage extends LitElement {
 															${map(round.dartThrows, (dartThrow, throwIndex) => {
 																const onThrowUpdated = async (e: CustomEvent) => {
 																	const cmp = e.currentTarget as aaDartThrow;
+																	const previousThrow = this.players[playerIndex]?.rounds[roundIndex]?.dartThrows[throwIndex];
 
 																	cmp.isSaving = true;
 																	try {
@@ -369,6 +521,13 @@ export class GamePage extends LitElement {
 																			playerIndex,
 																			roundIndex,
 																		);
+																	}
+																	catch (error) {
+																		if (previousThrow) {
+																			cmp.dartThrow = { ...previousThrow };
+																			cmp.requestUpdate();
+																		}
+																		this.reportError(error, 'Unable to save dart throw.');
 																	}
 																	finally {
 																		cmp.isSaving = false;

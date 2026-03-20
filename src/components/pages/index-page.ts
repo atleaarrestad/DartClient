@@ -54,41 +54,36 @@ export class IndexPage extends GamePage {
 
 		const playerId = this.getUserFromPlayerIndex(playerIndex)?.id;
 
-		try {
-			const gameTracker = await this.gameService
-				.addDartThrowToGame(this.gameIdFromLocalStorage!, playerId!, roundNumber, updatedThrow);
+		const gameTracker = await this.gameService
+			.addDartThrowToGame(this.gameIdFromLocalStorage!, playerId!, roundNumber, updatedThrow);
 
-			const selectedCellElement: aaDartThrow | undefined = this.selectedCellElement;
-			const selectedDartThrow: DartThrow | undefined = selectedCellElement?.dartThrow;
-			const selectedDartThrowDetails = this.getSelectedElementDetails();
-			const hasValidOldSelection = selectedCellElement && selectedDartThrow && selectedDartThrowDetails;
-			let storedOldValue: DartThrow | undefined = undefined;
+		const selectedCellElement: aaDartThrow | undefined = this.selectedCellElement;
+		const selectedDartThrow: DartThrow | undefined = selectedCellElement?.dartThrow;
+		const selectedDartThrowDetails = this.getSelectedElementDetails();
+		const hasValidOldSelection = selectedCellElement && selectedDartThrow && selectedDartThrowDetails;
+		let storedOldValue: DartThrow | undefined = undefined;
 
-			if (hasValidOldSelection && selectedDartThrowDetails.throwIndex !== updatedThrow.throwIndex) {
-				const existingThrow =
-					this.players[selectedDartThrowDetails.playerIndex!]?.rounds[selectedDartThrowDetails.rowIndex!]?.dartThrows[selectedDartThrowDetails.throwIndex!];
+		if (hasValidOldSelection && selectedDartThrowDetails.throwIndex !== updatedThrow.throwIndex) {
+			const existingThrow =
+				this.players[selectedDartThrowDetails.playerIndex!]?.rounds[selectedDartThrowDetails.rowIndex!]?.dartThrows[selectedDartThrowDetails.throwIndex!];
 
-				if (existingThrow) {
-					storedOldValue = { ...selectedCellElement.dartThrow };
-				}
+			if (existingThrow) {
+				storedOldValue = { ...selectedCellElement.dartThrow };
 			}
+		}
 
-			this.updateGameState(gameTracker);
+		this.updateGameState(gameTracker);
 
-			if (storedOldValue) {
-				const player = this.players[selectedDartThrowDetails.playerIndex!];
-				const round = player?.rounds[selectedDartThrowDetails.rowIndex!];
+		if (storedOldValue) {
+			const player = this.players[selectedDartThrowDetails.playerIndex!];
+			const round = player?.rounds[selectedDartThrowDetails.rowIndex!];
 
-				if (round) {
-					round.dartThrows[selectedDartThrowDetails.throwIndex!] = storedOldValue;
-				}
+			if (round) {
+				round.dartThrows[selectedDartThrowDetails.throwIndex!] = storedOldValue;
 			}
+		}
 
-			this.focusNextValidPlayerAfterRoundFailure(playerIndex, roundNumber);
-		}
-		catch {
-			/* */
-		}
+		this.focusNextValidPlayerAfterRoundFailure(playerIndex, roundNumber);
 	}
 
 	protected onKeyDown = this.handleKeyDown.bind(this);
@@ -473,8 +468,9 @@ export class IndexPage extends GamePage {
 			await this.requestNewGame();
 			await this.addNewPlayer(user);
 		}
-		catch {
+		catch (error) {
 			this.isActiveGame = false;
+			this.reportError(error, 'Unable to create a new game.');
 		}
 		finally {
 			this.creatingGame = false;
@@ -522,8 +518,7 @@ export class IndexPage extends GamePage {
 			);
 		}
 		catch (error) {
-			const errorMessage = (error as Error).message;
-			this.notificationService.addNotification({ type: 'danger', message: errorMessage });
+			this.reportError(error, 'Unable to save the game.');
 		}
 	}
 

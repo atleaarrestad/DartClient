@@ -21,6 +21,7 @@ import {
 	User,
 	UserSchema,
 } from '../models/schemas.js';
+import { getErrorMessage } from '../helpers/getErrorMessage.js';
 
 export type ApiResponse<T> =
 	| { ok: true; data: T; }
@@ -83,7 +84,7 @@ export class DataService {
 			return result.data;
 		}
 
-		throw new Error('Failed to create new game');
+		throw this.createApiError('Failed to create new game', result);
 	}
 
 	async getActiveGameSession(gameId: string): Promise<GameTracker | undefined> {
@@ -135,9 +136,7 @@ export class DataService {
 		);
 
 		if (!result.ok) {
-			throw new Error(
-				`Failed to add player to active game: ${result.status} ${result.statusText}`,
-			);
+			throw this.createApiError('Failed to add player to active game', result);
 		}
 
 		try {
@@ -154,9 +153,7 @@ export class DataService {
 		);
 
 		if (!result.ok) {
-			throw new Error(
-				`Failed to delete player from active game: ${result.status} ${result.statusText}`,
-			);
+			throw this.createApiError('Failed to remove player from active game', result);
 		}
 
 		try {
@@ -192,9 +189,7 @@ export class DataService {
 			);
 
 			if (!result.ok) {
-				throw new Error(
-					`Failed to add player to active game: ${result.status} ${result.statusText}`,
-				);
+				throw this.createApiError('Failed to save dart throw', result);
 			}
 
 			try {
@@ -247,9 +242,7 @@ export class DataService {
 		);
 
 		if (!response.ok) {
-			throw new Error(
-				`Failed to submit game! ${response.status} ${response.statusText}`,
-			);
+			throw this.createApiError('Failed to submit game', response);
 		}
 
 		try {
@@ -326,11 +319,20 @@ export class DataService {
 			...(options.headers || {}),
 		};
 
-		const res = await fetch(`${this.backendURL}${endpoint}`, {
-			...options,
-			headers,
-			signal: this.createTimeoutSignal(this.abortTimeout),
-		});
+		let res: Response;
+		try {
+			res = await fetch(`${this.backendURL}${endpoint}`, {
+				...options,
+				headers,
+				signal: this.createTimeoutSignal(this.abortTimeout),
+			});
+		}
+		catch (error) {
+			if (error instanceof DOMException && error.name === 'AbortError')
+				throw new Error('The server took too long to respond. Please try again.');
+
+			throw new Error(getErrorMessage(error, 'Unable to reach the server. Check your connection and try again.'));
+		}
 
 		const text = await res.text();
 		let body: unknown;
@@ -390,5 +392,29 @@ export class DataService {
 		setTimeout(() => controller.abort(), timeout);
 
 		return controller.signal;
+	}
+
+	private createApiError<T>(
+		prefix: string,
+		response: Extract<ApiResponse<T>, { ok: false; }>,
+	): Error {
+		const detail = this.getApiErrorDetail(response.body);
+		const statusText = `${ response.status } ${ response.statusText }`.trim();
+		const suffix = detail ?? statusText;
+
+		return new Error(`${ prefix }: ${ suffix }`);
+	}
+
+	private getApiErrorDetail(body: unknown): string | undefined {
+		if (typeof body === 'string' && body.trim().length > 0)
+			return body;
+
+		if (body && typeof body === 'object' && 'message' in body) {
+			const message = (body as { message?: unknown; }).message;
+			if (typeof message === 'string' && message.trim().length > 0)
+				return message;
+		}
+
+		return undefined;
 	}
 }
