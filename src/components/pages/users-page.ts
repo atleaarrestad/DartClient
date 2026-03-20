@@ -316,6 +316,8 @@ export class UsersPage extends LitElement {
 		css`
 			:host {
 				display: block;
+				height: 100%;
+				min-height: 0;
 			}
 
 			* {
@@ -324,8 +326,11 @@ export class UsersPage extends LitElement {
 
 			.page-shell {
 				display: grid;
+				grid-template-rows: auto minmax(0, 1fr);
 				gap: 1rem;
 				padding: 1rem;
+				height: 100%;
+				min-height: 0;
 			}
 
 			.hero-card,
@@ -391,7 +396,10 @@ export class UsersPage extends LitElement {
 			}
 
 			.table-card {
+				display: grid;
+				grid-template-rows: auto minmax(0, 1fr);
 				padding: 0.75rem;
+				min-height: 0;
 			}
 
 			.table-toolbar {
@@ -419,6 +427,7 @@ export class UsersPage extends LitElement {
 				border: 2px dashed rgba(0, 0, 0, 0.2);
 				border-radius: 14px;
 				background: rgba(255, 255, 255, 0.55);
+				min-height: 0;
 			}
 
 			.users-table {
