@@ -7,15 +7,23 @@ import { sharedStyles } from '../../styles.js';
 type ChangelogEntry = {
 	date: string;
 	title: string;
-	tag: 'bug' | 'feature';
+	tag: 'bug' | 'feature' | 'improvement';
 	changes: string[];
 };
 
 const changelogEntries: ChangelogEntry[] = [
 	{
 		date: '2026-03-20',
+		title: 'Spectate mode indicator',
+		tag: 'improvement',
+		changes: [
+			'Added indicator bottom left when in spectate mode to make sure the user knows they are currently spectating',
+		],
+	},
+	{
+		date: '2026-03-20',
 		title: 'SignalR resilience',
-		tag: 'feature',
+		tag: 'improvement',
 		changes: [
 			'Added feature to restore connections automatically after problems with signalR are solved',
 			'Added small GUI hint bottom left during gameplay to indicate connection status',
@@ -260,6 +268,10 @@ export class ChangelogPage extends LitElement {
 
 			.entry-tag--bug {
 				background: #ffd9de;
+			}
+
+			.entry-tag--improvement {
+				background: #fff7c7;
 			}
 
 			.entry-new {
