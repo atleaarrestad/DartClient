@@ -1,4 +1,5 @@
 import '../aa-button-cmp.js';
+import '../aa-loading-state.js';
 
 import { html, unsafeCSS } from 'lit';
 import { LitElement } from 'lit';
@@ -423,10 +424,6 @@ export class GamePage extends LitElement {
 		});
 	};
 
-	protected renderLoadingState(): unknown {
-		return html`<p>Loading...</p>`;
-	}
-
 	protected renderEmptyState(): unknown {
 		return html`
 			<div class="empty-state">
@@ -449,9 +446,19 @@ export class GamePage extends LitElement {
 	}
 
 	override render(): unknown {
-		if (this.loading || !this.season)
-			return this.renderLoadingState();
+		const isLoading = this.loading || !this.season;
 
+		return html`
+			<aa-loading-state
+				?loading=${isLoading}
+				label="Setting up the play area"
+			>
+				${isLoading ? null : this.renderReadyState()}
+			</aa-loading-state>
+		`;
+	}
+
+	private renderReadyState(): unknown {
 		if (!this.isActiveGame)
 			return this.renderEmptyState();
 

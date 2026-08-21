@@ -13,6 +13,7 @@ import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
 import { sharedStyles } from '../../styles.js';
 import { newUserTemplate } from '../../templates/dialogTemplates.js';
+import '../aa-loading-state.js';
 
 const base = getAbsoluteBase();
 
@@ -192,17 +193,6 @@ export class UsersPage extends LitElement {
 		`;
 	}
 
-	private renderLoading() {
-		return html`
-			<section class="page-shell">
-				<div class="loading-card" role="status" aria-live="polite">
-					<div class="loading-title">Loading players…</div>
-					<div class="loading-subtitle">Fetching current season and player stats.</div>
-				</div>
-			</section>
-		`;
-	}
-
 	private renderEmpty() {
 		return html`
 			<section class="page-shell">
@@ -216,10 +206,17 @@ export class UsersPage extends LitElement {
 	}
 
 	override render(): unknown {
-		if (this.isLoading) {
-			return this.renderLoading();
-		}
+		return html`
+			<aa-loading-state
+				?loading=${this.isLoading}
+				label="Loading players"
+			>
+				${this.isLoading ? null : this.renderContent()}
+			</aa-loading-state>
+		`;
+	}
 
+	private renderContent(): unknown {
 		if (!this.season || this.users.length === 0) {
 			return this.renderEmpty();
 		}
@@ -320,6 +317,11 @@ export class UsersPage extends LitElement {
 				min-height: 0;
 			}
 
+			aa-loading-state {
+				--aa-loading-height: 100%;
+				--aa-loading-min-height: 100%;
+			}
+
 			* {
 				box-sizing: border-box;
 			}
@@ -334,8 +336,7 @@ export class UsersPage extends LitElement {
 			}
 
 			.hero-card,
-			.table-card,
-			.loading-card {
+			.table-card {
 				background: #fffaf3;
 				border: 3px solid #000;
 				border-radius: 18px;
@@ -593,20 +594,17 @@ export class UsersPage extends LitElement {
 				font-weight: 800;
 			}
 
-			.loading-card,
 			.empty-card {
 				padding: 2rem 1rem;
 				text-align: center;
 			}
 
-			.loading-title,
 			.empty-card h3 {
 				margin: 0;
 				font-size: 1.15rem;
 				font-weight: 900;
 			}
 
-			.loading-subtitle,
 			.empty-card p {
 				margin: 0.35rem 0 0;
 				opacity: 0.72;

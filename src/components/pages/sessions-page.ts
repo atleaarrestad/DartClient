@@ -14,6 +14,7 @@ import { NotificationService } from '../../services/notificationService.js';
 import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
 import { sharedStyles } from '../../styles.js';
+import '../aa-loading-state.js';
 
 const base = getAbsoluteBase();
 
@@ -114,9 +115,17 @@ export class SessionsPage extends LitElement {
 	}
 
 	override render() {
-		if (this.loading)
-			return html`<div class="loading">loading active games…</div>`;
+		return html`
+			<aa-loading-state
+				?loading=${this.loading}
+				label="Finding active games"
+			>
+				${this.loading ? null : this.renderContent()}
+			</aa-loading-state>
+		`;
+	}
 
+	private renderContent() {
 		if (!this.gameTrackers.length) {
 			return html`
 				<section class="empty">
@@ -223,10 +232,6 @@ export class SessionsPage extends LitElement {
 			h2 {
 				margin: 0;
 				font-size: 1.4rem;
-			}
-
-			.loading {
-				padding: 2rem 0.5rem;
 			}
 
 			.empty {

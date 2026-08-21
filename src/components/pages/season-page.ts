@@ -15,6 +15,7 @@ import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
 import { sharedStyles } from '../../styles.js';
 import { seasonRuleDialogTemplate, seasonSpotlightDialogTemplate, SeasonSpotlightLeaderboardRow } from '../../templates/dialogTemplates.js';
+import '../aa-loading-state.js';
 
 @customElement('season-page')
 export class SeasonPage extends LitElement {
@@ -1410,25 +1411,18 @@ export class SeasonPage extends LitElement {
 		`;
 	}
 
-	private renderLoading() {
+	override render(): unknown {
 		return html`
-			<section class="wrap">
-				<div class="loading-card" role="status" aria-live="polite">
-					<div class="loading-spinner">
-						<i class="fas fa-spinner fa-spin"></i>
-					</div>
-					<div class="loading-title">Loading season stats</div>
-					<div class="loading-subtitle">Fetching players, rankings, achievements, and rules...</div>
-				</div>
-			</section>
+			<aa-loading-state
+				?loading=${this.isLoading}
+				label="Loading season stats"
+			>
+				${this.isLoading ? null : this.renderContent()}
+			</aa-loading-state>
 		`;
 	}
 
-	override render(): unknown {
-		if (this.isLoading) {
-			return this.renderLoading();
-		}
-
+	private renderContent(): unknown {
 		const p = this.podium;
 
 		return html`
@@ -1481,39 +1475,6 @@ export class SeasonPage extends LitElement {
 				padding: 1rem;
 				max-width: 1400px;
 				margin: 0 auto;
-			}
-
-			.loading-card {
-				min-height: 340px;
-				display: flex;
-				flex-direction: column;
-				align-items: center;
-				justify-content: center;
-				text-align: center;
-				gap: 0.65rem;
-				background: #fffdf8;
-				border: 2px solid black;
-				border-right-width: 4px;
-				border-bottom-width: 4px;
-				border-radius: 18px;
-				box-shadow: 6px 7px 0 0 black;
-				padding: 2rem 1rem;
-			}
-
-			.loading-spinner {
-				font-size: 2.5rem;
-				line-height: 1;
-			}
-
-			.loading-title {
-				font-size: 1.15rem;
-				font-weight: 900;
-			}
-
-			.loading-subtitle {
-				font-size: 0.9rem;
-				opacity: 0.72;
-				max-width: 420px;
 			}
 
 			.overview-section {

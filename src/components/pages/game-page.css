@@ -4,6 +4,11 @@
 	height: 100%;
 }
 
+aa-loading-state {
+	--aa-loading-height: 100%;
+	--aa-loading-min-height: 100%;
+}
+
 .page-shell {
 	min-height: 0;
 	height: 100%;

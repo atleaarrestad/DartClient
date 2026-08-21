@@ -25,6 +25,7 @@ import {
 	SessionAchievement,
 } from '../../models/enums.js';
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
+import '../aa-loading-state.js';
 
 @customElement('user-page')
 export class UserPage extends LitElement {
@@ -459,11 +460,24 @@ export class UserPage extends LitElement {
 	}
 
 	override render(): unknown {
-		if (this.isLoadingSeasonStats || !this.user || !this.seasons?.length || !this.selectedSeason) {
-			return html`<p>Loading data…</p>`;
-		}
+		const isLoading =
+			this.isLoadingSeasonStats ||
+			!this.user ||
+			!this.seasons?.length ||
+			!this.selectedSeason;
 
-		const stats = this.getStatsForSeason(this.selectedSeason);
+		return html`
+			<aa-loading-state
+				?loading=${isLoading}
+				label="Loading player stats"
+			>
+				${isLoading ? null : this.renderContent()}
+			</aa-loading-state>
+		`;
+	}
+
+	private renderContent(): unknown {
+		const stats = this.getStatsForSeason(this.selectedSeason!);
 
 		return html`
 			<div class="page-shell">
