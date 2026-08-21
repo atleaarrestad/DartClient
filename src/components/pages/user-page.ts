@@ -175,8 +175,8 @@ export class UserPage extends LitElement {
 	}
 
 	private renderHero(stats: SeasonStatistics): TemplateResult {
-		const highestRoundScoreDisplay =
-			`${stats.highestRoundScore} (${stats.highestRoundScoreNoSeasonRules})`;
+		const highestMmr = Math.max(stats.mmr, ...stats.matchSnapshots.map(snapshot => snapshot.mmr));
+		const totalFinishes = stats.finishCount.reduce((total, finish) => total + finish.count, 0);
 
 		return html`
 			<section class="panel hero-panel">
@@ -203,32 +203,72 @@ export class UserPage extends LitElement {
 					</label>
 				</div>
 
-				<div class="summary-grid">
-					<aa-info-card
-						label="Current Rank"
-						value=${getRankDisplayValue(stats.currentRank)}
-						imageSrc=${getRankIcon(stats.currentRank)}
-						imageAlt=${getRankDisplayValue(stats.currentRank)}
-						.rank=${stats.currentRank}
-					></aa-info-card>
+				<div class="summary-board">
+					<div class="summary-cell summary-cell--rank">
+						<img
+							class="summary-rank-icon"
+							src=${getRankIcon(stats.currentRank)}
+							alt=${getRankDisplayValue(stats.currentRank)}
+						/>
+						<div class="summary-copy">
+							<span class="summary-label">Current rank</span>
+							<strong class="summary-value">${getRankDisplayValue(stats.currentRank)}</strong>
+						</div>
+					</div>
 
-					<aa-info-card
-						label="Highest Rank"
-						value=${getRankDisplayValue(stats.highestAchievedRank)}
-						imageSrc=${getRankIcon(stats.highestAchievedRank)}
-						imageAlt=${getRankDisplayValue(stats.highestAchievedRank)}
-						.rank=${stats.highestAchievedRank}
-					></aa-info-card>
+					<div class="summary-cell summary-cell--rank">
+						<img
+							class="summary-rank-icon"
+							src=${getRankIcon(stats.highestAchievedRank)}
+							alt=${getRankDisplayValue(stats.highestAchievedRank)}
+						/>
+						<div class="summary-copy">
+							<span class="summary-label">Highest rank</span>
+							<strong class="summary-value">${getRankDisplayValue(stats.highestAchievedRank)}</strong>
+						</div>
+					</div>
 
-					<aa-info-card
-						label="Highest round score"
-						value=${highestRoundScoreDisplay}
-					></aa-info-card>
+					<div class="summary-cell">
+						<div class="summary-copy">
+							<span class="summary-label">Current MMR</span>
+							<strong class="summary-value">${stats.mmr}</strong>
+						</div>
+					</div>
 
-					<aa-info-card
-						label="Highest finishing score"
-						value=${stats.highestRoundScoreForVictory}
-					></aa-info-card>
+					<div class="summary-cell">
+						<div class="summary-copy">
+							<span class="summary-label">Highest MMR</span>
+							<strong class="summary-value">${highestMmr}</strong>
+						</div>
+					</div>
+
+					<div class="summary-cell">
+						<div class="summary-copy">
+							<span class="summary-label">Highest round score</span>
+							<strong class="summary-value">${stats.highestRoundScore}</strong>
+						</div>
+					</div>
+
+					<div class="summary-cell">
+						<div class="summary-copy">
+							<span class="summary-label">Highest raw round score</span>
+							<strong class="summary-value">${stats.highestRoundScoreNoSeasonRules}</strong>
+						</div>
+					</div>
+
+					<div class="summary-cell">
+						<div class="summary-copy">
+							<span class="summary-label">Highest finishing score</span>
+							<strong class="summary-value">${stats.highestRoundScoreForVictory}</strong>
+						</div>
+					</div>
+
+					<div class="summary-cell">
+						<div class="summary-copy">
+							<span class="summary-label">Finishes</span>
+							<strong class="summary-value">${totalFinishes}</strong>
+						</div>
+					</div>
 				</div>
 			</section>
 		`;
@@ -519,11 +559,15 @@ export class UserPage extends LitElement {
 				background: #fffaf3;
 			}
 
+			.hero-panel {
+				padding: 0.75rem 1rem;
+			}
+
 			.hero-row {
 				display: flex;
 				align-items: center;
 				justify-content: space-between;
-				gap: 1rem;
+				gap: 0.75rem;
 				flex-wrap: wrap;
 			}
 
@@ -558,17 +602,100 @@ export class UserPage extends LitElement {
 			.season-picker select {
 				border: 3px solid #000;
 				border-radius: 12px;
-				padding: 0.5rem 0.75rem;
+				padding: 0.4rem 0.65rem;
 				background: #fffefb;
 				font: inherit;
 				box-shadow: 3px 3px 0 #000;
 			}
 
-			.summary-grid {
+			.summary-board {
 				display: grid;
-				grid-template-columns: repeat(4, minmax(0, 1fr));
-				gap: 1rem;
-				margin-top: 1rem;
+				grid-template-columns: repeat(8, minmax(0, 1fr));
+				margin-top: 0.75rem;
+				overflow: hidden;
+				background: #fffefb;
+				border: 3px solid #000;
+				border-radius: 14px;
+			}
+
+			.summary-cell {
+				display: flex;
+				align-items: center;
+				min-width: 0;
+				min-height: 68px;
+				padding: 0.55rem 0.8rem;
+			}
+
+			.summary-cell + .summary-cell {
+				border-left: 3px solid #000;
+			}
+
+			.summary-cell:nth-child(1) {
+				background: #e8f0ff;
+			}
+
+			.summary-cell:nth-child(2) {
+				background: #f0edff;
+			}
+
+			.summary-cell:nth-child(3) {
+				background: #eaf8ec;
+			}
+
+			.summary-cell:nth-child(4) {
+				background: #e1f4e7;
+			}
+
+			.summary-cell:nth-child(5) {
+				background: #fff8d9;
+			}
+
+			.summary-cell:nth-child(6) {
+				background: #fff3cf;
+			}
+
+			.summary-cell:nth-child(7) {
+				background: #ffefd2;
+			}
+
+			.summary-cell:nth-child(8) {
+				background: #ffead0;
+			}
+
+			.summary-cell--rank {
+				display: grid;
+				grid-template-columns: 42px minmax(0, 1fr);
+				gap: 0.65rem;
+			}
+
+			.summary-rank-icon {
+				display: block;
+				width: 40px;
+				height: 40px;
+				object-fit: contain;
+			}
+
+			.summary-copy {
+				display: grid;
+				gap: 0.15rem;
+				min-width: 0;
+				width: 100%;
+			}
+
+			.summary-label {
+				font-size: 0.72rem;
+				font-weight: 800;
+				line-height: 1.1;
+				opacity: 0.62;
+			}
+
+			.summary-value {
+				overflow: hidden;
+				font-size: 1.05rem;
+				font-weight: 900;
+				line-height: 1.1;
+				text-overflow: ellipsis;
+				white-space: nowrap;
 			}
 
 			.stats-grid {
@@ -785,11 +912,25 @@ export class UserPage extends LitElement {
 				opacity: 0.7;
 			}
 
-			@media (max-width: 1100px) {
-				.summary-grid {
-					grid-template-columns: repeat(2, minmax(0, 1fr));
+			@media (max-width: 1400px) {
+				.summary-board {
+					grid-template-columns: repeat(4, minmax(0, 1fr));
 				}
 
+				.summary-cell + .summary-cell {
+					border-left: none;
+				}
+
+				.summary-cell:not(:nth-child(4n + 1)) {
+					border-left: 3px solid #000;
+				}
+
+				.summary-cell:nth-child(n + 5) {
+					border-top: 3px solid #000;
+				}
+			}
+
+			@media (max-width: 1100px) {
 				.stats-grid {
 					grid-template-columns: 1fr;
 				}
@@ -800,8 +941,24 @@ export class UserPage extends LitElement {
 			}
 
 			@media (max-width: 700px) {
-				.summary-grid {
-					grid-template-columns: 1fr;
+				.summary-board {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.summary-cell:not(:nth-child(4n + 1)) {
+					border-left: none;
+				}
+
+				.summary-cell:nth-child(n + 5) {
+					border-top: none;
+				}
+
+				.summary-cell:nth-child(even) {
+					border-left: 3px solid #000;
+				}
+
+				.summary-cell:nth-child(n + 3) {
+					border-top: 3px solid #000;
 				}
 
 				.hero-row {
