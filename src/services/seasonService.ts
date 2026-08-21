@@ -6,9 +6,7 @@ import { DataService } from './dataService.js';
 @injectable()
 export class SeasonService {
 
-	private currentlyActiveSeason?:        Season;
 	private currentlyActiveSeasonPromise?: Promise<Season>;
-	private seasons:                       Season[] = [];
 	private seasonsPromise?:               Promise<Season[]>;
 	private dataService:                   DataService;
 
@@ -17,20 +15,11 @@ export class SeasonService {
 	}
 
 	async getCurrentSeason(forceGetFromDatabase: boolean = false): Promise<Season> {
-		if (!forceGetFromDatabase && this.currentlyActiveSeason)
-			return this.currentlyActiveSeason;
-
-
 		if (!forceGetFromDatabase && this.currentlyActiveSeasonPromise)
 			return this.currentlyActiveSeasonPromise;
 
 
 		this.currentlyActiveSeasonPromise = this.dataService.getCurrentSeason()
-			.then((season) => {
-				this.currentlyActiveSeason = season;
-
-				return season;
-			})
 			.finally(() => {
 				this.currentlyActiveSeasonPromise = undefined;
 			});
@@ -39,20 +28,11 @@ export class SeasonService {
 	}
 
 	async getAll(forceGetFromDatabase: boolean = false): Promise<Season[]> {
-		if (!forceGetFromDatabase && this.seasons.length > 0)
-			return this.seasons;
-
-
 		if (!forceGetFromDatabase && this.seasonsPromise)
 			return this.seasonsPromise;
 
 
 		this.seasonsPromise = this.dataService.GetAllSeasons()
-			.then((seasons) => {
-				this.seasons = seasons;
-
-				return seasons;
-			})
 			.finally(() => {
 				this.seasonsPromise = undefined;
 			});

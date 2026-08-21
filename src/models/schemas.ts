@@ -9,7 +9,7 @@ export const RoundSchema = z.object({
 	roundIndex:       z.number().int().min(0),
 	dartThrows:       z.array(DartThrowSchema).min(1).max(3),
 	cumulativePoints: z.number().min(0),
-	roundStatus:      z.enum(RoundStatus),
+	roundStatus:      z.nativeEnum(RoundStatus),
 });
 
 export const PlayerRoundsSchema = z.object({
@@ -31,10 +31,10 @@ export const PlayerResultSchema = z.object({
 	roundsPlayed: z.number().int(),
 	oldMMR:       z.number().int(),
 	newMMR:       z.number().int(),
-	oldRank:      z.enum(Rank),
-	newRank:      z.enum(Rank),
-	unlockedProgressAchievements: z.array(z.enum(ProgressAchievement)),
-	unlockedSessionAchievements: z.array(z.enum(SessionAchievement)),
+	oldRank:      z.nativeEnum(Rank),
+	newRank:      z.nativeEnum(Rank),
+	unlockedProgressAchievements: z.array(z.nativeEnum(ProgressAchievement)),
+	unlockedSessionAchievements: z.array(z.nativeEnum(SessionAchievement)),
 });
 
 export const GameTrackerSchema = z.object({
@@ -48,13 +48,13 @@ export const MatchSnapshotSchema = z.object({
 	seasonStatisticsId: z.number(),
 	date:               z.string().transform(str => new Date(str)),
 	mmr:                z.number(),
-	rank:               z.enum(Rank),
+	rank:               z.nativeEnum(Rank),
 	playerCount:        z.number(),
 });
 
 export const HitCountSchema = z.object({
 	id:                 z.number(),
-	throwType:          z.enum(ThrowType),
+	throwType:          z.nativeEnum(ThrowType),
 	hitLocation:        z.number(),
 	count:              z.number(),
 	seasonStatisticsId: z.number(),
@@ -119,11 +119,11 @@ export const UserSchema = z.object({
 });
 
 export const WinConditionRuleSchema = z.object({
-	winCondition: z.enum(WinCondition),
+	winCondition: z.nativeEnum(WinCondition),
 });
 
 export const ScoreModifierRuleSchema = z.object({
-	scoreModifier:  z.enum(ScoreModifier),
+	scoreModifier:  z.nativeEnum(ScoreModifier),
 	executionOrder: z.number().int(),
 });
 
@@ -233,4 +233,3 @@ export type RuleDefinitionsResponse = z.infer<typeof RuleDefinitionsResponseSche
 export type AchievementDefinitionsResponse = z.infer<typeof AchievementDefinitionsResponseSchema>;
 export type SessionsAchievementDefinition = z.infer<typeof SessionAchievementDefinition>;
 export type ProgressionAchievementDefinition = z.infer<typeof ProgressionAchievementDefinition>;
-

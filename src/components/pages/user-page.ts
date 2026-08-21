@@ -36,11 +36,13 @@ export class UserPage extends LitElement {
 	@state() private seasons?: Season[];
 	@state() private selectedSeason?: Season;
 	@state() private achievementDefinitions?: AchievementDefinitionsResponse;
+	@state() private isLoadingSeasonStats = false;
 
 	private seasonService: SeasonService;
 	private userService: UserService;
 	private user?: User;
 	private achievementService: achievementService;
+	private seasonStatsRequestId = 0;
 
 	constructor() {
 		super();
@@ -56,24 +58,64 @@ export class UserPage extends LitElement {
 	override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
 
-		const options: UserQueryOptions = {
+		const [currentSeason, seasons, achievementDefinitions] = await Promise.all([
+			this.seasonService.getCurrentSeason(),
+			this.seasonService.getAll(),
+			this.achievementService.getAchievementDefinitions(),
+		]);
+
+		this.currentSeason = currentSeason;
+		this.seasons = seasons;
+		this.selectedSeason = this.seasons.find(s => s.id === this.currentSeason?.id) || this.seasons[0];
+		this.achievementDefinitions = achievementDefinitions;
+
+		if (this.selectedSeason) {
+			await this.loadUserForSeason(this.selectedSeason.id);
+		}
+	}
+
+	private async handleSeasonChange(e: Event): Promise<void> {
+		const select = e.target as HTMLSelectElement;
+		const seasonId = select.value;
+		const selectedSeason = this.seasons?.find(s => s.id === seasonId);
+
+		if (!selectedSeason || selectedSeason.id === this.selectedSeason?.id) {
+			return;
+		}
+
+		this.selectedSeason = selectedSeason;
+		await this.loadUserForSeason(seasonId);
+	}
+
+	private getSeasonScopedUserQueryOptions(seasonId: string): UserQueryOptions {
+		return {
 			includeSeasonStatistics: true,
 			includeHitCounts: true,
 			includeMatchSnapshots: true,
 			includeFinishCounts: true,
+			limitToSeasonId: seasonId,
 		};
-
-		this.user = await this.userService.getUserById(this.userId, options) ?? undefined;
-		this.currentSeason = await this.seasonService.getCurrentSeason();
-		this.seasons = await this.seasonService.getAll();
-		this.selectedSeason = this.seasons.find(s => s.id === this.currentSeason?.id) || this.seasons[0];
-		this.achievementDefinitions = await this.achievementService.getAchievementDefinitions();
 	}
 
-	private handleSeasonChange(e: Event) {
-		const select = e.target as HTMLSelectElement;
-		const seasonId = select.value;
-		this.selectedSeason = this.seasons?.find(s => s.id === seasonId);
+	private async loadUserForSeason(seasonId: string): Promise<void> {
+		const requestId = ++this.seasonStatsRequestId;
+		this.isLoadingSeasonStats = true;
+
+		try {
+			const options = this.getSeasonScopedUserQueryOptions(seasonId);
+			const user = await this.userService.getUserById(this.userId, options) ?? undefined;
+
+			if (requestId !== this.seasonStatsRequestId) {
+				return;
+			}
+
+			this.user = user;
+		}
+		finally {
+			if (requestId === this.seasonStatsRequestId) {
+				this.isLoadingSeasonStats = false;
+			}
+		}
 	}
 
 	private getStatsForSeason(season: Season): SeasonStatistics {
@@ -145,7 +187,7 @@ export class UserPage extends LitElement {
 
 					<label class="season-picker">
 						<span>Season</span>
-						<select @change=${this.handleSeasonChange}>
+						<select @change=${this.handleSeasonChange} ?disabled=${this.isLoadingSeasonStats}>
 							${this.seasons?.map(
 								s => html`
 									<option
@@ -417,7 +459,7 @@ export class UserPage extends LitElement {
 	}
 
 	override render(): unknown {
-		if (!this.user || !this.seasons?.length || !this.selectedSeason) {
+		if (this.isLoadingSeasonStats || !this.user || !this.seasons?.length || !this.selectedSeason) {
 			return html`<p>Loading data…</p>`;
 		}
 

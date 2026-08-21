@@ -276,12 +276,11 @@ export class DataService {
 			);
 		}
 
-		try {
-			return resp.data.map(u => UserSchema.parse(u));
-		}
-		catch {
-			throw new Error('Invalid user data received from the API');
-		}
+		return this.parseApiData(
+			z.array(UserSchema),
+			resp.data,
+			'Invalid user data received from the API',
+		);
 	}
 
 	async getUserById(
@@ -301,12 +300,31 @@ export class DataService {
 			);
 		}
 
-		try {
-			return UserSchema.parse(resp.data);
+		return this.parseApiData(
+			UserSchema,
+			resp.data,
+			'Invalid user data received from the API',
+		);
+	}
+
+	private parseApiData<T>(
+		schema: z.ZodType<T>,
+		payload: unknown,
+		errorMessage: string,
+	): T {
+		const parsed = schema.safeParse(payload);
+		if (!parsed.success) {
+			const details = parsed.error.issues
+				.slice(0, 3)
+				.map(issue => `${issue.path.join('.') || 'response'}: ${issue.message}`)
+				.join('; ');
+
+			throw new Error(`${errorMessage} (${details})`, {
+				cause: parsed.error,
+			});
 		}
-		catch {
-			throw new Error('Invalid user data received from the API');
-		}
+
+		return parsed.data;
 	}
 
 	private async request<T>(
@@ -324,6 +342,7 @@ export class DataService {
 			res = await fetch(`${this.backendURL}${endpoint}`, {
 				...options,
 				headers,
+				credentials: 'include',
 				signal: this.createTimeoutSignal(this.abortTimeout),
 			});
 		}
