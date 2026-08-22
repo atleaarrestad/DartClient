@@ -108,10 +108,16 @@ export class MatchSnapshotChart extends LitElement {
 			return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 		});
 		const data = this.snapshots.map((s) => s.mmr);
+		const averageMmr = data.length > 0
+			? Math.round(data.reduce((total, mmr) => total + mmr, 0) / data.length)
+			: 0;
+		const averageData = data.map(() => averageMmr);
 
 		if (this._chart) {
 			this._chart.data.labels = labels;
 			this._chart.data.datasets[0]!.data = data;
+			this._chart.data.datasets[1]!.data = averageData;
+			this._chart.data.datasets[1]!.label = `Average MMR: ${ averageMmr }`;
 			this._chart.update();
 
 			return;
@@ -130,8 +136,22 @@ export class MatchSnapshotChart extends LitElement {
 						label:       'MMR over Time',
 						data,
 						tension:     0.2,
-						fill:        false,
+						fill:        {
+							target: 1,
+							above:  'rgba(115, 209, 61, 0.18)',
+							below:  'rgba(237, 128, 127, 0.14)',
+						},
+						borderColor: '#2f9ee5',
 						borderWidth: 2,
+					},
+					{
+						label:       `Average MMR: ${ averageMmr }`,
+						data:        averageData,
+						borderColor: '#6c4ccf',
+						borderDash:  [ 8, 6 ],
+						borderWidth: 2,
+						pointRadius: 0,
+						fill:        false,
 					},
 				],
 			},
