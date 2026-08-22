@@ -4,13 +4,16 @@ import { css, html, LitElement, nothing, TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
-import type { AaMmrConfigurationEditor } from '../aa-mmr-configuration-editor.js';
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
 import {
 	AchievementTier,
 	ScoreModifier,
 	WinCondition,
 } from '../../models/enums.js';
+import {
+	defaultMmrConfiguration,
+	validateMmrConfiguration,
+} from '../../models/mmr.js';
 import {
 	getRankDisplayValue,
 	getRankIcon,
@@ -20,12 +23,9 @@ import {
 	AchievementTierReward,
 	RankThreshold,
 	RuleDefinitionsResponse,
+	ScoreModifierRule,
 	Season,
 } from '../../models/schemas.js';
-import {
-	defaultMmrConfiguration,
-	validateMmrConfiguration,
-} from '../../models/mmr.js';
 import { DialogService } from '../../services/dialogService.js';
 import { NotificationService } from '../../services/notificationService.js';
 import { RuleService } from '../../services/ruleService.js';
@@ -34,6 +34,7 @@ import {
 	SeasonService,
 } from '../../services/seasonService.js';
 import { sharedStyles } from '../../styles.js';
+import type { AaMmrConfigurationEditor } from '../aa-mmr-configuration-editor.js';
 
 interface SeasonDraft extends SeasonConfigurationInput {
 	id?: string;
@@ -337,16 +338,6 @@ export class SeasonsPage extends LitElement {
 		return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 	}
 
-	private getStatus(season: Pick<Season, 'startDate' | 'endDate'>): 'Upcoming' | 'Active' | 'Finished' {
-		const now = Date.now();
-		if (season.startDate.getTime() > now)
-			return 'Upcoming';
-		if (season.endDate.getTime() <= now)
-			return 'Finished';
-
-		return 'Active';
-	}
-
 	private handleSeasonSelection(event: Event): void {
 		const select = event.currentTarget as HTMLSelectElement;
 		const season = this.seasons.find(item => item.id === select.value);
@@ -356,47 +347,327 @@ export class SeasonsPage extends LitElement {
 		select.value = this.draft?.id ?? 'new';
 	}
 
-	private toggleScoreModifier(scoreModifier: ScoreModifier, checked: boolean): void {
-		if (!this.draft)
+	private getRuleNames(
+		values: number[],
+		definitions: RuleDefinitionsResponse['scoreModifiers'],
+	): string {
+		const names = values
+			.map(value => definitions.find(definition => definition.value === value)?.name)
+			.filter((name): name is string => !!name);
+
+		return names.length > 0 ? names.join(', ') : 'None selected';
+	}
+
+	private getScoreModifierErrors(rules: ScoreModifierRule[]): string[] {
+		const executionOrders = rules.map(rule => rule.executionOrder);
+		if (executionOrders.some(order => !Number.isInteger(order) || order < 0))
+			return [ 'Score-modifier execution orders must be non-negative whole numbers.' ];
+		if (new Set(executionOrders).size !== executionOrders.length)
+			return [ 'Score-modifier execution orders must be unique.' ];
+
+		return [];
+	}
+
+	private closeDialog(event: Event): void {
+		(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
+			new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
+		);
+	}
+
+	private async openScoreModifiers(): Promise<void> {
+		if (!this.draft || !this.definitions)
 			return;
 
-		const rules = this.draft.scoreModifierRules.filter(
-			rule => rule.scoreModifier !== scoreModifier,
-		);
+		const rules = this.draft.scoreModifierRules.map(rule => ({ ...rule }));
 
-		if (checked) {
-			const nextOrder = rules.length === 0
-				? 0
-				: Math.max(...rules.map(rule => rule.executionOrder)) + 1;
-			rules.push({ scoreModifier, executionOrder: nextOrder });
+		try {
+			await this.dialogService.open(
+				html`
+					<style>
+						.rule-dialog {
+							display: grid;
+							gap: 0.65rem;
+						}
+						.rule-dialog > p {
+							margin: 0 0 0.15rem;
+							font-size: 0.82rem;
+							opacity: 0.68;
+						}
+						.rule-dialog__card {
+							display: grid;
+							grid-template-columns: auto minmax(0, 1fr) 90px;
+							align-items: center;
+							gap: 0.65rem;
+							padding: 0.7rem;
+							background: #fff;
+							border: 2px solid #000;
+							border-radius: 10px;
+						}
+						.rule-dialog__card.selected {
+							background: #e5fbe7;
+						}
+						.rule-dialog__card > input {
+							width: 18px;
+							height: 18px;
+							accent-color: #000;
+						}
+						.rule-dialog__copy {
+							display: grid;
+							gap: 0.15rem;
+							min-width: 0;
+						}
+						.rule-dialog__copy small {
+							opacity: 0.68;
+						}
+						.rule-dialog__order {
+							display: grid;
+							gap: 0.2rem;
+							font-size: 0.68rem;
+							font-weight: 900;
+						}
+						.rule-dialog__order input {
+							min-width: 0;
+							padding: 0.5rem 0.6rem;
+							background: #fff;
+							border: 2px solid #000;
+							border-radius: 8px;
+							font: inherit;
+						}
+						.rule-dialog__order input:disabled {
+							background: #ddd;
+						}
+						@media (max-width: 600px) {
+							.rule-dialog__card {
+								grid-template-columns: auto minmax(0, 1fr);
+							}
+							.rule-dialog__order {
+								grid-column: 2;
+							}
+						}
+					</style>
+					<button
+						slot="footer"
+						type="button"
+						style="padding: 0.65rem 1.2rem; white-space: nowrap;"
+						@click=${ this.closeDialog }
+					>
+						Cancel
+					</button>
+					<button
+						slot="footer"
+						type="button"
+						style="padding: 0.65rem 1.2rem; background: #7df9ff; white-space: nowrap;"
+						@click=${ (event: Event) => {
+							const errors = this.getScoreModifierErrors(rules);
+							if (errors.length > 0) {
+								this.notificationService.addNotification({
+									type:    'danger',
+									message: errors[0],
+								});
+
+								return;
+							}
+
+							this.updateDraft({
+								scoreModifierRules: rules.map(rule => ({ ...rule })),
+							});
+							this.closeDialog(event);
+						} }
+					>
+						Apply modifiers
+					</button>
+					<div class="rule-dialog">
+						<p>Selected modifiers execute from the lowest order to the highest.</p>
+						${ this.definitions.scoreModifiers.map(definition => {
+							const scoreModifier = definition.value as ScoreModifier;
+							const selected = rules.find(rule => rule.scoreModifier === scoreModifier);
+
+							return html`
+								<article class="rule-dialog__card ${ selected ? 'selected' : '' }">
+									<input
+										type="checkbox"
+										aria-label=${ `Select ${ definition.name }` }
+										.checked=${ !!selected }
+										@change=${ (event: Event) => {
+											const checkbox = event.currentTarget as HTMLInputElement;
+											const card = checkbox.closest('.rule-dialog__card');
+											const orderInput = card?.querySelector<HTMLInputElement>(
+												'.rule-dialog__order input',
+											);
+											const existingIndex = rules.findIndex(
+												rule => rule.scoreModifier === scoreModifier,
+											);
+
+											if (checkbox.checked && existingIndex < 0) {
+												const nextOrder = rules.length === 0
+													? 0
+													: Math.max(...rules.map(rule => rule.executionOrder)) + 1;
+												rules.push({ scoreModifier, executionOrder: nextOrder });
+												if (orderInput)
+													orderInput.value = String(nextOrder);
+											}
+											else if (!checkbox.checked && existingIndex >= 0) {
+												rules.splice(existingIndex, 1);
+											}
+
+											card?.classList.toggle('selected', checkbox.checked);
+											if (orderInput)
+												orderInput.disabled = !checkbox.checked;
+										} }
+									/>
+									<span class="rule-dialog__copy">
+										<strong>${ definition.name }</strong>
+										<small>${ definition.description }</small>
+									</span>
+									<label class="rule-dialog__order">
+										<span>Order</span>
+										<input
+											type="number"
+											min="0"
+											step="1"
+											.value=${ String(selected?.executionOrder ?? 0) }
+											?disabled=${ !selected }
+											@input=${ (event: InputEvent) => {
+												const rule = rules.find(
+													item => item.scoreModifier === scoreModifier,
+												);
+												if (rule) {
+rule.executionOrder = Number(
+														(event.currentTarget as HTMLInputElement).value,
+													);
+}
+											} }
+										/>
+									</label>
+								</article>
+							`;
+						}) }
+					</div>
+				`,
+				{ title: 'Score modifiers' },
+			);
 		}
-
-		this.updateDraft({ scoreModifierRules: rules });
+		catch (error) {
+			this.notificationService.addNotification({
+				type:    'danger',
+				message: error instanceof Error ? error.message : 'Unable to open score modifiers.',
+			});
+		}
 	}
 
-	private updateScoreModifierOrder(scoreModifier: ScoreModifier, executionOrder: number): void {
-		if (!this.draft || !Number.isInteger(executionOrder))
+	private async openWinConditions(): Promise<void> {
+		if (!this.draft || !this.definitions)
 			return;
 
-		this.updateDraft({
-			scoreModifierRules: this.draft.scoreModifierRules.map(rule =>
-				rule.scoreModifier === scoreModifier
-					? { ...rule, executionOrder }
-					: rule),
-		});
-	}
+		const rules = this.draft.winConditionRules.map(rule => ({ ...rule }));
 
-	private toggleWinCondition(winCondition: WinCondition, checked: boolean): void {
-		if (!this.draft)
-			return;
+		try {
+			await this.dialogService.open(
+				html`
+					<style>
+						.rule-dialog {
+							display: grid;
+							gap: 0.65rem;
+						}
+						.rule-dialog > p {
+							margin: 0 0 0.15rem;
+							font-size: 0.82rem;
+							opacity: 0.68;
+						}
+						.rule-dialog__card {
+							display: grid;
+							grid-template-columns: auto minmax(0, 1fr);
+							align-items: start;
+							gap: 0.65rem;
+							padding: 0.7rem;
+							background: #fff;
+							border: 2px solid #000;
+							border-radius: 10px;
+						}
+						.rule-dialog__card.selected {
+							background: #e5fbe7;
+						}
+						.rule-dialog__card > input {
+							width: 18px;
+							height: 18px;
+							margin-top: 0.1rem;
+							accent-color: #000;
+						}
+						.rule-dialog__copy {
+							display: grid;
+							gap: 0.15rem;
+						}
+						.rule-dialog__copy small {
+							opacity: 0.68;
+						}
+					</style>
+					<button
+						slot="footer"
+						type="button"
+						style="padding: 0.65rem 1.2rem; white-space: nowrap;"
+						@click=${ this.closeDialog }
+					>
+						Cancel
+					</button>
+					<button
+						slot="footer"
+						type="button"
+						style="padding: 0.65rem 1.2rem; background: #7df9ff; white-space: nowrap;"
+						@click=${ (event: Event) => {
+							this.updateDraft({
+								winConditionRules: rules.map(rule => ({ ...rule })),
+							});
+							this.closeDialog(event);
+						} }
+					>
+						Apply conditions
+					</button>
+					<div class="rule-dialog">
+						<p>Every selected condition must be satisfied for a finish to count.</p>
+						${ this.definitions.winConditions.map(definition => {
+							const winCondition = definition.value as WinCondition;
+							const selected = rules.some(rule => rule.winCondition === winCondition);
 
-		const rules = this.draft.winConditionRules.filter(
-			rule => rule.winCondition !== winCondition,
-		);
-		if (checked)
-			rules.push({ winCondition });
+							return html`
+								<label class="rule-dialog__card ${ selected ? 'selected' : '' }">
+									<input
+										type="checkbox"
+										.checked=${ selected }
+										@change=${ (event: Event) => {
+											const checkbox = event.currentTarget as HTMLInputElement;
+											const existingIndex = rules.findIndex(
+												rule => rule.winCondition === winCondition,
+											);
 
-		this.updateDraft({ winConditionRules: rules });
+											if (checkbox.checked && existingIndex < 0)
+												rules.push({ winCondition });
+											else if (!checkbox.checked && existingIndex >= 0)
+												rules.splice(existingIndex, 1);
+
+											checkbox.closest('.rule-dialog__card')?.classList.toggle(
+												'selected',
+												checkbox.checked,
+											);
+										} }
+									/>
+									<span class="rule-dialog__copy">
+										<strong>${ definition.name }</strong>
+										<small>${ definition.description }</small>
+									</span>
+								</label>
+							`;
+						}) }
+					</div>
+				`,
+				{ title: 'Win conditions' },
+			);
+		}
+		catch (error) {
+			this.notificationService.addNotification({
+				type:    'danger',
+				message: error instanceof Error ? error.message : 'Unable to open win conditions.',
+			});
+		}
 	}
 
 	private getThresholdErrors(thresholds: RankThreshold[]): string[] {
@@ -817,11 +1088,7 @@ export class SeasonsPage extends LitElement {
 		errors.push(...this.getAchievementRewardErrors(this.draft.achievementTierRewards));
 		errors.push(...validateMmrConfiguration(this.draft.mmrConfiguration));
 
-		const executionOrders = this.draft.scoreModifierRules.map(rule => rule.executionOrder);
-		if (executionOrders.some(order => order < 0))
-			errors.push('Score-modifier execution orders cannot be negative.');
-		if (new Set(executionOrders).size !== executionOrders.length)
-			errors.push('Score-modifier execution orders must be unique.');
+		errors.push(...this.getScoreModifierErrors(this.draft.scoreModifierRules));
 
 		return errors;
 	}
@@ -929,19 +1196,6 @@ export class SeasonsPage extends LitElement {
 
 		return html`
 			<section class="editor-section">
-				<div class="section-heading">
-					<div>
-						<span class="eyebrow">Schedule</span>
-					</div>
-					${ this.draft.id
-						? html`
-							<span class="status status--${ this.getStatus(this.draft).toLowerCase() }">
-								${ this.getStatus(this.draft) }
-							</span>
-						`
-						: html`<span class="status status--new">New</span>` }
-				</div>
-
 				<div class="field-grid">
 					<label class="field">
 						<span>Name</span>
@@ -993,162 +1247,111 @@ export class SeasonsPage extends LitElement {
 		`;
 	}
 
-	private renderRules(): TemplateResult {
-		if (!this.draft || !this.definitions)
-			return html``;
-
+	private renderConfigurationItem(
+		icon: TemplateResult | undefined,
+		title: string,
+		description: string,
+		buttonLabel: string,
+		openConfiguration: () => void,
+	): TemplateResult {
 		return html`
-			<section class="editor-section">
-				<div class="section-heading">
-					<div>
-						<span class="eyebrow">Gameplay</span>
-						<h3>Season rules</h3>
-					</div>
-					<span class="section-count">
-						${ this.draft.scoreModifierRules.length + this.draft.winConditionRules.length } selected
-					</span>
+			<div class="configuration-item ${ icon ? 'configuration-item--with-icon' : '' }">
+				${ icon
+					? html`<div class="configuration-item__icon" aria-hidden="true">${ icon }</div>`
+					: nothing }
+				<div class="configuration-item__copy">
+					<strong>${ title }</strong>
+					${ description ? html`<small>${ description }</small>` : nothing }
 				</div>
-
-				<div class="rules-grid">
-					<div class="rule-group">
-						<h4>Score modifiers</h4>
-						<p>Selected modifiers execute from the lowest order to the highest.</p>
-						${ this.definitions.scoreModifiers.map(definition => {
-							const scoreModifier = definition.value as ScoreModifier;
-							const selected = this.draft?.scoreModifierRules.find(
-								rule => rule.scoreModifier === scoreModifier,
-							);
-
-							return html`
-								<article class="rule-card ${ selected ? 'selected' : '' }">
-									<label class="rule-toggle">
-										<input
-											type="checkbox"
-											.checked=${ !!selected }
-											@change=${ (event: Event) =>
-												this.toggleScoreModifier(
-													scoreModifier,
-													(event.currentTarget as HTMLInputElement).checked,
-												) }
-										/>
-										<span>
-											<strong>${ definition.name }</strong>
-											<small>${ definition.description }</small>
-										</span>
-									</label>
-									${ selected
-										? html`
-											<label class="order-field">
-												<span>Order</span>
-												<input
-													type="number"
-													min="0"
-													step="1"
-													.value=${ String(selected.executionOrder) }
-													@input=${ (event: InputEvent) =>
-														this.updateScoreModifierOrder(
-															scoreModifier,
-															Number((event.currentTarget as HTMLInputElement).value),
-														) }
-												/>
-											</label>
-										`
-										: nothing }
-								</article>
-							`;
-						}) }
-					</div>
-
-					<div class="rule-group">
-						<h4>Win conditions</h4>
-						<p>Every selected condition must be satisfied for a finish to count.</p>
-						${ this.definitions.winConditions.map(definition => {
-							const winCondition = definition.value as WinCondition;
-							const selected = this.draft?.winConditionRules.some(
-								rule => rule.winCondition === winCondition,
-							);
-
-							return html`
-								<article class="rule-card ${ selected ? 'selected' : '' }">
-									<label class="rule-toggle">
-										<input
-											type="checkbox"
-											.checked=${ !!selected }
-											@change=${ (event: Event) =>
-												this.toggleWinCondition(
-													winCondition,
-													(event.currentTarget as HTMLInputElement).checked,
-												) }
-										/>
-										<span>
-											<strong>${ definition.name }</strong>
-											<small>${ definition.description }</small>
-										</span>
-									</label>
-								</article>
-							`;
-						}) }
-					</div>
-				</div>
-			</section>
+				<button
+					type="button"
+					class="secondary-button settings-button"
+					aria-label=${ buttonLabel }
+					title=${ buttonLabel }
+					@click=${ openConfiguration }
+				>
+					<svg aria-hidden="true" viewBox="0 0 24 24">
+						<path
+							d="
+								M19.14 12.94a7.4 7.4 0 0 0 .05-.94 7.4 7.4 0 0 0-.05-.94l2.03-1.58
+								-1.92-3.32-2.39.96a7.3 7.3 0 0 0-1.63-.94L14.87 3h-3.84l-.36 3.18
+								c-.58.24-1.12.56-1.63.94l-2.39-.96-1.92 3.32 2.03 1.58a7.4 7.4 0 0 0-.05.94
+								c0 .32.02.63.05.94l-2.03 1.58 1.92 3.32 2.39-.96c.5.38 1.05.7 1.63.94
+								l.36 3.18h3.84l.36-3.18c.58-.24 1.12-.56 1.63-.94l2.39.96 1.92-3.32
+								-2.03-1.58ZM12.95 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z
+							"
+						></path>
+					</svg>
+				</button>
+			</div>
 		`;
 	}
 
-	private renderRanks(): TemplateResult {
-		if (!this.draft)
+	private renderConfiguration(): TemplateResult {
+		if (!this.draft || !this.definitions)
 			return html``;
+
+		const scoreModifierNames = this.getRuleNames(
+			this.draft.scoreModifierRules.map(rule => rule.scoreModifier),
+			this.definitions.scoreModifiers,
+		);
+		const winConditionNames = this.getRuleNames(
+			this.draft.winConditionRules.map(rule => rule.winCondition),
+			this.definitions.winConditions,
+		);
 
 		return html`
 			<section class="editor-section">
 				<div class="section-heading">
-					<div>
-						<span class="eyebrow">Progression</span>
-						<h3>Rank thresholds</h3>
-					</div>
+					<h3>Season settings</h3>
 				</div>
-				<div class="progression-settings">
-					<div class="rank-summary">
-						<div class="rank-summary__icons" aria-hidden="true">
-							${ [ Rank.Bronze, Rank.Silver, Rank.Gold, Rank.Platinum, Rank.Diamond ]
-								.map(rank => html`<img src=${ getRankIcon(rank) } alt="" />`) }
-						</div>
-						<div class="rank-summary__copy">
-							<strong>Season rank ladder</strong>
-						</div>
-						<button type="button" class="secondary-button" @click=${ this.openRankThresholds }>
-							Edit thresholds
-						</button>
-					</div>
 
-					<div class="rank-summary">
-						<div class="rank-summary__icons" aria-hidden="true">
-							${ achievementTiers.map(tier =>
-								html`<img src=${ getAchievementTierIcon(tier) } alt="" />`) }
-						</div>
-						<div class="rank-summary__copy">
-							<strong>Achievement MMR rewards</strong>
-						</div>
-						<button type="button" class="secondary-button" @click=${ this.openAchievementRewards }>
-							Edit rewards
-						</button>
-					</div>
-
-					<div class="rank-summary">
-						<div class="rank-summary__icons" aria-hidden="true">
-							<i class="fa-solid fa-chart-line"></i>
-						</div>
-						<div class="rank-summary__copy">
-							<strong>MMR calculation</strong>
-							<small>
-								Start ${ this.draft.mmrConfiguration.startingMmr },
-								cap +${ this.draft.mmrConfiguration.maximumGain }
-								/ -${ this.draft.mmrConfiguration.maximumLoss }
-							</small>
-						</div>
-						<button type="button" class="secondary-button" @click=${ this.openMmrConfiguration }>
-							Tune formula
-						</button>
-					</div>
+				<div class="configuration-panel">
+					${ this.renderConfigurationItem(
+						undefined,
+						'Score modifiers',
+						`${ this.draft.scoreModifierRules.length } selected · ${ scoreModifierNames }`,
+						'Configure score modifiers',
+						this.openScoreModifiers,
+					) }
+					${ this.renderConfigurationItem(
+						undefined,
+						'Win conditions',
+						`${ this.draft.winConditionRules.length } selected · ${ winConditionNames }`,
+						'Configure win conditions',
+						this.openWinConditions,
+					) }
+					${ this.renderConfigurationItem(
+						html`
+							<div class="configuration-item__icons">
+								${ [ Rank.Bronze, Rank.Silver, Rank.Gold, Rank.Platinum, Rank.Diamond ]
+									.map(rank => html`<img src=${ getRankIcon(rank) } alt="" />`) }
+							</div>
+						`,
+						'Season rank ladder',
+						`${ this.draft.rankThresholds.length } rank thresholds`,
+						'Configure rank thresholds',
+						this.openRankThresholds,
+					) }
+					${ this.renderConfigurationItem(
+						html`
+							<div class="configuration-item__icons">
+								${ achievementTiers.map(tier =>
+									html`<img src=${ getAchievementTierIcon(tier) } alt="" />`) }
+							</div>
+						`,
+						'Achievement MMR rewards',
+						`${ this.draft.achievementTierRewards.length } achievement tiers`,
+						'Configure achievement MMR rewards',
+						this.openAchievementRewards,
+					) }
+					${ this.renderConfigurationItem(
+						undefined,
+						'MMR calculation',
+						'',
+						'Configure MMR calculation',
+						this.openMmrConfiguration,
+					) }
 				</div>
 			</section>
 		`;
@@ -1189,7 +1392,19 @@ export class SeasonsPage extends LitElement {
 							</button>
 						</div>
 					</div>
-					<div class="editor-header-actions">
+				</header>
+
+				${ this.renderBasics() }
+				${ this.renderConfiguration() }
+
+				<footer class="save-bar">
+					<div>
+						${ this.validationErrors.map(error => html`<p class="form-error">${ error }</p>`) }
+						${ this.isDirty
+							? html`<span class="dirty-indicator">Unsaved changes</span>`
+							: nothing }
+					</div>
+					<div class="save-actions">
 						<button
 							type="button"
 							class="secondary-button"
@@ -1199,21 +1414,6 @@ export class SeasonsPage extends LitElement {
 							<i class="fa-solid fa-lock"></i>
 							Lock
 						</button>
-					</div>
-				</header>
-
-				${ this.renderBasics() }
-				${ this.renderRules() }
-				${ this.renderRanks() }
-
-				<footer class="save-bar">
-					<div>
-						${ this.validationErrors.map(error => html`<p class="form-error">${ error }</p>`) }
-						${ this.isDirty
-							? html`<span class="dirty-indicator">Unsaved changes</span>`
-							: html`<span class="saved-indicator">All changes saved</span>` }
-					</div>
-					<div class="save-actions">
 						<button
 							type="button"
 							class="secondary-button"
@@ -1362,8 +1562,7 @@ export class SeasonsPage extends LitElement {
 				border-bottom: 2px solid #000;
 			}
 
-			.section-heading h3,
-			.rule-group h4 {
+			.section-heading h3 {
 				margin: 0;
 			}
 
@@ -1413,30 +1612,6 @@ export class SeasonsPage extends LitElement {
 				line-height: 1;
 			}
 
-			.status,
-			.section-count {
-				width: fit-content;
-				padding: 0.12rem 0.48rem;
-				border: 1.5px solid #000;
-				border-radius: 999px;
-				background: #fff;
-				font-size: 0.68rem;
-				font-weight: 900;
-			}
-
-			.status--active {
-				background: #dff362;
-			}
-
-			.status--upcoming,
-			.status--new {
-				background: #7df9ff;
-			}
-
-			.status--finished {
-				background: #ddd;
-			}
-
 			.season-editor {
 				min-width: 0;
 				overflow: hidden;
@@ -1455,133 +1630,86 @@ export class SeasonsPage extends LitElement {
 				gap: 0.8rem;
 			}
 
-			.rules-grid {
-				display: grid;
-				grid-template-columns: repeat(2, minmax(0, 1fr));
-				gap: 0.8rem;
-			}
-
-			.rule-group {
-				display: grid;
-				align-content: start;
-				gap: 0.6rem;
-				padding: 0.8rem;
-				background: #f5f3ff;
-				border: 2px solid #000;
-				border-radius: 13px;
-			}
-
-			.rule-group > p,
-			.section-intro {
-				margin: 0;
-				font-size: 0.8rem;
-				opacity: 0.68;
-			}
-
-			.rule-card {
+			.configuration-panel {
 				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				gap: 0.75rem;
-				padding: 0.65rem;
-				background: #fff;
-				border: 2px solid #000;
-				border-radius: 10px;
-			}
-
-			.rule-card.selected {
-				background: #e5fbe7;
-			}
-
-			.rule-toggle {
-				display: flex;
-				align-items: flex-start;
-				gap: 0.55rem;
-				min-width: 0;
-				cursor: pointer;
-			}
-
-			.rule-toggle input {
-				width: 18px;
-				height: 18px;
-				margin-top: 0.1rem;
-				accent-color: #000;
-			}
-
-			.rule-toggle span {
-				display: grid;
-				gap: 0.15rem;
-			}
-
-			.rule-toggle small {
-				font-size: 0.75rem;
-				opacity: 0.68;
-			}
-
-			.order-field {
-				display: grid;
-				gap: 0.2rem;
-				flex: 0 0 72px;
-				font-size: 0.68rem;
-				font-weight: 900;
-			}
-
-			.progression-settings {
-				display: grid;
-				grid-template-columns: repeat(2, minmax(0, 1fr));
-				gap: 0.7rem;
-			}
-
-			.rank-summary {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				gap: 0.55rem;
-				padding: 0.7rem 0.8rem;
-				background: #fff;
+				flex-wrap: wrap;
+				gap: 2px;
+				overflow: hidden;
+				background: #000;
 				border: 2px solid #000;
 				border-radius: 12px;
 			}
 
-			.rank-summary__icons {
-				display: flex;
-				flex: 0 0 auto;
-			}
-
-			.rank-summary__icons img {
-				width: 36px;
-				height: 36px;
-				margin-left: -8px;
-				object-fit: contain;
-			}
-
-			.rank-summary__icons img:first-child {
-				margin-left: 0;
-			}
-
-			.rank-summary__copy {
+			.configuration-item {
 				display: grid;
-				flex: 1 1 auto;
+				grid-template-columns: minmax(0, 1fr) auto;
+				align-items: center;
+				flex: 1 1 240px;
+				gap: 0.65rem;
+				min-width: 0;
+				padding: 0.7rem;
+				background: #fff;
+			}
+
+			.configuration-item--with-icon {
+				grid-template-columns: auto minmax(0, 1fr) auto;
+			}
+
+			.configuration-item__icon {
+				display: grid;
+				width: 56px;
+				height: 38px;
+				place-items: center;
+			}
+
+			.configuration-item__copy {
+				display: grid;
 				gap: 0.15rem;
 				min-width: 0;
 			}
 
-			.rank-summary__copy span {
-				font-size: 0.78rem;
-				opacity: 0.68;
-			}
-
-			.rank-summary__copy small {
+			.configuration-item__copy small {
 				font-size: 0.72rem;
 				opacity: 0.68;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
 			}
 
-			.rank-summary__icons i {
+			.configuration-item__icons {
 				display: grid;
+				grid-template-columns: repeat(3, 17px);
+				grid-template-rows: repeat(2, 17px);
+				width: 56px;
+				height: 38px;
+				place-content: center;
+			}
+
+			.configuration-item__icons img {
+				position: relative;
+				width: 25px;
+				height: 25px;
+				object-fit: contain;
+			}
+
+			.configuration-item__icons img:nth-child(4),
+			.configuration-item__icons img:nth-child(5) {
+				left: 8px;
+			}
+
+			.settings-button {
+				display: grid;
+				width: 38px;
+				height: 38px;
 				place-items: center;
-				width: 36px;
-				height: 36px;
-				font-size: 1.45rem;
+				padding: 0;
+				font-size: 1rem;
+			}
+
+			.settings-button svg {
+				width: 19px;
+				height: 19px;
+				fill: currentColor;
 			}
 
 			.save-bar {
@@ -1605,18 +1733,10 @@ export class SeasonsPage extends LitElement {
 				font-weight: 900;
 			}
 
-			.dirty-indicator,
-			.saved-indicator {
+			.dirty-indicator {
 				font-size: 0.75rem;
 				font-weight: 900;
-			}
-
-			.dirty-indicator {
 				color: #9b4f00;
-			}
-
-			.saved-indicator {
-				color: #367c2b;
 			}
 
 			.empty-editor {
@@ -1629,10 +1749,6 @@ export class SeasonsPage extends LitElement {
 				.field-grid {
 					grid-template-columns: repeat(2, minmax(0, 1fr));
 				}
-
-				.progression-settings {
-					grid-template-columns: 1fr;
-				}
 			}
 
 			@media (max-width: 700px) {
@@ -1640,14 +1756,12 @@ export class SeasonsPage extends LitElement {
 					padding: 0.65rem;
 				}
 
-				.field-grid,
-				.rules-grid {
+				.field-grid {
 					grid-template-columns: 1fr;
 				}
 
-				.rank-summary {
-					align-items: stretch;
-					flex-direction: column;
+				.configuration-item {
+					flex-basis: 100%;
 				}
 
 				.save-bar,
@@ -1658,7 +1772,7 @@ export class SeasonsPage extends LitElement {
 
 				.save-actions {
 					display: grid;
-					grid-template-columns: 1fr 1fr;
+					grid-template-columns: repeat(3, minmax(0, 1fr));
 				}
 			}
 		`,

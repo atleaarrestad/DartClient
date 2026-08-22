@@ -65,6 +65,7 @@ export class AaLoadingState extends LitElement {
 			}
 
 			.content {
+				height: 100%;
 				opacity: 1;
 				transform: translateY(0) scale(1);
 				visibility: visible;

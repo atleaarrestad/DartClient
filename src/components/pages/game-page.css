@@ -287,9 +287,9 @@ aa-loading-state {
 }
 
 .empty-state {
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	display: grid;
+	height: 100%;
+	place-items: center;
 	padding: 2rem 1rem;
 	text-align: center;
 }
