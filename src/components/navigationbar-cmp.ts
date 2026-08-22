@@ -5,7 +5,10 @@ import { container } from 'tsyringe';
 
 import { getAbsoluteBase } from '../getAbsoluteBase.js';
 import { Season } from '../models/schemas.js';
-import { SeasonService } from '../services/seasonService.js';
+import {
+	SeasonService,
+	seasonUpdatedEventName,
+} from '../services/seasonService.js';
 import { sharedStyles } from '../styles.js';
 
 
@@ -23,14 +26,26 @@ export class AaNavigationbar extends LitElement {
 		super.connectedCallback();
 
 		this.seasonService = container.resolve(SeasonService);
+		window.addEventListener(seasonUpdatedEventName, this.handleSeasonUpdated);
 
 		this.initialize();
+	}
+
+	override disconnectedCallback(): void {
+		window.removeEventListener(seasonUpdatedEventName, this.handleSeasonUpdated);
+		super.disconnectedCallback();
 	}
 
 	protected async initialize(): Promise<void> {
 		const season = await this.seasonService.getCurrentSeason();
 		this.season = season;
 	}
+
+	private handleSeasonUpdated = (event: Event): void => {
+		const updatedSeason = (event as CustomEvent<Season>).detail;
+		if (updatedSeason.id === this.season?.id)
+			this.season = updatedSeason;
+	};
 
 	override render(): unknown {
 		return html`
@@ -42,8 +57,12 @@ export class AaNavigationbar extends LitElement {
 				</a>
 
 				<a class="logo center" href=${ `${ base }season/${ this.season?.id }` }>
-					<img class="logo-icon" src=${ `${ base }icons/season_beta.png` } alt="Logo" />
-					<span class="fit-content">Season ${ this.season?.name }</span>
+					<img
+						class="logo-icon"
+						src=${ `${ base }icons/season_beta.png` }
+						alt=${ this.season?.name ?? 'Season' }
+					/>
+					<span class="fit-content">${ this.season?.name ?? 'Season' }</span>
 				</a>
 			</s-logo-wrapper>
 
@@ -52,7 +71,7 @@ export class AaNavigationbar extends LitElement {
 				<li><a href=${ `${ base }sessions` }>Active games</a></li>
 				<li><a href=${ `${ base }changelog` }>Change log</a></li>
 				<li><a href="#" class="disabled">Game-log</a></li>
-				<li><a href="#" class="disabled">Seasons</a></li>
+				<li><a href=${ `${ base }seasons` }>Seasons</a></li>
 			</ul>
 		</nav>
 		`;

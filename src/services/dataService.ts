@@ -235,6 +235,56 @@ export class DataService {
 		}
 	}
 
+	async verifySeasonManagementAccess(adminKey: string): Promise<void> {
+		const response = await this.get<unknown>(
+			'season/manage/access',
+			this.getSeasonAdminHeaders(adminKey),
+		);
+
+		if (!response.ok)
+			throw this.createApiError('Season management access denied', response);
+	}
+
+	async createSeason(
+		request: unknown,
+		adminKey: string,
+	): Promise<Season> {
+		const response = await this.post<unknown, Season>(
+			'season',
+			request,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+
+		if (!response.ok)
+			throw this.createApiError('Failed to create season', response);
+
+		return this.parseApiData(
+			SeasonSchema,
+			response.data,
+			'Invalid season data received after creation',
+		);
+	}
+
+	async updateSeason(
+		request: unknown,
+		adminKey: string,
+	): Promise<Season> {
+		const response = await this.put<unknown, Season>(
+			'season',
+			request,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+
+		if (!response.ok)
+			throw this.createApiError('Failed to update season', response);
+
+		return this.parseApiData(
+			SeasonSchema,
+			response.data,
+			'Invalid season data received after update',
+		);
+	}
+
 	async SubmitGame(gameId: string): Promise<GameResult> {
 		const response = await this.post<undefined, GameResult>(
 			`games/sessions/${gameId}`,
@@ -381,29 +431,37 @@ export class DataService {
 	async post<Req, Res>(
 		endpoint: string,
 		body: Req,
+		headers?: HeadersInit,
 	): Promise<ApiResponse<Res>> {
 		return this.request<Res>(endpoint, {
 			method: 'POST',
 			body: JSON.stringify(body),
+			headers,
 		});
 	}
 
-	async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-		return this.request<T>(endpoint, { method: 'GET' });
+	async get<T>(endpoint: string, headers?: HeadersInit): Promise<ApiResponse<T>> {
+		return this.request<T>(endpoint, { method: 'GET', headers });
 	}
 
 	async put<Req, Res>(
 		endpoint: string,
 		body: Req,
+		headers?: HeadersInit,
 	): Promise<ApiResponse<Res>> {
 		return this.request<Res>(endpoint, {
 			method: 'PUT',
 			body: JSON.stringify(body),
+			headers,
 		});
 	}
 
-	async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-		return this.request<T>(endpoint, { method: 'DELETE' });
+	async delete<T>(endpoint: string, headers?: HeadersInit): Promise<ApiResponse<T>> {
+		return this.request<T>(endpoint, { method: 'DELETE', headers });
+	}
+
+	private getSeasonAdminHeaders(adminKey: string): HeadersInit {
+		return { 'X-Season-Admin-Key': adminKey };
 	}
 
 	private createTimeoutSignal(timeout: number): AbortSignal {
@@ -428,10 +486,17 @@ export class DataService {
 		if (typeof body === 'string' && body.trim().length > 0)
 			return body;
 
-		if (body && typeof body === 'object' && 'message' in body) {
-			const message = (body as { message?: unknown; }).message;
-			if (typeof message === 'string' && message.trim().length > 0)
-				return message;
+		if (body && typeof body === 'object') {
+			const problem = body as {
+				detail?:  unknown;
+				message?: unknown;
+				title?:   unknown;
+			};
+
+			for (const value of [ problem.detail, problem.message, problem.title ]) {
+				if (typeof value === 'string' && value.trim().length > 0)
+					return value;
+			}
 		}
 
 		return undefined;
