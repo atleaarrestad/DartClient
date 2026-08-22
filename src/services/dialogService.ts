@@ -8,7 +8,7 @@ export class DialogService {
 
 	open<T = void>(
 		content: HTMLElement | string | TemplateResult,
-		options?: { title?: string; },
+		options?: { title?: string; fixedHeight?: boolean; },
 	): Promise<T | undefined> {
 		return new Promise((resolve, reject) => {
 			if (document.querySelector('aa-dialog')) {
@@ -20,6 +20,8 @@ export class DialogService {
 			const dialog = document.createElement('aa-dialog') as AaDialog;
 			if (options?.title)
 				dialog.title = options.title;
+			if (options?.fixedHeight)
+				dialog.fixedHeight = true;
 
 			if (typeof content === 'string') {
 				dialog.innerHTML += content;

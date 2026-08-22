@@ -1,5 +1,5 @@
 import { css, html, LitElement, type PropertyValues } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
 
 
@@ -8,6 +8,10 @@ export class AaDialog extends LitElement {
 
 	@property({ type: String }) override title: string = '';
 	@property({ type: Boolean, reflect: true }) closeOnBackdrop = true;
+	@property({ type: Boolean, reflect: true, attribute: 'fixed-height' }) fixedHeight = false;
+
+	@state() private hasHeaderActions = false;
+	@state() private hasFooter = false;
 
 	private _prevOverflow?: string;
 
@@ -51,6 +55,16 @@ export class AaDialog extends LitElement {
 		return !!slot && slot.assignedNodes({ flatten: true }).length > 0;
 	}
 
+	private onHeaderActionsSlotChange = (event: Event): void => {
+		const slot = event.currentTarget as HTMLSlotElement;
+		this.hasHeaderActions = slot.assignedNodes({ flatten: true }).length > 0;
+	};
+
+	private onFooterSlotChange = (event: Event): void => {
+		const slot = event.currentTarget as HTMLSlotElement;
+		this.hasFooter = slot.assignedNodes({ flatten: true }).length > 0;
+	};
+
 	close(result?: unknown): void {
 		this.dispatchEvent(
 			new CustomEvent('dialog-closed', {
@@ -77,6 +91,9 @@ export class AaDialog extends LitElement {
 				<div class="title">
 					<slot name="title">${ this.title }</slot>
 				</div>
+				<div class="header-actions" ?hidden=${ !this.hasHeaderActions }>
+					<slot name="actions" @slotchange=${ this.onHeaderActionsSlotChange }></slot>
+				</div>
 				<button
 					aria-label="Close dialog"
 					class="btn close-btn"
@@ -91,8 +108,11 @@ export class AaDialog extends LitElement {
           <slot></slot>
         </div>
 
-        <slot name="footer" @slotchange=${ this.requestUpdate }></slot>
-        ${ this.hasAssigned('footer') ? null : html`` }
+        <div class="footer" ?hidden=${ !this.hasFooter }>
+			<div class="footer-actions">
+				<slot name="footer" @slotchange=${ this.onFooterSlotChange }></slot>
+			</div>
+		</div>
       </div>
     `;
 	}
@@ -121,6 +141,9 @@ export class AaDialog extends LitElement {
 			grid-template-rows: auto 1fr auto;
 			outline: none;
 		}
+		:host([fixed-height]) .dialog {
+			height: min(78vh, 780px);
+		}
 		.bar {
 			display: flex;
 			align-items: center;
@@ -139,25 +162,99 @@ export class AaDialog extends LitElement {
 			gap: 0.5rem;
 			align-items: center;
 		}
+		.header-actions,
+		.footer-actions {
+			display: flex;
+			align-items: center;
+			gap: 0;
+			overflow: hidden;
+			background: #fffefb;
+			border: 2px solid #000;
+			border-radius: 12px;
+			box-shadow: 3px 3px 0 #000;
+		}
+		.header-actions {
+			margin-left: auto;
+		}
+		.header-actions[hidden],
+		.footer[hidden] {
+			display: none;
+		}
+		::slotted([slot='actions']) {
+			padding: 0.45rem 0.75rem;
+			background: transparent;
+			border: none;
+			border-left: 2px solid #000;
+			border-radius: 0;
+			box-shadow: none;
+			color: #000;
+			font: inherit;
+			font-size: 0.82rem;
+			font-weight: 900;
+			cursor: pointer;
+		}
+		::slotted([slot='actions']:first-of-type) {
+			border-left: none;
+		}
+		::slotted([slot='actions'][aria-pressed='true']) {
+			background: #7df9ff;
+		}
+		::slotted([slot='actions']:focus-visible) {
+			outline: 3px solid #ff8c00;
+			outline-offset: -3px;
+		}
+		::slotted([slot='footer']) {
+			box-sizing: border-box;
+			padding: 0.5rem 1.1rem;
+			background: transparent;
+			border: none;
+			border-left: 2px solid #000;
+			border-radius: 0;
+			box-shadow: none;
+			color: #000;
+			font: inherit;
+			font-size: 0.82rem;
+			font-weight: 900;
+			line-height: 1.15;
+			cursor: pointer;
+		}
+		::slotted([slot='footer']:first-of-type) {
+			border-left: none;
+		}
+		::slotted([slot='footer'][aria-pressed='true']) {
+			background: #7df9ff;
+		}
+		::slotted([slot='footer']:focus-visible) {
+			outline: 3px solid #ff8c00;
+			outline-offset: -3px;
+		}
 		.content {
 			overflow: auto;
 			padding: 1rem;
 			background: transparent;
+		}
+		:host([fixed-height]) .content {
+			min-height: 0;
+			overflow: hidden;
 		}
 		.content ::slotted(*) {
 			width: auto !important;
 			height: auto !important;
 			box-sizing: border-box;
 		}
+		:host([fixed-height]) .content ::slotted(*) {
+			height: 100% !important;
+			min-height: 0;
+		}
 		.footer {
-			padding: 0.75rem 0.9rem;
+			padding: 0.8rem 0.95rem;
 			border-top: 2px dashed #000;
 			background: #fff;
 			border-bottom-left-radius: 20px;
 			border-bottom-right-radius: 20px;
 			display: flex;
 			gap: 0.5rem;
-			justify-content: flex-end;
+			justify-content: flex-start;
 		}
 		.btn {
 			appearance: none;

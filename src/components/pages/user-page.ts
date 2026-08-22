@@ -14,17 +14,25 @@ import {
 	SessionsAchievementDefinition,
 	User,
 } from '../../models/schemas.js';
+import { DialogService } from '../../services/dialogService.js';
 import { SeasonService } from '../../services/seasonService.js';
 import { UserService } from '../../services/userService.js';
 import { sharedStyles } from '../../styles.js';
 import { achievementService } from '../../services/achievementService.js';
 import {
 	AchievementTier,
-	AchievementType,
 	ProgressAchievement,
 	SessionAchievement,
 } from '../../models/enums.js';
-import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
+import {
+	getAchievementTierIcon,
+	getAchievementTypeLabel,
+} from '../../helpers/achievementHelper.js';
+import type {
+	AaAchievementBrowser,
+	AchievementGrouping,
+} from '../aa-achievement-browser.js';
+import '../aa-achievement-browser.js';
 import '../aa-loading-state.js';
 
 @customElement('user-page')
@@ -43,6 +51,7 @@ export class UserPage extends LitElement {
 	private userService: UserService;
 	private user?: User;
 	private achievementService: achievementService;
+	private dialogService: DialogService;
 	private seasonStatsRequestId = 0;
 
 	constructor() {
@@ -50,6 +59,7 @@ export class UserPage extends LitElement {
 		this.userService = container.resolve(UserService);
 		this.seasonService = container.resolve(SeasonService);
 		this.achievementService = container.resolve(achievementService);
+		this.dialogService = container.resolve(DialogService);
 	}
 
 	onBeforeEnter(location: RouterLocation): void {
@@ -143,35 +153,6 @@ export class UserPage extends LitElement {
 
 		const match = this.user.seasonStatistics.find(ss => ss.seasonId === season.id);
 		return match || defaultStats;
-	}
-
-	private scrollDetailsIntoView(e: Event) {
-		const details = (e.currentTarget as HTMLElement)?.closest('details');
-		const container = this.renderRoot.querySelector('.ach-scroll') as HTMLElement | null;
-
-		if (!details || !container) return;
-
-		requestAnimationFrame(() => {
-			const containerRect = container.getBoundingClientRect();
-			const detailsRect = details.getBoundingClientRect();
-
-			const currentScroll = container.scrollTop;
-			const offsetTop = detailsRect.top - containerRect.top + currentScroll;
-			const offsetBottom = detailsRect.bottom - containerRect.bottom + currentScroll;
-
-			if (detailsRect.top < containerRect.top) {
-				container.scrollTo({
-					top: offsetTop - 8,
-					behavior: 'smooth',
-				});
-			}
-			else if (detailsRect.bottom > containerRect.bottom) {
-				container.scrollTo({
-					top: offsetBottom + 8,
-					behavior: 'smooth',
-				});
-			}
-		});
 	}
 
 	private renderHero(stats: SeasonStatistics): TemplateResult {
@@ -426,7 +407,7 @@ export class UserPage extends LitElement {
 							<details class="ach-type-card">
 								<summary class="ach-type-summary" title="Click to expand" @click=${this.scrollDetailsIntoView}>
 									<span class="ach-type-title">
-										${AchievementType[type] ?? `Type ${type}`}
+										${getAchievementTypeLabel(type)}
 										<span class="ach-hint">(click)</span>
 									</span>
 									<span class="ach-type-total">${typeEarned}/${typeTotal}</span>
@@ -499,6 +480,131 @@ export class UserPage extends LitElement {
 		`;
 	}
 
+	private getAchievementProgress(stats: SeasonStatistics): { earned: number; total: number } {
+		if (!this.achievementDefinitions)
+			return { earned: 0, total: 0 };
+
+		const unlockedSession = new Set(
+			stats.unlockedSessionAchievements.filter(achievement => achievement !== 'unknown'),
+		);
+		const unlockedProgress = new Set(
+			stats.unlockedProgressAchievements.filter(achievement => achievement !== 'unknown'),
+		);
+		const sessionDefinitions = this.achievementDefinitions.sessionAchievementDefinitions;
+		const progressionDefinitions = this.achievementDefinitions.progressionAchievementDefinitions;
+		const earnedSession = [...sessionDefinitions.keys()]
+			.filter(achievement => unlockedSession.has(achievement))
+			.length;
+		const earnedProgress = [...progressionDefinitions.keys()]
+			.filter(achievement => unlockedProgress.has(achievement))
+			.length;
+
+		return {
+			earned: earnedSession + earnedProgress,
+			total: sessionDefinitions.size + progressionDefinitions.size,
+		};
+	}
+
+	private async openAchievements(stats: SeasonStatistics): Promise<void> {
+		if (!this.achievementDefinitions)
+			return;
+
+		try {
+			await this.dialogService.open(
+				html`
+					<button
+						slot="footer"
+						type="button"
+						data-achievement-grouping
+						style="padding: 0.65rem 1.35rem; white-space: nowrap;"
+						aria-label="Group achievements by type"
+						aria-pressed="true"
+						@click=${(event: Event) => this.setAchievementGrouping(event, 'type')}
+					>
+						By type
+					</button>
+					<button
+						slot="footer"
+						type="button"
+						data-achievement-grouping
+						style="padding: 0.65rem 1.35rem; white-space: nowrap;"
+						aria-label="Group achievements by tier"
+						aria-pressed="false"
+						@click=${(event: Event) => this.setAchievementGrouping(event, 'tier')}
+					>
+						By tier
+					</button>
+					<aa-achievement-browser
+						.stats=${stats}
+						.definitions=${this.achievementDefinitions}
+					></aa-achievement-browser>
+				`,
+				{
+					title: `${this.user?.name ?? 'Player'} achievements`,
+					fixedHeight: true,
+				},
+			);
+		}
+		catch (error) {
+			console.error('Unable to open achievements dialog.', error);
+		}
+	}
+
+	private setAchievementGrouping(
+		event: Event,
+		grouping: AchievementGrouping,
+	): void {
+		const button = event.currentTarget as HTMLButtonElement;
+		const dialog = button.closest('aa-dialog');
+		const browser = dialog?.querySelector<AaAchievementBrowser>('aa-achievement-browser');
+
+		browser?.setGrouping(grouping);
+		dialog
+			?.querySelectorAll<HTMLButtonElement>('[data-achievement-grouping]')
+			.forEach(groupingButton => {
+				groupingButton.setAttribute(
+					'aria-pressed',
+					groupingButton === button ? 'true' : 'false',
+				);
+			});
+	}
+
+	private renderAchievementSummary(stats: SeasonStatistics): TemplateResult {
+		const { earned, total } = this.getAchievementProgress(stats);
+		const percentage = total > 0 ? Math.round((earned / total) * 100) : 0;
+
+		return html`
+			<section class="panel achievement-summary">
+				<div class="achievement-summary__copy">
+					<h3>Achievements</h3>
+					<p>Season collection progress</p>
+				</div>
+
+				<div class="achievement-progress">
+					<div
+						class="achievement-progress__track"
+						role="progressbar"
+						aria-label="Achievement completion"
+						aria-valuemin="0"
+						aria-valuemax="100"
+						aria-valuenow=${percentage}
+						style="--achievement-progress: ${percentage}%"
+					>
+						<span></span>
+					</div>
+					<strong>${percentage}%</strong>
+				</div>
+
+				<div class="achievement-summary__actions">
+					<span class="achievement-count">${earned}/${total} unlocked</span>
+					<button type="button" @click=${() => this.openAchievements(stats)}>
+						View achievements
+					</button>
+				</div>
+			</section>
+		`;
+	}
+
 	override render(): unknown {
 		const isLoading =
 			this.isLoadingSeasonStats ||
@@ -523,10 +629,7 @@ export class UserPage extends LitElement {
 			<div class="page-shell">
 				${this.renderHero(stats)}
 				${this.renderCharts(stats)}
-
-				<section class="panel achievements-panel">
-					${this.renderAchievements(stats)}
-				</section>
+				${this.renderAchievementSummary(stats)}
 			</div>
 		`;
 	}
@@ -555,7 +658,7 @@ export class UserPage extends LitElement {
 			.hero-panel,
 			.chart-panel,
 			.chart-panel-wide,
-			.achievements-panel {
+			.achievement-summary {
 				background: #fffaf3;
 			}
 
@@ -730,6 +833,87 @@ export class UserPage extends LitElement {
 				border-radius: 14px;
 				padding: 0.5rem;
 				background: rgba(255,255,255,0.6);
+			}
+
+			.achievement-summary {
+				display: grid;
+				grid-template-columns: auto minmax(220px, 1fr) auto;
+				align-items: center;
+				gap: 1.25rem;
+				padding: 0.75rem 1rem;
+			}
+
+			.achievement-summary__copy h3 {
+				margin: 0;
+				font-size: 1.1rem;
+			}
+
+			.achievement-summary__copy p {
+				margin: 0.15rem 0 0;
+				font-size: 0.8rem;
+				font-weight: 700;
+				opacity: 0.62;
+			}
+
+			.achievement-progress {
+				display: grid;
+				grid-template-columns: minmax(120px, 1fr) auto;
+				align-items: center;
+				gap: 0.65rem;
+			}
+
+			.achievement-progress__track {
+				height: 18px;
+				overflow: hidden;
+				background: #fffefb;
+				border: 2px solid #000;
+				border-radius: 999px;
+			}
+
+			.achievement-progress__track span {
+				display: block;
+				width: var(--achievement-progress);
+				height: 100%;
+				background: #dff362;
+				border-right: 2px solid #000;
+				transition: width 220ms ease-out;
+			}
+
+			.achievement-progress strong {
+				min-width: 3ch;
+				font-size: 0.9rem;
+			}
+
+			.achievement-summary__actions {
+				display: flex;
+				align-items: center;
+				justify-content: flex-end;
+				gap: 0.75rem;
+			}
+
+			.achievement-count {
+				font-size: 0.82rem;
+				font-weight: 900;
+				white-space: nowrap;
+			}
+
+			.achievement-summary button {
+				padding: 0.45rem 0.7rem;
+				background: #7df9ff;
+				border: 2px solid #000;
+				border-radius: 12px;
+				box-shadow: 3px 3px 0 #000;
+				color: #000;
+				font: inherit;
+				font-size: 0.82rem;
+				font-weight: 900;
+				white-space: nowrap;
+				cursor: pointer;
+			}
+
+			.achievement-summary button:active {
+				transform: translate(2px, 2px);
+				box-shadow: 1px 1px 0 #000;
 			}
 
 			.achievements-panel {
@@ -938,6 +1122,15 @@ export class UserPage extends LitElement {
 				.chart-panel {
 					min-height: 300px;
 				}
+
+				.achievement-summary {
+					grid-template-columns: auto minmax(180px, 1fr);
+				}
+
+				.achievement-summary__actions {
+					grid-column: 1 / -1;
+					justify-content: space-between;
+				}
 			}
 
 			@media (max-width: 700px) {
@@ -973,6 +1166,21 @@ export class UserPage extends LitElement {
 
 				.season-picker {
 					width: 100%;
+				}
+
+				.achievement-summary {
+					grid-template-columns: 1fr;
+					gap: 0.65rem;
+				}
+
+				.achievement-summary__actions {
+					grid-column: auto;
+				}
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				.achievement-progress__track span {
+					transition: none;
 				}
 			}
 		`,
