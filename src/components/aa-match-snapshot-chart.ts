@@ -4,6 +4,66 @@ import { customElement, property, query } from 'lit/decorators.js';
 
 import type { MatchSnapshot } from '../models/schemas.js';
 
+const peakMmrMarker = {
+	id: 'peakMmrMarker',
+	afterDatasetsDraw(chart: Chart): void {
+		const dataset = chart.data.datasets[0];
+		if (!dataset?.data.length)
+			return;
+
+		const values = dataset.data.map(value => Number(value));
+		const peakValue = Math.max(...values);
+		const peakIndex = values.indexOf(peakValue);
+		const point = chart.getDatasetMeta(0).data[peakIndex];
+		if (!point)
+			return;
+
+		const { ctx, chartArea } = chart;
+		const label = `Peak MMR: ${ peakValue }`;
+
+		ctx.save();
+		ctx.strokeStyle = '#ed807f';
+		ctx.lineWidth = 2;
+		ctx.setLineDash([ 6, 4 ]);
+		ctx.beginPath();
+		ctx.moveTo(point.x, chartArea.top);
+		ctx.lineTo(point.x, chartArea.bottom);
+		ctx.stroke();
+		ctx.setLineDash([]);
+
+		ctx.fillStyle = '#dff362';
+		ctx.strokeStyle = '#000';
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+
+		ctx.font = '700 12px "Space Grotesk", sans-serif';
+		const labelWidth = ctx.measureText(label).width + 16;
+		const labelHeight = 26;
+		const labelX = Math.min(
+			Math.max(point.x - labelWidth / 2, chartArea.left),
+			chartArea.right - labelWidth,
+		);
+		const labelY = chartArea.top + (chartArea.bottom - chartArea.top - labelHeight) / 2;
+
+		ctx.fillStyle = '#fff3cf';
+		ctx.strokeStyle = '#000';
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 8);
+		ctx.fill();
+		ctx.stroke();
+
+		ctx.fillStyle = '#000';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.fillText(label, labelX + labelWidth / 2, labelY + labelHeight / 2);
+		ctx.restore();
+	},
+};
+
 
 @customElement('aa-match-snapshot-chart')
 export class MatchSnapshotChart extends LitElement {
@@ -93,6 +153,7 @@ export class MatchSnapshotChart extends LitElement {
 					},
 				},
 			},
+			plugins: [ peakMmrMarker ],
 		});
 	}
 
