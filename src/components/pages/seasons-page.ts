@@ -4,6 +4,7 @@ import { css, html, LitElement, nothing, TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
+import type { AaMmrConfigurationEditor } from '../aa-mmr-configuration-editor.js';
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
 import {
 	AchievementTier,
@@ -21,6 +22,10 @@ import {
 	RuleDefinitionsResponse,
 	Season,
 } from '../../models/schemas.js';
+import {
+	defaultMmrConfiguration,
+	validateMmrConfiguration,
+} from '../../models/mmr.js';
 import { DialogService } from '../../services/dialogService.js';
 import { NotificationService } from '../../services/notificationService.js';
 import { RuleService } from '../../services/ruleService.js';
@@ -217,6 +222,7 @@ export class SeasonsPage extends LitElement {
 			winConditionRules:      season.winConditionRules.map(rule => ({ ...rule })),
 			rankThresholds:         this.normalizeThresholds(season.rankThresholds),
 			achievementTierRewards: this.normalizeAchievementRewards(season.achievementTierRewards),
+			mmrConfiguration:       { ...season.mmrConfiguration },
 		};
 
 		this.setDraft(draft);
@@ -248,6 +254,9 @@ export class SeasonsPage extends LitElement {
 			winConditionRules:      latest?.winConditionRules.map(rule => ({ ...rule })) ?? [],
 			rankThresholds:         this.normalizeThresholds(latest?.rankThresholds),
 			achievementTierRewards: this.normalizeAchievementRewards(latest?.achievementTierRewards),
+			mmrConfiguration:       {
+				...(latest?.mmrConfiguration ?? defaultMmrConfiguration),
+			},
 		});
 	}
 
@@ -714,6 +723,77 @@ export class SeasonsPage extends LitElement {
 		}
 	}
 
+	private async openMmrConfiguration(): Promise<void> {
+		if (!this.draft)
+			return;
+
+		try {
+			await this.dialogService.open(
+				html`
+					<button
+						slot="footer"
+						type="button"
+						style="padding: 0.65rem 1.2rem; white-space: nowrap;"
+						@click=${ (event: Event) =>
+							(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
+								new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
+							) }
+					>
+						Cancel
+					</button>
+					<button
+						slot="footer"
+						type="button"
+						style="padding: 0.65rem 1.2rem; background: #7df9ff; white-space: nowrap;"
+						@click=${ (event: Event) => {
+							const dialog = (event.currentTarget as HTMLElement).closest('aa-dialog');
+							const editor = dialog?.querySelector(
+								'aa-mmr-configuration-editor',
+							) as AaMmrConfigurationEditor | null;
+							const errors = editor?.getErrors() ?? [ 'MMR editor is unavailable.' ];
+							if (errors.length > 0) {
+								this.notificationService.addNotification({
+									type:    'danger',
+									message: errors[0],
+								});
+
+								return;
+							}
+
+							this.updateDraft({
+								mmrConfiguration: editor!.getConfiguration(),
+							});
+							dialog?.dispatchEvent(new CustomEvent(
+								'dialog-closed',
+								{ bubbles: true, composed: true },
+							));
+						} }
+					>
+						Apply MMR settings
+					</button>
+					<aa-mmr-configuration-editor
+						.configuration=${ { ...this.draft.mmrConfiguration } }
+						.goal=${ this.draft.goal }
+						.rankThresholds=${ this.draft.rankThresholds.map(
+							threshold => ({ ...threshold }),
+						) }
+					></aa-mmr-configuration-editor>
+				`,
+				{
+					title:       'MMR calculation',
+					fixedHeight: true,
+					large:       true,
+				},
+			);
+		}
+		catch (error) {
+			this.notificationService.addNotification({
+				type:    'danger',
+				message: error instanceof Error ? error.message : 'Unable to open MMR settings.',
+			});
+		}
+	}
+
 	private validateDraft(): string[] {
 		if (!this.draft)
 			return [ 'No season is selected.' ];
@@ -735,6 +815,7 @@ export class SeasonsPage extends LitElement {
 
 		errors.push(...this.getThresholdErrors(this.draft.rankThresholds));
 		errors.push(...this.getAchievementRewardErrors(this.draft.achievementTierRewards));
+		errors.push(...validateMmrConfiguration(this.draft.mmrConfiguration));
 
 		const executionOrders = this.draft.scoreModifierRules.map(rule => rule.executionOrder);
 		if (executionOrders.some(order => order < 0))
@@ -1049,6 +1130,23 @@ export class SeasonsPage extends LitElement {
 						</div>
 						<button type="button" class="secondary-button" @click=${ this.openAchievementRewards }>
 							Edit rewards
+						</button>
+					</div>
+
+					<div class="rank-summary">
+						<div class="rank-summary__icons" aria-hidden="true">
+							<i class="fa-solid fa-chart-line"></i>
+						</div>
+						<div class="rank-summary__copy">
+							<strong>MMR calculation</strong>
+							<small>
+								Start ${ this.draft.mmrConfiguration.startingMmr },
+								cap +${ this.draft.mmrConfiguration.maximumGain }
+								/ -${ this.draft.mmrConfiguration.maximumLoss }
+							</small>
+						</div>
+						<button type="button" class="secondary-button" @click=${ this.openMmrConfiguration }>
+							Tune formula
 						</button>
 					</div>
 				</div>
@@ -1471,6 +1569,19 @@ export class SeasonsPage extends LitElement {
 			.rank-summary__copy span {
 				font-size: 0.78rem;
 				opacity: 0.68;
+			}
+
+			.rank-summary__copy small {
+				font-size: 0.72rem;
+				opacity: 0.68;
+			}
+
+			.rank-summary__icons i {
+				display: grid;
+				place-items: center;
+				width: 36px;
+				height: 36px;
+				font-size: 1.45rem;
 			}
 
 			.save-bar {

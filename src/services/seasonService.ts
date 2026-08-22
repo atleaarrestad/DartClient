@@ -2,6 +2,7 @@ import { container, injectable } from 'tsyringe';
 
 import {
 	AchievementTierReward,
+	MmrConfiguration,
 	RankThreshold,
 	ScoreModifierRule,
 	Season,
@@ -18,6 +19,7 @@ export interface SeasonConfigurationInput {
 	winConditionRules:      WinConditionRule[];
 	rankThresholds:         RankThreshold[];
 	achievementTierRewards: AchievementTierReward[];
+	mmrConfiguration:       MmrConfiguration;
 }
 
 export interface UpdateSeasonConfigurationInput extends SeasonConfigurationInput {
@@ -111,6 +113,7 @@ export class SeasonService {
 			winConditionRules:      input.winConditionRules,
 			rankThresholds:         input.rankThresholds,
 			achievementTierRewards: input.achievementTierRewards,
+			mmrConfiguration:       input.mmrConfiguration,
 		};
 	}
 

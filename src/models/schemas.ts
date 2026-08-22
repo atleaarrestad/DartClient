@@ -135,6 +135,23 @@ export const AchievementTierRewardSchema = z.object({
 	mmrReward:       z.number().int().nonnegative(),
 });
 
+export const MmrConfigurationSchema = z.object({
+	startingMmr:                 z.number().int(),
+	maximumGain:                 z.number().int(),
+	maximumLoss:                 z.number().int(),
+	ratingPivot:                 z.number().int(),
+	ratingPullDivisor:           z.number().int(),
+	baseScore:                   z.number().int(),
+	averageScoreMultiplier:      z.number(),
+	overshootPenalty:            z.number(),
+	placementBonus:              z.number().int(),
+	finishBonus:                 z.number().int(),
+	roundPenalty:                z.number().int(),
+	minimumOpponentFactor:       z.number(),
+	maximumOpponentFactor:       z.number(),
+	existingAchievementCapBonus: z.number().int(),
+});
+
 export const SeasonSchema = z.object({
 	id:                     z.string().uuid(),
 	name:                   z.string(),
@@ -144,6 +161,7 @@ export const SeasonSchema = z.object({
 	winConditionRules:      z.array(WinConditionRuleSchema),
 	rankThresholds:         z.array(RankThresholdSchema),
 	achievementTierRewards: z.array(AchievementTierRewardSchema),
+	mmrConfiguration:       MmrConfigurationSchema,
 	goal:                   z.number().int(),
 
 	seasonStatistics: z.array(SeasonStatisticsSchema).optional(),
@@ -239,6 +257,7 @@ export type WinConditionRule = z.infer<typeof WinConditionRuleSchema>;
 export type ScoreModifierRule = z.infer<typeof ScoreModifierRuleSchema>;
 export type RankThreshold = z.infer<typeof RankThresholdSchema>;
 export type AchievementTierReward = z.infer<typeof AchievementTierRewardSchema>;
+export type MmrConfiguration = z.infer<typeof MmrConfigurationSchema>;
 export type RuleDefinition = z.infer<typeof RuleDefinitionSchema>;
 export type RuleDefinitionsResponse = z.infer<typeof RuleDefinitionsResponseSchema>;
 export type AchievementDefinitionsResponse = z.infer<typeof AchievementDefinitionsResponseSchema>;

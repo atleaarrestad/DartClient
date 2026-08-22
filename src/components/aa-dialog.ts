@@ -9,6 +9,7 @@ export class AaDialog extends LitElement {
 	@property({ type: String }) override title: string = '';
 	@property({ type: Boolean, reflect: true }) closeOnBackdrop = true;
 	@property({ type: Boolean, reflect: true, attribute: 'fixed-height' }) fixedHeight = false;
+	@property({ type: Boolean, reflect: true }) large = false;
 
 	@state() private hasHeaderActions = false;
 	@state() private hasFooter = false;
@@ -144,6 +145,13 @@ export class AaDialog extends LitElement {
 		:host([fixed-height]) .dialog {
 			height: min(78vh, 780px);
 		}
+		:host([large]) .dialog {
+			max-width: min(1400px, 96vw);
+			max-height: min(94vh, 1100px);
+		}
+		:host([large][fixed-height]) .dialog {
+			height: min(92vh, 1020px);
+		}
 		.bar {
 			display: flex;
 			align-items: center;
@@ -236,6 +244,9 @@ export class AaDialog extends LitElement {
 		:host([fixed-height]) .content {
 			min-height: 0;
 			overflow: hidden;
+		}
+		:host([large][fixed-height]) .content {
+			overflow: auto;
 		}
 		.content ::slotted(*) {
 			width: auto !important;

@@ -18,6 +18,8 @@ import './components/aa-info-card.js';
 import './components/aa-match-snapshot-chart.js';
 import './components/aa-heatmap-chart.js';
 import './components/aa-finish-count-chart.js';
+import './components/aa-info-tooltip.js';
+import './components/aa-mmr-configuration-editor.js';
 import './components/aa-user-picker.js';
 import './components/aa-dialog.js';
 import './getAbsoluteBase.js';
