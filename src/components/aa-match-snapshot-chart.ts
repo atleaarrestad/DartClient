@@ -108,16 +108,20 @@ export class MatchSnapshotChart extends LitElement {
 			return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 		});
 		const data = this.snapshots.map((s) => s.mmr);
-		const averageMmr = data.length > 0
-			? Math.round(data.reduce((total, mmr) => total + mmr, 0) / data.length)
-			: 0;
-		const averageData = data.map(() => averageMmr);
+		const movingAverageWindow = Math.min(5, data.length);
+		const movingAverageData = data.map((_, index) => {
+			const windowStart = Math.max(0, index - movingAverageWindow + 1);
+			const window = data.slice(windowStart, index + 1);
+
+			return Math.round(window.reduce((total, mmr) => total + mmr, 0) / window.length);
+		});
+		const movingAverageLabel = `${ movingAverageWindow }-match moving average`;
 
 		if (this._chart) {
 			this._chart.data.labels = labels;
 			this._chart.data.datasets[0]!.data = data;
-			this._chart.data.datasets[1]!.data = averageData;
-			this._chart.data.datasets[1]!.label = `Average MMR: ${ averageMmr }`;
+			this._chart.data.datasets[1]!.data = movingAverageData;
+			this._chart.data.datasets[1]!.label = movingAverageLabel;
 			this._chart.update();
 
 			return;
@@ -145,9 +149,10 @@ export class MatchSnapshotChart extends LitElement {
 						borderWidth: 2,
 					},
 					{
-						label:       `Average MMR: ${ averageMmr }`,
-						data:        averageData,
-						borderColor: '#6c4ccf',
+						label:       movingAverageLabel,
+						data:        movingAverageData,
+						tension:     0.3,
+						borderColor: '#f28c28',
 						borderDash:  [ 8, 6 ],
 						borderWidth: 2,
 						pointRadius: 0,
