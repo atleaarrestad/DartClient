@@ -256,12 +256,15 @@ export class UserPage extends LitElement {
 	}
 
 	private renderCharts(stats: SeasonStatistics): TemplateResult {
+		const trackedHits = stats.hitCounts.reduce((total, hit) => total + hit.count, 0);
+		const totalFinishes = stats.finishCount.reduce((total, finish) => total + finish.count, 0);
+
 		return html`
 			<section class="stats-grid">
 				<div class="panel chart-panel">
 					<div class="panel-header">
 						<h3>MMR History</h3>
-						<p>How rating changed over time this season.</p>
+						<p>${stats.matchSnapshots.length} rated matches tracked this season.</p>
 					</div>
 					<div class="chart-slot">
 						<aa-match-snapshot-chart .snapshots=${stats.matchSnapshots}></aa-match-snapshot-chart>
@@ -271,7 +274,7 @@ export class UserPage extends LitElement {
 				<div class="panel chart-panel chart-panel-wide">
 					<div class="panel-header">
 						<h3>Hit Distribution</h3>
-						<p>All tracked hits for the selected season.</p>
+						<p>${trackedHits.toLocaleString()} recorded hits this season.</p>
 					</div>
 					<div class="chart-slot">
 						<aa-hit-count-chart .hits=${stats.hitCounts}></aa-hit-count-chart>
@@ -281,7 +284,7 @@ export class UserPage extends LitElement {
 				<div class="panel chart-panel">
 					<div class="panel-header">
 						<h3>Finishes by Round</h3>
-						<p>How often the player finished in each round bucket.</p>
+						<p>${totalFinishes} finishes across the tracked round buckets.</p>
 					</div>
 					<div class="chart-slot">
 						<aa-finish-count-chart .finishCounts=${stats.finishCount}></aa-finish-count-chart>
@@ -639,11 +642,23 @@ export class UserPage extends LitElement {
 		css`
 			:host {
 				display: block;
+				height: 100%;
+				min-height: 0;
+				overflow: hidden;
+			}
+
+			aa-loading-state {
+				--aa-loading-height: 100%;
+				--aa-loading-min-height: 100%;
 			}
 
 			.page-shell {
 				display: grid;
+				grid-template-rows: auto minmax(0, 1fr) auto;
 				gap: 1rem;
+				height: 100%;
+				min-height: 0;
+				overflow: hidden;
 				padding: 1rem;
 			}
 
@@ -803,15 +818,23 @@ export class UserPage extends LitElement {
 
 			.stats-grid {
 				display: grid;
-				grid-template-columns: 1fr 1.35fr 1fr;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				grid-template-rows: repeat(2, minmax(0, 1fr));
 				gap: 1rem;
 				align-items: stretch;
+				min-height: 0;
+			}
+
+			.stats-grid > .chart-panel:first-child {
+				grid-column: 1 / -1;
 			}
 
 			.chart-panel {
 				display: grid;
-				grid-template-rows: auto 1fr;
-				min-height: 340px;
+				grid-template-rows: auto minmax(0, 1fr);
+				min-width: 0;
+				min-height: 0;
+				overflow: hidden;
 			}
 
 			.panel-header h3 {
@@ -827,7 +850,8 @@ export class UserPage extends LitElement {
 			}
 
 			.chart-slot {
-				min-height: 250px;
+				min-height: 0;
+				overflow: hidden;
 				margin-top: 0.75rem;
 				border: 2px dashed rgba(0,0,0,0.25);
 				border-radius: 14px;
@@ -1115,8 +1139,30 @@ export class UserPage extends LitElement {
 			}
 
 			@media (max-width: 1100px) {
+				:host {
+					height: auto;
+					min-height: 100%;
+					overflow: visible;
+				}
+
+				aa-loading-state {
+					--aa-loading-height: auto;
+					--aa-loading-min-height: 100%;
+				}
+
+				.page-shell {
+					grid-template-rows: auto;
+					height: auto;
+					overflow: visible;
+				}
+
 				.stats-grid {
 					grid-template-columns: 1fr;
+					grid-template-rows: none;
+				}
+
+				.stats-grid > .chart-panel:first-child {
+					grid-column: auto;
 				}
 
 				.chart-panel {
