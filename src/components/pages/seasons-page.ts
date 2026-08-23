@@ -106,7 +106,7 @@ export class SeasonsPage extends LitElement {
 	@state() private accessGranted = false;
 	@state() private loading = true;
 	@state() private saving = false;
-	@state() private accessError = '';
+	@state() private loadError = '';
 	@state() private validationErrors: string[] = [];
 
 	override connectedCallback(): void {
@@ -121,61 +121,42 @@ export class SeasonsPage extends LitElement {
 	}
 
 	private async initialize(): Promise<void> {
-		const storedKey = sessionStorage.getItem(managementKeyStorage);
-		if (!storedKey) {
-			this.loading = false;
-
-			return;
-		}
-
-		this.adminKey = storedKey;
-		await this.unlock();
-	}
-
-	private async handleAccessSubmit(event: SubmitEvent): Promise<void> {
-		event.preventDefault();
-		await this.unlock();
-	}
-
-	private async unlock(): Promise<void> {
 		this.loading = true;
-		this.accessError = '';
+		this.loadError = '';
+		const storedKey = sessionStorage.getItem(managementKeyStorage);
 
-		try {
-			await this.seasonService.verifyManagementAccess(this.adminKey);
-		}
-		catch (error) {
-			this.accessGranted = false;
-			sessionStorage.removeItem(managementKeyStorage);
-			this.accessError = error instanceof Error ? error.message : 'Unable to unlock season management.';
-			this.loading = false;
-
-			return;
-		}
-
-		sessionStorage.setItem(managementKeyStorage, this.adminKey);
 		try {
 			await this.loadConfiguration();
-			this.accessGranted = true;
 		}
 		catch (error) {
-			this.accessGranted = false;
-			this.accessError = error instanceof Error ? error.message : 'Unable to load season configuration.';
-		}
-		finally {
+			this.loadError = error instanceof Error
+				? error.message
+				: 'Unable to load season configuration.';
 			this.loading = false;
+
+			return;
 		}
+
+		if (storedKey) {
+			this.adminKey = storedKey;
+			try {
+				await this.seasonService.verifyManagementAccess(storedKey);
+				this.accessGranted = true;
+			}
+			catch {
+				sessionStorage.removeItem(managementKeyStorage);
+				this.adminKey = '';
+				this.accessGranted = false;
+			}
+		}
+
+		this.loading = false;
 	}
 
 	private lock(): void {
-		if (this.isDirty && !window.confirm('Discard unsaved season changes and lock this page?'))
-			return;
-
 		sessionStorage.removeItem(managementKeyStorage);
 		this.adminKey = '';
 		this.accessGranted = false;
-		this.draft = undefined;
-		this.originalDraft = '';
 	}
 
 	private async loadConfiguration(): Promise<void> {
@@ -446,17 +427,15 @@ export class SeasonsPage extends LitElement {
 						}
 					</style>
 					<button
-						slot="footer"
+						slot="footer-secondary"
 						type="button"
-						style="padding: 0.65rem 1.2rem; white-space: nowrap;"
 						@click=${ this.closeDialog }
 					>
 						Cancel
 					</button>
 					<button
-						slot="footer"
+						slot="footer-primary"
 						type="button"
-						style="padding: 0.65rem 1.2rem; background: #7df9ff; white-space: nowrap;"
 						@click=${ (event: Event) => {
 							const errors = this.getScoreModifierErrors(rules);
 							if (errors.length > 0) {
@@ -602,17 +581,15 @@ rule.executionOrder = Number(
 						}
 					</style>
 					<button
-						slot="footer"
+						slot="footer-secondary"
 						type="button"
-						style="padding: 0.65rem 1.2rem; white-space: nowrap;"
 						@click=${ this.closeDialog }
 					>
 						Cancel
 					</button>
 					<button
-						slot="footer"
+						slot="footer-primary"
 						type="button"
-						style="padding: 0.65rem 1.2rem; background: #7df9ff; white-space: nowrap;"
 						@click=${ (event: Event) => {
 							this.updateDraft({
 								winConditionRules: rules.map(rule => ({ ...rule })),
@@ -772,9 +749,8 @@ rule.executionOrder = Number(
 						}
 					</style>
 					<button
-						slot="footer"
+						slot="footer-secondary"
 						type="button"
-						style="padding: 0.65rem 1.2rem; white-space: nowrap;"
 						@click=${ (event: Event) =>
 							(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
 								new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
@@ -783,9 +759,8 @@ rule.executionOrder = Number(
 						Cancel
 					</button>
 					<button
-						slot="footer"
+						slot="footer-primary"
 						type="button"
-						style="padding: 0.65rem 1.2rem; background: #7df9ff; white-space: nowrap;"
 						@click=${ (event: Event) => {
 							const errors = this.getThresholdErrors(thresholds);
 							if (errors.length > 0) {
@@ -923,9 +898,8 @@ rule.executionOrder = Number(
 						}
 					</style>
 					<button
-						slot="footer"
+						slot="footer-secondary"
 						type="button"
-						style="padding: 0.65rem 1.2rem; white-space: nowrap;"
 						@click=${ (event: Event) =>
 							(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
 								new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
@@ -934,9 +908,8 @@ rule.executionOrder = Number(
 						Cancel
 					</button>
 					<button
-						slot="footer"
+						slot="footer-primary"
 						type="button"
-						style="padding: 0.65rem 1.2rem; background: #7df9ff; white-space: nowrap;"
 						@click=${ (event: Event) => {
 							const errors = this.getAchievementRewardErrors(rewards);
 							if (errors.length > 0) {
@@ -1002,9 +975,8 @@ rule.executionOrder = Number(
 			await this.dialogService.open(
 				html`
 					<button
-						slot="footer"
+						slot="footer-secondary"
 						type="button"
-						style="padding: 0.65rem 1.2rem; white-space: nowrap;"
 						@click=${ (event: Event) =>
 							(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
 								new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
@@ -1013,9 +985,8 @@ rule.executionOrder = Number(
 						Cancel
 					</button>
 					<button
-						slot="footer"
+						slot="footer-primary"
 						type="button"
-						style="padding: 0.65rem 1.2rem; background: #7df9ff; white-space: nowrap;"
 						@click=${ (event: Event) => {
 							const dialog = (event.currentTarget as HTMLElement).closest('aa-dialog');
 							const editor = dialog?.querySelector(
@@ -1115,8 +1086,7 @@ rule.executionOrder = Number(
 		this.applyNewDraft();
 	}
 
-	private async save(event: SubmitEvent): Promise<void> {
-		event.preventDefault();
+	private async attemptSave(): Promise<void> {
 		if (!this.draft || this.saving)
 			return;
 
@@ -1124,6 +1094,12 @@ rule.executionOrder = Number(
 		this.validationErrors = errors;
 		if (errors.length > 0)
 			return;
+
+		if (!this.accessGranted) {
+			const unlocked = await this.openUnlockSavingDialog();
+			if (!unlocked)
+				return;
+		}
 
 		const existingSeason = this.draft.id
 			? this.seasons.find(season => season.id === this.draft?.id)
@@ -1158,36 +1134,141 @@ rule.executionOrder = Number(
 			const message = error instanceof Error ? error.message : 'Unable to save season.';
 			this.validationErrors = [ message ];
 			this.notificationService.addNotification({ type: 'danger', message });
+			if (
+				/admin key|access denied|X-Season-Admin-Key|SEASON_ADMIN_KEY|401|403|unauthorized|forbidden/i
+					.test(message)
+			)
+				this.lock();
 		}
 		finally {
 			this.saving = false;
 		}
 	}
 
-	private renderAccessGate(): TemplateResult {
-		return html`
-			<div class="access-shell">
-				<form class="access-card" @submit=${ this.handleAccessSubmit }>
-					<div class="access-icon"><i class="fa-solid fa-lock"></i></div>
-					<h2>Season management</h2>
+	private async save(event: SubmitEvent): Promise<void> {
+		event.preventDefault();
+		await this.attemptSave();
+	}
+
+	private async openUnlockSavingDialog(): Promise<boolean> {
+		const formId = 'season-unlock-saving-form';
+		const result = await this.dialogService.open<boolean>(
+			html`
+				<style>
+					.unlock-dialog {
+						display: grid;
+						gap: 0.8rem;
+					}
+					.unlock-dialog p {
+						margin: 0;
+					}
+					.unlock-dialog label {
+						display: grid;
+						gap: 0.35rem;
+						font-weight: 900;
+					}
+					.unlock-dialog input {
+						padding: 0.6rem 0.7rem;
+						background: #fff;
+						border: 2px solid #000;
+						border-radius: 9px;
+						font: inherit;
+					}
+					.unlock-dialog .error {
+						min-height: 1em;
+						color: #9b1c31;
+						font-size: 0.78rem;
+						font-weight: 900;
+					}
+				</style>
+				<button
+					slot="footer-secondary"
+					type="button"
+					@click=${ this.closeDialog }
+				>
+					Cancel
+				</button>
+				<button
+					slot="footer-primary"
+					type="submit"
+					form=${ formId }
+				>
+					Unlock & save
+				</button>
+				<form
+					id=${ formId }
+					class="unlock-dialog"
+					@submit=${ async (event: SubmitEvent) => {
+						event.preventDefault();
+						const form = event.currentTarget as HTMLFormElement;
+						const dialog = form.closest('aa-dialog');
+						const input = form.elements.namedItem('management-key') as HTMLInputElement;
+						const errorElement = form.querySelector<HTMLElement>('.error');
+						const submitButton = dialog?.querySelector<HTMLButtonElement>(
+							`button[form="${ formId }"]`,
+						);
+						const key = input.value;
+
+						input.disabled = true;
+						if (submitButton) {
+							submitButton.disabled = true;
+							submitButton.textContent = 'Checking...';
+						}
+						if (errorElement)
+							errorElement.textContent = '';
+
+						try {
+							await this.seasonService.verifyManagementAccess(key);
+							if (!dialog?.isConnected)
+								return;
+
+							this.adminKey = key;
+							this.accessGranted = true;
+							sessionStorage.setItem(managementKeyStorage, key);
+							dialog?.dispatchEvent(new CustomEvent('dialog-closed', {
+								bubbles:  true,
+								composed: true,
+								detail:   { result: true },
+							}));
+						}
+						catch (error) {
+							this.accessGranted = false;
+							sessionStorage.removeItem(managementKeyStorage);
+							if (errorElement) {
+								errorElement.textContent = error instanceof Error
+									? error.message
+									: 'Unable to unlock season saving.';
+							}
+
+							input.disabled = false;
+							input.select();
+							if (submitButton) {
+								submitButton.disabled = false;
+								submitButton.textContent = 'Unlock & save';
+							}
+						}
+					} }
+				>
+					<p>Enter the management code to save these sandbox changes.</p>
+					<p>Your draft stays unchanged if the code is incorrect.</p>
 					<label>
-						<span>Management key</span>
+						<span>Management code</span>
 						<input
+							name="management-key"
 							type="password"
 							autocomplete="current-password"
 							.value=${ this.adminKey }
-							@input=${ (event: InputEvent) => {
-								this.adminKey = (event.currentTarget as HTMLInputElement).value;
-								this.accessError = '';
-							} }
+							data-autofocus
 							required
 						/>
 					</label>
-					${ this.accessError ? html`<p class="form-error">${ this.accessError }</p>` : nothing }
-					<button type="submit">Unlock editor</button>
+					<p class="error" aria-live="polite"></p>
 				</form>
-			</div>
-		`;
+			`,
+			{ title: 'Unlock saving' },
+		);
+
+		return result === true;
 	}
 
 	private renderBasics(): TemplateResult {
@@ -1363,7 +1444,18 @@ rule.executionOrder = Number(
 
 		return html`
 			<form class="season-editor" @submit=${ this.save }>
-				<header class="editor-header">
+				<div class="mode-banner ${ this.accessGranted ? 'mode-banner--unlocked' : '' }">
+					<div class="mode-banner__status">
+						<i class="fa-solid ${ this.accessGranted ? 'fa-lock-open' : 'fa-flask' }"></i>
+						<div>
+							<strong>${ this.accessGranted ? 'Saving unlocked' : 'Sandbox mode' }</strong>
+							<span>
+								${ this.accessGranted
+									? 'Changes can be saved to the live season configuration.'
+									: 'Experiment freely. Nothing changes for other players until saving is unlocked.' }
+							</span>
+						</div>
+					</div>
 					<div class="season-selector">
 						<span class="eyebrow">${ this.draft.id ? 'Editing season' : 'Creating season' }</span>
 						<div class="season-selector__controls">
@@ -1392,7 +1484,7 @@ rule.executionOrder = Number(
 							</button>
 						</div>
 					</div>
-				</header>
+				</div>
 
 				${ this.renderBasics() }
 				${ this.renderConfiguration() }
@@ -1401,19 +1493,25 @@ rule.executionOrder = Number(
 					<div>
 						${ this.validationErrors.map(error => html`<p class="form-error">${ error }</p>`) }
 						${ this.isDirty
-							? html`<span class="dirty-indicator">Unsaved changes</span>`
+							? html`<span class="dirty-indicator">
+								${ this.accessGranted ? 'Unsaved changes' : 'Unsaved sandbox changes' }
+							</span>`
 							: nothing }
 					</div>
 					<div class="save-actions">
-						<button
-							type="button"
-							class="secondary-button"
-							?disabled=${ this.saving }
-							@click=${ this.lock }
-						>
-							<i class="fa-solid fa-lock"></i>
-							Lock
-						</button>
+						${ this.accessGranted
+							? html`
+								<button
+									type="button"
+									class="secondary-button"
+									?disabled=${ this.saving }
+									@click=${ this.lock }
+								>
+									<i class="fa-solid fa-lock"></i>
+									Lock saving
+								</button>
+							`
+							: nothing }
 						<button
 							type="button"
 							class="secondary-button"
@@ -1423,7 +1521,9 @@ rule.executionOrder = Number(
 							Discard
 						</button>
 						<button type="submit" ?disabled=${ !this.isDirty || this.saving }>
-							${ this.saving ? 'Saving...' : 'Save season' }
+							${ this.saving
+								? 'Saving...'
+								: this.accessGranted ? 'Save season' : 'Unlock & save' }
 						</button>
 					</div>
 				</footer>
@@ -1434,12 +1534,22 @@ rule.executionOrder = Number(
 	override render(): TemplateResult {
 		if (this.loading) {
 			return html`
-				<aa-loading-state loading label="Loading season management"></aa-loading-state>
+				<aa-loading-state loading label="Loading season workshop"></aa-loading-state>
 			`;
 		}
 
-		if (!this.accessGranted)
-			return this.renderAccessGate();
+		if (this.loadError) {
+			return html`
+				<div class="access-shell">
+					<section class="access-card">
+						<div class="access-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+						<h2>Unable to load seasons</h2>
+						<p class="form-error">${ this.loadError }</p>
+						<button type="button" @click=${ this.initialize }>Try again</button>
+					</section>
+				</div>
+			`;
+		}
 
 		return html`
 			<main class="management-shell">
@@ -1548,7 +1658,6 @@ rule.executionOrder = Number(
 				box-shadow: 6px 6px 0 #000;
 			}
 
-			.editor-header,
 			.section-heading,
 			.save-bar {
 				display: flex;
@@ -1557,9 +1666,38 @@ rule.executionOrder = Number(
 				gap: 1rem;
 			}
 
-			.editor-header {
-				padding: 0.85rem 1rem;
+			.mode-banner {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 0.7rem;
+				padding: 0.75rem 1rem;
+				background: #fff1b8;
 				border-bottom: 2px solid #000;
+			}
+
+			.mode-banner--unlocked {
+				background: #dff8df;
+			}
+
+			.mode-banner__status {
+				display: flex;
+				align-items: center;
+				gap: 0.7rem;
+				min-width: 0;
+			}
+
+			.mode-banner__status > i {
+				font-size: 1.15rem;
+			}
+
+			.mode-banner__status > div {
+				display: grid;
+				gap: 0.1rem;
+			}
+
+			.mode-banner span {
+				font-size: 0.78rem;
 			}
 
 			.section-heading h3 {
@@ -1584,7 +1722,8 @@ rule.executionOrder = Number(
 			.season-selector {
 				display: grid;
 				gap: 0.2rem;
-				min-width: min(420px, 65vw);
+				width: min(460px, 45vw);
+				min-width: 300px;
 			}
 
 			.season-selector__controls {
@@ -1622,6 +1761,10 @@ rule.executionOrder = Number(
 				gap: 0.8rem;
 				padding: 1rem;
 				border-bottom: 2px dashed rgba(0, 0, 0, 0.35);
+			}
+
+			.editor-section:last-of-type {
+				border-bottom: 0;
 			}
 
 			.field-grid {
@@ -1764,15 +1907,24 @@ rule.executionOrder = Number(
 					flex-basis: 100%;
 				}
 
-				.save-bar,
-				.editor-header {
+				.save-bar {
 					align-items: stretch;
 					flex-direction: column;
 				}
 
+				.mode-banner {
+					align-items: stretch;
+					flex-direction: column;
+				}
+
+				.season-selector {
+					width: 100%;
+					min-width: 0;
+				}
+
 				.save-actions {
 					display: grid;
-					grid-template-columns: repeat(3, minmax(0, 1fr));
+					grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 				}
 			}
 		`,

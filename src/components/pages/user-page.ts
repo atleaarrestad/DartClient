@@ -540,26 +540,26 @@ export class UserPage extends LitElement {
 			await this.dialogService.open(
 				html`
 					<button
-						slot="footer"
+						slot="actions"
 						type="button"
 						data-achievement-grouping
-						style="padding: 0.65rem 1.35rem; white-space: nowrap;"
 						aria-label="Group achievements by type"
 						aria-pressed="true"
-						@click=${(event: Event) => this.setAchievementGrouping(event, 'type')}
+						@click=${ (event: Event) =>
+							this.setAchievementGrouping(event, 'type') }
 					>
-						By type
+						Type
 					</button>
 					<button
-						slot="footer"
+						slot="actions"
 						type="button"
 						data-achievement-grouping
-						style="padding: 0.65rem 1.35rem; white-space: nowrap;"
 						aria-label="Group achievements by tier"
 						aria-pressed="false"
-						@click=${(event: Event) => this.setAchievementGrouping(event, 'tier')}
+						@click=${ (event: Event) =>
+							this.setAchievementGrouping(event, 'tier') }
 					>
-						By tier
+						Tier
 					</button>
 					<aa-achievement-browser
 						.stats=${stats}

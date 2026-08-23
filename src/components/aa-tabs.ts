@@ -1,5 +1,5 @@
 import { css, html, LitElement, TemplateResult } from 'lit';
-import { customElement, property, queryAll } from 'lit/decorators.js';
+import { customElement, property } from 'lit/decorators.js';
 
 import { sharedStyles } from '../styles.js';
 
@@ -11,28 +11,42 @@ export interface AaTabItem {
 	iconAlt?: string;
 }
 
+type TabLevel = 'parent' | 'child';
+
 @customElement('aa-tabs')
 export class AaTabs extends LitElement {
 
-	@property({ attribute: false }) items: AaTabItem[] = [];
+	@property({ attribute: false }) items:       AaTabItem[] = [];
 	@property({ type: String }) selected = '';
 	@property({ type: String }) label = 'Tabs';
+	@property({ attribute: false }) parentItems: AaTabItem[] = [];
+	@property({ type: String }) parentSelected = '';
+	@property({ type: String }) parentLabel = 'Tab groups';
 
-	@queryAll('button') private tabButtons!: NodeListOf<HTMLButtonElement>;
-
-	private selectTab(id: string): void {
-		if (id === this.selected)
+	private selectTab(id: string, level: TabLevel): void {
+		const selected = level === 'parent' ? this.parentSelected : this.selected;
+		if (id === selected)
 			return;
 
-		this.selected = id;
-		this.dispatchEvent(new CustomEvent<{ id: string; }>('tab-change', {
+		if (level === 'parent')
+			this.parentSelected = id;
+		else
+			this.selected = id;
+
+		const eventName = level === 'parent' ? 'parent-tab-change' : 'tab-change';
+		this.dispatchEvent(new CustomEvent<{ id: string; }>(eventName, {
 			bubbles:  true,
 			composed: true,
 			detail:   { id },
 		}));
 	}
 
-	private async handleKeyDown(event: KeyboardEvent, currentIndex: number): Promise<void> {
+	private async handleKeyDown(
+		event: KeyboardEvent,
+		currentIndex: number,
+		items: AaTabItem[],
+		level: TabLevel,
+	): Promise<void> {
 		if (![ 'ArrowLeft', 'ArrowRight', 'Home', 'End' ].includes(event.key))
 			return;
 
@@ -41,46 +55,58 @@ export class AaTabs extends LitElement {
 		let nextIndex = currentIndex;
 		switch (event.key) {
 		case 'ArrowLeft':
-			nextIndex = (currentIndex - 1 + this.items.length) % this.items.length;
+			nextIndex = (currentIndex - 1 + items.length) % items.length;
 			break;
 		case 'ArrowRight':
-			nextIndex = (currentIndex + 1) % this.items.length;
+			nextIndex = (currentIndex + 1) % items.length;
 			break;
 		case 'Home':
 			nextIndex = 0;
 			break;
 		case 'End':
-			nextIndex = this.items.length - 1;
+			nextIndex = items.length - 1;
 			break;
 		}
 
-		const nextTab = this.items[nextIndex];
+		const nextTab = items[nextIndex];
 		if (!nextTab)
 			return;
 
-		this.selectTab(nextTab.id);
+		this.selectTab(nextTab.id, level);
 		await this.updateComplete;
-		this.tabButtons[nextIndex]?.focus();
+		this.shadowRoot
+			?.querySelector<HTMLButtonElement>(
+				`button[data-level="${ level }"][data-index="${ nextIndex }"]`,
+			)
+			?.focus();
 	}
 
-	override render(): TemplateResult {
-		const selected = this.items.some(item => item.id === this.selected)
-			? this.selected
-			: this.items[0]?.id ?? '';
+	private renderTabs(
+		items: AaTabItem[],
+		selectedId: string,
+		label: string,
+		level: TabLevel,
+	): TemplateResult {
+		const selected = items.some(item => item.id === selectedId)
+			? selectedId
+			: items[0]?.id ?? '';
 
 		return html`
-			<div class="tabs" role="tablist" aria-label=${ this.label }>
-				${ this.items.map((item, index) => {
+			<div class="${ level }-tabs" role="tablist" aria-label=${ label }>
+				${ items.map((item, index) => {
 					const isSelected = item.id === selected;
 
 					return html`
 						<button
 							type="button"
 							role="tab"
+							data-level=${ level }
+							data-index=${ index }
 							aria-selected=${ isSelected ? 'true' : 'false' }
 							tabindex=${ isSelected ? 0 : -1 }
-							@click=${ () => this.selectTab(item.id) }
-							@keydown=${ (event: KeyboardEvent) => this.handleKeyDown(event, index) }
+							@click=${ () => this.selectTab(item.id, level) }
+							@keydown=${ (event: KeyboardEvent) =>
+								this.handleKeyDown(event, index, items, level) }
 						>
 							${ item.iconSrc
 								? html`
@@ -100,6 +126,22 @@ export class AaTabs extends LitElement {
 		`;
 	}
 
+	override render(): TemplateResult {
+		return html`
+			<div class="tabset ${ this.parentItems.length > 0 ? 'tabset--nested' : '' }">
+				${ this.parentItems.length > 0
+					? this.renderTabs(
+						this.parentItems,
+						this.parentSelected,
+						this.parentLabel,
+						'parent',
+					)
+					: null }
+				${ this.renderTabs(this.items, this.selected, this.label, 'child') }
+			</div>
+		`;
+	}
+
 	static override styles = [
 		sharedStyles,
 		css`
@@ -108,11 +150,36 @@ export class AaTabs extends LitElement {
 				min-width: 0;
 			}
 
-			.tabs {
+			.tabset {
+				display: grid;
+				gap: 0.2rem;
+				min-width: 0;
+				padding: 0 0.15rem 0.35rem;
+			}
+
+			.parent-tabs,
+			.child-tabs {
 				display: flex;
 				flex-wrap: wrap;
-				gap: 0.45rem;
-				padding: 0 0.2rem 0.3rem;
+				align-items: center;
+				background: transparent;
+			}
+
+			.parent-tabs {
+				flex: 0 0 auto;
+				justify-self: start;
+			}
+
+			.child-tabs {
+				width: 100%;
+				min-width: 0;
+				padding-top: 0.15rem;
+				border-top: 1px solid rgba(0, 0, 0, 0.22);
+			}
+
+			.tabset:not(.tabset--nested) .child-tabs {
+				padding-top: 0;
+				border-top: 0;
 			}
 
 			button {
@@ -121,28 +188,45 @@ export class AaTabs extends LitElement {
 				justify-content: center;
 				gap: 0.4rem;
 				flex: 0 0 auto;
-				min-height: 40px;
-				padding: 0.4rem 0.7rem;
-				background: #fffefb;
-				border: 2px solid #000;
-				border-radius: 12px 12px 6px 6px;
-				box-shadow: 3px 3px 0 #000;
+				min-height: 32px;
+				padding: 0.28rem 0.58rem;
+				background: transparent;
+				border: 0;
+				border-right: 1px solid rgba(0, 0, 0, 0.28);
+				border-bottom: 3px solid transparent;
+				border-radius: 6px 6px 0 0;
+				box-shadow: none;
 				color: #000;
 				font: inherit;
-				font-size: 0.82rem;
+				font-size: 0.78rem;
 				font-weight: 900;
 				cursor: pointer;
 			}
 
+			.parent-tabs button:last-child,
+			.child-tabs button:last-child {
+				border-right: 0;
+			}
+
 			button[aria-selected='true'] {
-				background: #7df9ff;
-				transform: translate(2px, 2px);
-				box-shadow: 1px 1px 0 #000;
+				background: rgba(125, 249, 255, 0.28);
+				border-bottom-color: #00aeba;
+			}
+
+			.parent-tabs button {
+				min-height: 27px;
+				padding: 0.18rem 0.55rem;
+				font-size: 0.72rem;
+			}
+
+			.parent-tabs button[aria-selected='true'] {
+				background: rgba(125, 249, 255, 0.28);
+				border-bottom-color: #00aeba;
 			}
 
 			button:focus-visible {
-				outline: 3px solid #ff8c00;
-				outline-offset: 2px;
+				outline: 2px solid #ff8c00;
+				outline-offset: -2px;
 			}
 
 			img {

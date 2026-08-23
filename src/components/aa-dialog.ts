@@ -61,9 +61,14 @@ export class AaDialog extends LitElement {
 		this.hasHeaderActions = slot.assignedNodes({ flatten: true }).length > 0;
 	};
 
-	private onFooterSlotChange = (event: Event): void => {
-		const slot = event.currentTarget as HTMLSlotElement;
-		this.hasFooter = slot.assignedNodes({ flatten: true }).length > 0;
+	private onFooterSlotChange = (): void => {
+		this.hasFooter = [
+			'footer',
+			'footer-tools',
+			'footer-tertiary',
+			'footer-secondary',
+			'footer-primary',
+		].some(slotName => this.hasAssigned(slotName));
 	};
 
 	close(result?: unknown): void {
@@ -110,8 +115,14 @@ export class AaDialog extends LitElement {
         </div>
 
         <div class="footer" ?hidden=${ !this.hasFooter }>
+			<div class="footer-tools">
+				<slot name="footer-tools" @slotchange=${ this.onFooterSlotChange }></slot>
+			</div>
 			<div class="footer-actions">
 				<slot name="footer" @slotchange=${ this.onFooterSlotChange }></slot>
+				<slot name="footer-tertiary" @slotchange=${ this.onFooterSlotChange }></slot>
+				<slot name="footer-secondary" @slotchange=${ this.onFooterSlotChange }></slot>
+				<slot name="footer-primary" @slotchange=${ this.onFooterSlotChange }></slot>
 			</div>
 		</div>
       </div>
@@ -170,8 +181,7 @@ export class AaDialog extends LitElement {
 			gap: 0.5rem;
 			align-items: center;
 		}
-		.header-actions,
-		.footer-actions {
+		.header-actions {
 			display: flex;
 			align-items: center;
 			gap: 0;
@@ -189,7 +199,14 @@ export class AaDialog extends LitElement {
 			display: none;
 		}
 		::slotted([slot='actions']) {
-			padding: 0.45rem 0.75rem;
+			appearance: none;
+			box-sizing: border-box;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			min-width: 68px !important;
+			min-height: 36px !important;
+			padding: 0.48rem 1rem !important;
 			background: transparent;
 			border: none;
 			border-left: 2px solid #000;
@@ -197,9 +214,11 @@ export class AaDialog extends LitElement {
 			box-shadow: none;
 			color: #000;
 			font: inherit;
-			font-size: 0.82rem;
-			font-weight: 900;
+			font-size: 0.78rem !important;
+			font-weight: 900 !important;
+			line-height: 1.1 !important;
 			cursor: pointer;
+			white-space: nowrap;
 		}
 		::slotted([slot='actions']:first-of-type) {
 			border-left: none;
@@ -211,30 +230,75 @@ export class AaDialog extends LitElement {
 			outline: 3px solid #ff8c00;
 			outline-offset: -3px;
 		}
-		::slotted([slot='footer']) {
+		.footer-tools,
+		.footer-actions {
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 0.65rem;
+		}
+		.footer-actions {
+			justify-content: flex-end;
+			margin-left: auto;
+		}
+		::slotted([slot='footer']),
+		::slotted([slot='footer-tools']),
+		::slotted([slot='footer-tertiary']),
+		::slotted([slot='footer-secondary']),
+		::slotted([slot='footer-primary']) {
+			appearance: none;
 			box-sizing: border-box;
-			padding: 0.5rem 1.1rem;
-			background: transparent;
-			border: none;
-			border-left: 2px solid #000;
-			border-radius: 0;
-			box-shadow: none;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: auto !important;
+			min-height: 38px !important;
+			padding: 0.42rem 1.2rem !important;
+			background: #fff;
+			border: 2px solid #000;
+			border-radius: 10px;
+			box-shadow: 3px 3px 0 #000;
 			color: #000;
 			font: inherit;
-			font-size: 0.82rem;
-			font-weight: 900;
-			line-height: 1.15;
+			font-size: 0.82rem !important;
+			font-weight: 900 !important;
+			line-height: 1.1 !important;
 			cursor: pointer;
+			white-space: nowrap;
 		}
-		::slotted([slot='footer']:first-of-type) {
-			border-left: none;
-		}
-		::slotted([slot='footer'][aria-pressed='true']) {
+		::slotted([slot='footer-primary']) {
 			background: #7df9ff;
 		}
-		::slotted([slot='footer']:focus-visible) {
+		::slotted([slot='footer-tertiary']) {
+			background: #fffaf3;
+			box-shadow: 2px 2px 0 #000;
+		}
+		::slotted([slot='footer-tools'][aria-pressed='true']) {
+			background: #7df9ff;
+		}
+		::slotted([slot='footer']:disabled),
+		::slotted([slot='footer-tools']:disabled),
+		::slotted([slot='footer-tertiary']:disabled),
+		::slotted([slot='footer-secondary']:disabled),
+		::slotted([slot='footer-primary']:disabled) {
+			opacity: 0.45;
+			cursor: not-allowed;
+		}
+		::slotted([slot='footer']:not(:disabled):active),
+		::slotted([slot='footer-tools']:not(:disabled):active),
+		::slotted([slot='footer-tertiary']:not(:disabled):active),
+		::slotted([slot='footer-secondary']:not(:disabled):active),
+		::slotted([slot='footer-primary']:not(:disabled):active) {
+			transform: translate(2px, 2px);
+			box-shadow: 1px 1px 0 #000;
+		}
+		::slotted([slot='footer']:focus-visible),
+		::slotted([slot='footer-tools']:focus-visible),
+		::slotted([slot='footer-tertiary']:focus-visible),
+		::slotted([slot='footer-secondary']:focus-visible),
+		::slotted([slot='footer-primary']:focus-visible) {
 			outline: 3px solid #ff8c00;
-			outline-offset: -3px;
+			outline-offset: 2px;
 		}
 		.content {
 			overflow: auto;
@@ -264,8 +328,10 @@ export class AaDialog extends LitElement {
 			border-bottom-left-radius: 20px;
 			border-bottom-right-radius: 20px;
 			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
 			gap: 0.5rem;
-			justify-content: flex-start;
+			justify-content: space-between;
 		}
 		.btn {
 			appearance: none;
@@ -285,6 +351,15 @@ export class AaDialog extends LitElement {
 		}
 		.close-btn {
 			line-height: 1;
+		}
+		@media (max-width: 600px) {
+			.footer-tools,
+			.footer-actions {
+				width: 100%;
+			}
+			.footer-actions {
+				justify-content: flex-end;
+			}
 		}
 	`;
 
