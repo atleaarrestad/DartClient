@@ -11,10 +11,13 @@ import {
 	AchievementTier,
 	ProgressAchievement,
 	SessionAchievement,
+	ThrowType,
 } from '../models/enums.js';
 import {
 	AchievementDefinitionsResponse,
 	ProgressionAchievementDefinition,
+	ProgressionAchievementProgress,
+	ProgressionAchievementTarget,
 	SeasonStatistics,
 	SessionsAchievementDefinition,
 } from '../models/schemas.js';
@@ -28,13 +31,14 @@ type AchievementDefinition =
 interface AchievementEntry {
 	definition: AchievementDefinition;
 	unlocked:   boolean;
+	progress?:  ProgressionAchievementProgress;
 }
 
 interface TierProgress {
 	earned:       number;
 	total:        number;
-	earnedItems:  AchievementDefinition[];
-	missingItems: AchievementDefinition[];
+	earnedItems:  AchievementEntry[];
+	missingItems: AchievementEntry[];
 }
 
 export type AchievementGrouping = 'type' | 'tier';
@@ -67,12 +71,15 @@ export class AaAchievementBrowser extends LitElement {
 		if (achievements.length === 0)
 			return html`<p class="empty">No achievements in this category.</p>`;
 
+		const compareAchievements = (left: AchievementEntry, right: AchievementEntry): number =>
+			left.definition.achievementTier - right.definition.achievementTier
+			|| left.definition.name.localeCompare(right.definition.name);
 		const unlocked = achievements
 			.filter(achievement => achievement.unlocked)
-			.sort((left, right) => left.definition.name.localeCompare(right.definition.name));
+			.sort(compareAchievements);
 		const locked = achievements
 			.filter(achievement => !achievement.unlocked)
-			.sort((left, right) => left.definition.name.localeCompare(right.definition.name));
+			.sort(compareAchievements);
 
 		return html`
 			<div class="status-columns">
@@ -91,10 +98,7 @@ export class AaAchievementBrowser extends LitElement {
 		return html`
 			<section class="status-column status-column--${ status }">
 				<header class="status-heading">
-					<div>
-						<span class="status-symbol" aria-hidden="true">${ status === 'unlocked' ? '✓' : '○' }</span>
-						<h3>${ title }</h3>
-					</div>
+					<h3>${ title }</h3>
 					<strong class="status-count">${ achievements.length }</strong>
 				</header>
 
@@ -102,7 +106,7 @@ export class AaAchievementBrowser extends LitElement {
 					? html`
 						<ul class="achievement-cards">
 							${ achievements.map(achievement =>
-								this.renderAchievementCard(achievement.definition, badge)) }
+								this.renderAchievementCard(achievement, badge)) }
 						</ul>
 					`
 					: html`
@@ -117,9 +121,10 @@ export class AaAchievementBrowser extends LitElement {
 	}
 
 	private renderAchievementCard(
-		item: AchievementDefinition,
+		achievement: AchievementEntry,
 		badge: 'tier' | 'type',
 	): TemplateResult {
+		const item = achievement.definition;
 		const tier = item.achievementTier as AchievementTier;
 
 		return html`
@@ -136,8 +141,85 @@ export class AaAchievementBrowser extends LitElement {
 						` }
 				</div>
 				<p>${ item.description }</p>
+				${ achievement.progress
+					? this.renderProgressionProgress(achievement.progress)
+					: null }
 			</li>
 		`;
+	}
+
+	private renderProgressionProgress(progress: ProgressionAchievementProgress): TemplateResult {
+		const percentage = progress.requiredTargets > 0
+			? Math.round((progress.completedTargets / progress.requiredTargets) * 100)
+			: 0;
+
+		return html`
+			<div class="progression-progress">
+				<div class="progression-progress__label">
+					<span>Target progress</span>
+					<strong>${ progress.completedTargets }/${ progress.requiredTargets }</strong>
+				</div>
+				<div
+					class="progression-progress__track"
+					role="progressbar"
+					aria-label="Progression achievement target progress"
+					aria-valuemin="0"
+					aria-valuemax=${ progress.requiredTargets }
+					aria-valuenow=${ progress.completedTargets }
+				>
+					<span style="width: ${ percentage }%"></span>
+				</div>
+				${ progress.remainingTargets.length > 0
+					? html`
+						<details class="remaining-targets">
+							<summary>
+								Remaining targets
+								<strong>${ progress.remainingTargets.length }</strong>
+							</summary>
+							<div class="remaining-targets__list">
+								${ progress.remainingTargets.map(target => html`
+									<span title=${ this.getProgressionTargetDescription(target) }>
+										${ this.getProgressionTargetLabel(target) }
+									</span>
+								`) }
+							</div>
+						</details>
+					`
+					: html`<span class="progression-complete">All targets completed</span>` }
+			</div>
+		`;
+	}
+
+	private getProgressionTargetLabel(target: ProgressionAchievementTarget): string {
+		if (target.hitLocation === 25)
+			return 'Outer bull';
+		if (target.hitLocation === 50)
+			return 'Bull';
+
+		switch (target.throwType) {
+		case ThrowType.Double:
+			return `D${ target.hitLocation }`;
+		case ThrowType.Triple:
+			return `T${ target.hitLocation }`;
+		default:
+			return String(target.hitLocation);
+		}
+	}
+
+	private getProgressionTargetDescription(target: ProgressionAchievementTarget): string {
+		if (target.hitLocation === 25)
+			return 'Outer bull';
+		if (target.hitLocation === 50)
+			return 'Bullseye';
+
+		switch (target.throwType) {
+		case ThrowType.Double:
+			return `Double ${ target.hitLocation }`;
+		case ThrowType.Triple:
+			return `Triple ${ target.hitLocation }`;
+		default:
+			return `Single ${ target.hitLocation }`;
+		}
 	}
 
 	private getTypeAchievements(
@@ -153,8 +235,8 @@ export class AaAchievementBrowser extends LitElement {
 				return [];
 
 			return [
-				...progress.earnedItems.map(definition => ({ definition, unlocked: true })),
-				...progress.missingItems.map(definition => ({ definition, unlocked: false })),
+				...progress.earnedItems,
+				...progress.missingItems,
 			];
 		});
 	}
@@ -174,6 +256,11 @@ export class AaAchievementBrowser extends LitElement {
 			),
 		);
 		const achievements: AchievementEntry[] = [];
+		const progressByAchievement = new Map(
+			this.stats.progressAchievementProgress
+				.filter(progress => progress.achievement !== 'unknown')
+				.map(progress => [ progress.achievement, progress ]),
+		);
 
 		for (const [ id, definition ] of this.definitions.sessionAchievementDefinitions.entries()) {
 			achievements.push({
@@ -186,6 +273,7 @@ export class AaAchievementBrowser extends LitElement {
 			achievements.push({
 				definition,
 				unlocked: unlockedProgress.has(id),
+				progress: progressByAchievement.get(id),
 			});
 		}
 
@@ -214,10 +302,10 @@ export class AaAchievementBrowser extends LitElement {
 			progress.total += 1;
 			if (achievement.unlocked) {
 				progress.earned += 1;
-				progress.earnedItems.push(achievement.definition);
+				progress.earnedItems.push(achievement);
 			}
 			else {
-				progress.missingItems.push(achievement.definition);
+				progress.missingItems.push(achievement);
 			}
 		}
 
@@ -335,10 +423,6 @@ export class AaAchievementBrowser extends LitElement {
 			.tab-panel {
 				min-height: 0;
 				overflow: hidden;
-				padding: 0.75rem;
-				background: #ded8ff;
-				border: 2px solid #000;
-				border-radius: 14px;
 			}
 
 			.status-count {
@@ -378,34 +462,15 @@ export class AaAchievementBrowser extends LitElement {
 				box-shadow: 4px 4px 0 #9b3d68;
 			}
 
-			.status-heading,
-			.status-heading > div {
+			.status-heading {
 				display: flex;
 				align-items: center;
-			}
-
-			.status-heading {
 				justify-content: space-between;
 				gap: 0.75rem;
 			}
 
-			.status-heading > div {
-				gap: 0.45rem;
-			}
-
 			.status-heading h3 {
 				font-size: 1rem;
-			}
-
-			.status-symbol {
-				display: grid;
-				width: 25px;
-				height: 25px;
-				place-items: center;
-				background: #fff;
-				border: 2px solid #000;
-				border-radius: 50%;
-				font-weight: 900;
 			}
 
 			.achievement-cards {
@@ -457,6 +522,101 @@ export class AaAchievementBrowser extends LitElement {
 				opacity: 0.75;
 			}
 
+			.progression-progress {
+				display: grid;
+				gap: 0.4rem;
+				margin-top: 0.65rem;
+				padding-top: 0.55rem;
+				border-top: 1.5px dashed rgba(0, 0, 0, 0.3);
+			}
+
+			.progression-progress__label {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 0.75rem;
+				font-size: 0.72rem;
+				font-weight: 900;
+			}
+
+			.progression-progress__track {
+				height: 10px;
+				overflow: hidden;
+				background: #eee;
+				border: 1.5px solid #000;
+				border-radius: 999px;
+			}
+
+			.progression-progress__track span {
+				display: block;
+				height: 100%;
+				background: #73d13d;
+			}
+
+			.remaining-targets {
+				font-size: 0.72rem;
+			}
+
+			.remaining-targets summary {
+				display: grid;
+				grid-template-columns: auto minmax(0, 1fr) auto;
+				align-items: center;
+				gap: 0.75rem;
+				padding: 0.25rem 0;
+				font-weight: 900;
+				cursor: pointer;
+				list-style: none;
+			}
+
+			.remaining-targets summary::-webkit-details-marker {
+				display: none;
+			}
+
+			.remaining-targets summary::before {
+				content: '+';
+				display: grid;
+				width: 18px;
+				height: 18px;
+				place-items: center;
+				background: #fff;
+				border: 1px solid #000;
+				border-radius: 50%;
+				line-height: 1;
+			}
+
+			.remaining-targets[open] summary::before {
+				content: '−';
+			}
+
+			.remaining-targets summary strong {
+				padding: 0.05rem 0.35rem;
+				background: #fff;
+				border: 1px solid #000;
+				border-radius: 999px;
+			}
+
+			.remaining-targets__list {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 0.3rem;
+				padding-top: 0.35rem;
+			}
+
+			.remaining-targets__list span,
+			.progression-complete {
+				width: fit-content;
+				padding: 0.15rem 0.4rem;
+				background: #fff;
+				border: 1px solid #000;
+				border-radius: 999px;
+				font-size: 0.68rem;
+				font-weight: 800;
+			}
+
+			.progression-complete {
+				background: #e5fbe7;
+			}
+
 			.type-badge,
 			.tier-badge {
 				display: inline-flex;
@@ -495,10 +655,6 @@ export class AaAchievementBrowser extends LitElement {
 			}
 
 			@media (max-width: 600px) {
-				.tab-panel {
-					padding: 0.6rem;
-				}
-
 				.status-columns {
 					grid-template-columns: 1fr;
 					grid-template-rows: repeat(2, minmax(0, 1fr));

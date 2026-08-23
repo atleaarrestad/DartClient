@@ -92,6 +92,18 @@ export const ProgressionAchievementSafeSchema = z
 export type SessionAchievementSafe = SessionAchievement | 'unknown';
 export type ProgressionAchievementSafe = ProgressAchievement | 'unknown';
 
+export const ProgressionAchievementTargetSchema = z.object({
+	hitLocation: z.number().int(),
+	throwType:   z.nativeEnum(ThrowType),
+});
+
+export const ProgressionAchievementProgressSchema = z.object({
+	achievement:      ProgressionAchievementSafeSchema,
+	completedTargets: z.number().int().nonnegative(),
+	requiredTargets:  z.number().int().nonnegative(),
+	remainingTargets: z.array(ProgressionAchievementTargetSchema),
+});
+
 export const SeasonStatisticsSchema = z.object({
 	id:                           	 z.number(),
 	userId:                       	 z.string().uuid(),
@@ -107,6 +119,7 @@ export const SeasonStatisticsSchema = z.object({
 	finishCount:                  	 z.array(FinishCountSchema),
 	unlockedProgressAchievements: 	 z.array(ProgressionAchievementSafeSchema),
 	unlockedSessionAchievements:  	 z.array(SessionAchievementSafeSchema),
+	progressAchievementProgress:    z.array(ProgressionAchievementProgressSchema).default([]),
 });
 
 export const UserSchema = z.object({
@@ -247,6 +260,8 @@ export type SeasonStatistics = z.infer<typeof SeasonStatisticsSchema>;
 export type MatchSnapshot = z.infer<typeof MatchSnapshotSchema>;
 export type HitCount = z.infer<typeof HitCountSchema>;
 export type FinishCount = z.infer<typeof FinishCountSchema>;
+export type ProgressionAchievementTarget = z.infer<typeof ProgressionAchievementTargetSchema>;
+export type ProgressionAchievementProgress = z.infer<typeof ProgressionAchievementProgressSchema>;
 export type GameTracker = z.infer<typeof GameTrackerSchema>;
 
 export type User = z.infer<typeof UserSchema>;
