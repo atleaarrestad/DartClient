@@ -33,6 +33,7 @@ import type {
 	AchievementGrouping,
 } from '../aa-achievement-browser.js';
 import '../aa-achievement-browser.js';
+import '../aa-dartboard-heatmap.js';
 import '../aa-loading-state.js';
 
 @customElement('user-page')
@@ -46,6 +47,7 @@ export class UserPage extends LitElement {
 	@state() private selectedSeason?: Season;
 	@state() private achievementDefinitions?: AchievementDefinitionsResponse;
 	@state() private isLoadingSeasonStats = false;
+	@state() private hitDistributionView: 'bars' | 'board' = 'bars';
 
 	private seasonService: SeasonService;
 	private userService: UserService;
@@ -272,12 +274,34 @@ export class UserPage extends LitElement {
 				</div>
 
 				<div class="panel chart-panel chart-panel-wide">
-					<div class="panel-header">
-						<h3>Hit Distribution</h3>
-						<p>${trackedHits.toLocaleString()} recorded hits this season.</p>
+					<div class="panel-header chart-panel-header">
+						<div>
+							<h3>Hit Distribution</h3>
+							<p>${trackedHits.toLocaleString()} recorded hits this season.</p>
+						</div>
+						<div class="chart-view-toggle" aria-label="Hit distribution view">
+							<button
+								type="button"
+								aria-pressed=${ this.hitDistributionView === 'bars' }
+								@click=${ () => { this.hitDistributionView = 'bars'; } }
+							>
+								Bars
+							</button>
+							<button
+								type="button"
+								aria-pressed=${ this.hitDistributionView === 'board' }
+								@click=${ () => { this.hitDistributionView = 'board'; } }
+							>
+								Board
+							</button>
+						</div>
 					</div>
 					<div class="chart-slot">
-						<aa-hit-count-chart .hits=${stats.hitCounts}></aa-hit-count-chart>
+						${ this.hitDistributionView === 'bars'
+							? html`<aa-hit-count-chart .hits=${ stats.hitCounts }></aa-hit-count-chart>`
+							: html`
+								<aa-dartboard-heatmap .hits=${ stats.hitCounts }></aa-dartboard-heatmap>
+							` }
 					</div>
 				</div>
 
@@ -847,6 +871,51 @@ export class UserPage extends LitElement {
 				opacity: 0.7;
 				font-size: 0.92rem;
 				font-weight: 600;
+			}
+
+			.chart-panel-header {
+				display: flex;
+				align-items: flex-start;
+				justify-content: space-between;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+
+			.chart-view-toggle {
+				display: inline-grid;
+				grid-template-columns: repeat(2, auto);
+				flex: 0 0 auto;
+				overflow: hidden;
+				background: #fffefb;
+				border: 2px solid #000;
+				border-radius: 10px;
+				box-shadow: 2px 2px 0 #000;
+			}
+
+			.chart-view-toggle button {
+				padding: 0.35rem 0.6rem;
+				background: transparent;
+				border: 0;
+				color: #000;
+				font: inherit;
+				font-size: 0.75rem;
+				font-weight: 900;
+				cursor: pointer;
+			}
+
+			.chart-view-toggle button + button {
+				border-left: 2px solid #000;
+			}
+
+			.chart-view-toggle button[aria-pressed='true'] {
+				background: #7df9ff;
+			}
+
+			.chart-view-toggle button:focus-visible {
+				position: relative;
+				z-index: 1;
+				outline: 3px solid #ff8c00;
+				outline-offset: -3px;
 			}
 
 			.chart-slot {
