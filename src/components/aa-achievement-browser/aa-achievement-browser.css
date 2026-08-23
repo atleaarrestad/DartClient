@@ -11,7 +11,7 @@
 	top: 0;
 	z-index: 5;
 	display: grid;
-	padding-bottom: 0.25rem;
+	padding: 0 var(--space-1) var(--space-1);
 	background: var(--color-surface-cool);
 }
 

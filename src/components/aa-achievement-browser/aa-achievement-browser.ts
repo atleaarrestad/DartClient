@@ -24,8 +24,8 @@ import {
 	SessionsAchievementDefinition,
 } from '../../models/schemas.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
-import achievementBrowserStyles from './aa-achievement-browser.css?inline';
 import type { AaTabItem } from '../aa-tabs/aa-tabs.js';
+import achievementBrowserStyles from './aa-achievement-browser.css?inline';
 
 type AchievementDefinition =
 	| SessionsAchievementDefinition
