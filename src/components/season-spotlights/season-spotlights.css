@@ -43,6 +43,7 @@
 :host([embedded]) .spotlight-card::part(card) {
 	border: 2px solid var(--color-border-strong);
 	border-radius: var(--radius-control);
+	background: var(--color-surface-plain);
 	box-shadow: none;
 }
 

@@ -1113,7 +1113,6 @@ export class SeasonPage extends LitElement {
 						embedded
 						.stats=${this.overviewStats}
 					></aa-season-overview>
-					<div class="season-stats-panel__divider"></div>
 					<aa-season-spotlights
 						embedded
 						.spotlights=${this.spotlightCards}

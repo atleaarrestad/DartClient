@@ -47,7 +47,6 @@ export class AaUserStatisticsCharts extends LitElement {
 			return html``;
 
 		const trackedHits = stats.hitCounts.reduce((total, hit) => total + hit.count, 0);
-		const totalFinishes = stats.finishCount.reduce((total, finish) => total + finish.count, 0);
 
 		return html`
 			<section class="stats-grid">
@@ -87,7 +86,6 @@ export class AaUserStatisticsCharts extends LitElement {
 				<div class="panel chart-panel">
 					<div class="panel-header">
 						<h3>Finishes by Round</h3>
-						<p>${totalFinishes} finishes across the tracked round buckets.</p>
 					</div>
 					<div class="chart-slot">
 						<aa-finish-count-chart .finishCounts=${stats.finishCount}></aa-finish-count-chart>
