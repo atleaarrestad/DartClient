@@ -1,0 +1,208 @@
+:host {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+}
+
+.rank-guide {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	background: var(--color-surface-plain);
+	padding: 0.65rem;
+}
+
+.rank-guide-toolbar,
+.rank-guide-legend {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+}
+
+.rank-guide-toolbar {
+	margin-bottom: 0.45rem;
+}
+
+.heading-with-info {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+button {
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control-sm);
+	background: #fff3cf;
+	padding: 0.45rem 0.65rem;
+	font: inherit;
+	font-weight: 800;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.rank-guide-legend {
+	justify-content: flex-start;
+	flex-wrap: wrap;
+	padding: 0.35rem 0.5rem;
+	border-radius: var(--radius-control-sm);
+	background: #f6f6f6;
+	font-size: 0.7rem;
+	font-weight: 800;
+}
+
+.rank-guide-legend span {
+	display: flex;
+	align-items: center;
+	gap: 0.3rem;
+}
+
+.range-example {
+	display: inline-block;
+	width: 28px;
+	height: 6px;
+	border-radius: var(--radius-pill);
+	background: #7b8794;
+}
+
+.even-example {
+	display: inline-block;
+	width: 3px;
+	height: 13px;
+	background: #000;
+}
+
+.rank-axis,
+.rank-guide-row {
+	display: grid;
+	grid-template-columns: 126px minmax(332px, 1fr);
+	gap: 0.5rem;
+}
+
+.rank-axis {
+	align-items: end;
+	padding: 0.45rem 0.3rem 0.2rem;
+	font-size: 0.65rem;
+	font-weight: 800;
+}
+
+.rank-axis-scale {
+	display: grid;
+	gap: 0.25rem;
+	margin-right: 80px;
+	margin-left: 29px;
+	text-align: center;
+}
+
+.rank-axis-scale > strong {
+	font-size: 0.75rem;
+}
+
+.rank-axis-ticks {
+	display: flex;
+	justify-content: space-between;
+}
+
+.rank-guide-chart {
+	min-height: 0;
+	overflow-y: auto;
+	padding-right: 0.2rem;
+}
+
+.rank-guide-row {
+	align-items: center;
+	padding: 0.4rem 0.3rem;
+	border-top: 1px solid #d5d5d5;
+}
+
+.rank-guide-row:nth-child(even) {
+	background: var(--color-surface-card);
+}
+
+.rank-guide-label {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	min-width: 0;
+}
+
+.rank-guide-label aa-rank-display {
+	--aa-rank-icon-size: 30px;
+	--aa-rank-gap: 0.45rem;
+	--aa-rank-name-size: 0.72rem;
+	--aa-rank-meta-size: 0.62rem;
+}
+
+.rank-guide-label small {
+	opacity: 0.65;
+}
+
+.rank-placement-list {
+	display: grid;
+	gap: 0.28rem;
+}
+
+.rank-placement {
+	display: grid;
+	grid-template-columns: 25px minmax(0, 1fr) 76px;
+	align-items: center;
+	gap: 0.35rem;
+	font-size: 0.64rem;
+}
+
+.rank-range-track {
+	position: relative;
+	height: 9px;
+	border: 1px solid #aaa;
+	border-radius: var(--radius-pill);
+	background:
+		repeating-linear-gradient(
+			to right,
+			#f3f3f3 0,
+			#f3f3f3 calc(var(--axis-step) - 1px),
+			#d5d5d5 calc(var(--axis-step) - 1px),
+			#d5d5d5 var(--axis-step)
+		);
+}
+
+.rank-range-fill {
+	position: absolute;
+	top: 1px;
+	bottom: 1px;
+	left: var(--range-start);
+	width: var(--range-width);
+	border-radius: var(--radius-pill);
+	background: var(--placement-color);
+}
+
+.rank-even-marker {
+	position: absolute;
+	top: -3px;
+	bottom: -3px;
+	left: var(--even-position);
+	width: 3px;
+	border-radius: 2px;
+	background: #000;
+	transform: translateX(-1px);
+}
+
+.rank-score-summary {
+	text-align: right;
+	font-weight: 900;
+	white-space: nowrap;
+}
+
+.rank-score-summary small {
+	font-weight: 700;
+	opacity: 0.62;
+}
+
+@media (max-width: 520px) {
+	.rank-axis,
+	.rank-guide-row {
+		grid-template-columns: 88px minmax(262px, 1fr);
+	}
+}

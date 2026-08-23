@@ -1,0 +1,816 @@
+import { html } from 'lit';
+import { customElement } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
+
+import { RoundStatus } from '../../../models/enums.js';
+import type { GameResult, Round, User } from '../../../models/schemas.js';
+import {
+	confirmRematchTemplate,
+	gameplayShortcutsTemplate,
+	postGameTemplate,
+	selectUserTemplate,
+} from '../../../templates/dialogTemplates.js';
+import type { AaCombobox } from '../../aa-combobox-cmp/aa-combobox-cmp.js';
+import type { aaDartThrow } from '../../aa-dart-throw-cmp/aa-dart-throw-cmp.js';
+import { GamePage } from '../game-page/game-page.js';
+import { DartThrow } from '../../../models/dartThrowSchema.js';
+import '../../player-chip/aa-player-chip.js';
+
+interface ElementDetails {
+	type: 'throw' | 'nothing';
+	playerIndex?: number;
+	rowIndex?: number;
+	throwIndex?: number;
+}
+
+@customElement('index-page')
+export class IndexPage extends GamePage {
+
+	protected override isReadOnly: boolean = false;
+	protected blockThrowUpdates: boolean = false;
+	protected lastPlayedUserIds: string[] = [];
+
+	override connectedCallback(): void {
+		super.connectedCallback();
+		this.lastPlayedUserIds = this.cacheService.getLastPlayedUserIds();
+		window.addEventListener('keydown', this.onKeyDown);
+	}
+
+	override async disconnectedCallback(): Promise<void> {
+		await super.disconnectedCallback();
+		window.removeEventListener('keydown', this.onKeyDown);
+	}
+
+	protected override async handleThrowUpdated(
+		updatedThrow: Round['dartThrows'][number],
+		playerIndex: number,
+		roundNumber: number,
+	): Promise<void> {
+		if (this.blockThrowUpdates)
+			return;
+		if (!this.players[playerIndex])
+			return;
+
+		const playerId = this.getUserFromPlayerIndex(playerIndex)?.id;
+
+		const gameTracker = await this.gameService
+			.addDartThrowToGame(this.gameIdFromLocalStorage!, playerId!, roundNumber, updatedThrow);
+
+		const selectedCellElement: aaDartThrow | undefined = this.selectedCellElement;
+		const selectedDartThrow: DartThrow | undefined = selectedCellElement?.dartThrow;
+		const selectedDartThrowDetails = this.getSelectedElementDetails();
+		const hasValidOldSelection = selectedCellElement && selectedDartThrow && selectedDartThrowDetails;
+		let storedOldValue: DartThrow | undefined = undefined;
+
+		if (hasValidOldSelection && selectedDartThrowDetails.throwIndex !== updatedThrow.throwIndex) {
+			const existingThrow =
+				this.players[selectedDartThrowDetails.playerIndex!]?.rounds[selectedDartThrowDetails.rowIndex!]?.dartThrows[selectedDartThrowDetails.throwIndex!];
+
+			if (existingThrow) {
+				storedOldValue = { ...selectedCellElement.dartThrow };
+			}
+		}
+
+		this.updateGameState(gameTracker);
+
+		if (storedOldValue) {
+			const player = this.players[selectedDartThrowDetails.playerIndex!];
+			const round = player?.rounds[selectedDartThrowDetails.rowIndex!];
+
+			if (round) {
+				round.dartThrows[selectedDartThrowDetails.throwIndex!] = storedOldValue;
+			}
+		}
+
+		this.focusNextValidPlayerAfterRoundFailure(playerIndex, roundNumber);
+	}
+
+	protected onKeyDown = this.handleKeyDown.bind(this);
+
+	protected handleKeyDown(event: KeyboardEvent): void {
+		if (document.querySelector('aa-dialog'))
+			return;
+
+		if (event.shiftKey) {
+			switch (event.code) {
+				case 'ArrowUp':
+				case 'ArrowLeft':
+				case 'ArrowRight':
+				case 'ArrowDown': {
+					this.moveFreeFocus(event.code);
+					event.preventDefault();
+					return;
+				}
+			}
+
+			if (event.repeat)
+				return;
+
+			switch (event.code) {
+				case 'Minus':
+				case 'NumpadAdd':
+					void this.addNewPlayer();
+					event.preventDefault();
+					break;
+
+				case 'Slash':
+				case 'NumpadSubtract':
+					void this.removeFocusedPlayer();
+					event.preventDefault();
+					break;
+
+				case 'Tab':
+					this.moveFocus('backward');
+					event.preventDefault();
+					break;
+
+				case 'KeyN':
+					void this.createGame();
+					event.preventDefault();
+					break;
+
+				case 'KeyS':
+					void this.saveGame();
+					event.preventDefault();
+					break;
+
+				case 'KeyR':
+					if (this.isRematchPermissible()) {
+						void this.rematch();
+					}
+					event.preventDefault();
+					break;
+
+				case 'KeyH':
+					void this.openShortcutHelp();
+					event.preventDefault();
+					break;
+			}
+		}
+		else {
+			if (event.repeat)
+				return;
+
+			switch (event.code) {
+				case 'Tab':
+				case 'Enter':
+				case 'NumpadEnter':
+					this.moveFocus('forward');
+					event.preventDefault();
+			}
+		}
+	}
+
+	protected override isPlayerActive(playerIndex: number): boolean {
+		const selectedElementDetails = this.getSelectedElementDetails();
+
+		if (selectedElementDetails.type !== 'throw')
+			return false;
+
+		return selectedElementDetails.playerIndex === playerIndex;
+	}
+
+	private isRematchPermissible(): boolean {
+		return this.hasRematchPlayers() && !this.creatingGame;
+	}
+
+	private async confirmRematch(): Promise<boolean> {
+		const rematchUsers = this.getLastPlayedUsers();
+		if (rematchUsers.length === 0)
+			return false;
+
+		const confirmed = await this.dialogService.open<boolean>(
+			confirmRematchTemplate(rematchUsers),
+			{ title: 'Confirm Rematch' },
+		);
+
+		return confirmed ?? false;
+	}
+
+	private async rematch(): Promise<void> {
+		if (!this.isRematchPermissible())
+			return;
+
+		if (this.isActiveGame) {
+			const confirmed = await this.confirmRematch();
+			if (!confirmed)
+				return;
+		}
+
+		try {
+			this.players = [];
+			this.isActiveGame = true;
+
+			await this.requestNewGame();
+
+			const rematchUsers = this.getLastPlayedUsers();
+			for (const user of rematchUsers) {
+				await this.addNewPlayer(user);
+			}
+		}
+		catch {
+			this.isActiveGame = false;
+		}
+	}
+
+	protected debounceBlockThrowUpdates = (() => {
+		let timeout: number | undefined;
+
+		return () => {
+			if (timeout)
+				clearTimeout(timeout);
+
+			timeout = window.setTimeout(() => {
+				this.blockThrowUpdates = false;
+			}, 100);
+		};
+	})();
+
+	protected moveFreeFocus(code: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {
+		const direction
+			= code === 'ArrowUp' ? 'upward'
+				: code === 'ArrowDown' ? 'downward'
+					: code === 'ArrowRight' ? 'forward'
+						: code === 'ArrowLeft' ? 'backward' : '';
+
+		if (!direction)
+			return;
+
+		this.blockThrowUpdates = true;
+
+		const selectedElementDetails = this.getSelectedElementDetails();
+
+		if (selectedElementDetails.type === 'nothing') {
+			this.focusDartThrow(0, 0, 0);
+		}
+		else if (selectedElementDetails.type === 'throw') {
+			const nextThrow = this.getNextFocusForDartThrow(
+				direction,
+				selectedElementDetails.playerIndex!,
+				selectedElementDetails.rowIndex!,
+				selectedElementDetails.throwIndex!,
+				true,
+			);
+
+			if (nextThrow) {
+				this.focusDartThrow(
+					nextThrow.nextPlayerIndex,
+					nextThrow.nextRoundIndex,
+					nextThrow.nextThrowIndex,
+				);
+			}
+		}
+
+		this.debounceBlockThrowUpdates();
+	}
+
+	protected async requestNewGame(): Promise<string> {
+		if (this.gameIdFromLocalStorage) {
+			await this.unSubscribeToAchievementEvents(this.gameIdFromLocalStorage);
+		}
+
+		const newGameID = await this.gameService.requestNewGame();
+		if (newGameID) {
+			this.gameIdFromLocalStorage = newGameID;
+			await this.subscribeToAchievementEvents(newGameID);
+		}
+
+		return newGameID;
+	}
+
+	protected moveFocus(direction: 'forward' | 'backward'): void {
+		const selectedElementDetails = this.getSelectedElementDetails();
+
+		if (selectedElementDetails.type === 'nothing') {
+			this.focusDartThrow(0, 0, 0);
+		}
+		else if (selectedElementDetails.type === 'throw') {
+			const nextThrow = this.getNextFocusForDartThrow(
+				direction,
+				selectedElementDetails.playerIndex!,
+				selectedElementDetails.rowIndex!,
+				selectedElementDetails.throwIndex!,
+			);
+
+			if (nextThrow) {
+				this.focusDartThrow(
+					nextThrow.nextPlayerIndex,
+					nextThrow.nextRoundIndex,
+					nextThrow.nextThrowIndex,
+				);
+			}
+		}
+	}
+
+	protected getSelectedElementDetails(): ElementDetails {
+		const result: ElementDetails = {
+			type: 'nothing',
+			playerIndex: undefined,
+			rowIndex: undefined,
+			throwIndex: undefined,
+		};
+
+		if (!this.selectedId)
+			return result;
+
+		const idParts = this.selectedId.split('-');
+		result.type = idParts[0]! as 'throw' | 'nothing';
+
+		if (result.type === 'throw') {
+			result.throwIndex = parseInt(idParts.pop()!, 10);
+			result.rowIndex = parseInt(idParts.pop()!, 10);
+			result.playerIndex = parseInt(idParts.pop()!, 10);
+		}
+
+		return result;
+	}
+
+	protected async getNewPlayer(): Promise<User | undefined> {
+		const filteredUsers = this.users.filter(
+			user => !this.players.some(player => player.playerId === user.id),
+		);
+
+		return this.dialogService.open<User>(
+			selectUserTemplate(filteredUsers),
+			{ title: 'Select User' },
+		);
+	}
+
+	protected async addNewPlayer(user?: User): Promise<void> {
+		if (!this.isActiveGame)
+			return;
+
+		user ??= await this.getNewPlayer();
+
+		if (this.gameIdFromLocalStorage && user) {
+			const gameTracker = await this.gameService.addPlayerToGame(this.gameIdFromLocalStorage, user.id);
+			this.updateGameState(gameTracker);
+			this.focusFirstUnplayedRound();
+		}
+	}
+
+	protected override renderTopContent(): unknown {
+		if (!this.isActiveGame)
+			return null;
+
+		return html`
+			<div class="top-bar">
+				<button
+					class="shortcut-help-trigger"
+					type="button"
+					aria-label="Open gameplay shortcuts help"
+					@click=${() => void this.openShortcutHelp()}
+				>
+					<span class="shortcut-keys" aria-hidden="true">
+						<span class="keycap">Shift</span>
+						<span>+</span>
+						<span class="keycap">H</span>
+					</span>
+					<span class="shortcut-help-trigger-text">Shortcuts</span>
+				</button>
+			</div>
+		`;
+	}
+
+	protected async removeFocusedPlayer(): Promise<void> {
+		if (!this.isActiveGame)
+			return;
+
+		const selectedElementDetails = this.getSelectedElementDetails();
+		if (selectedElementDetails.type !== 'throw')
+			return;
+
+		const playerIndex = selectedElementDetails.playerIndex;
+		if (playerIndex === undefined)
+			return;
+
+		const playerId = this.players[playerIndex]?.playerId;
+		if (playerId && this.gameIdFromLocalStorage) {
+			const targetFocus = this.getFocusTargetAfterPlayerRemoval(
+				playerIndex,
+				selectedElementDetails.rowIndex ?? 0,
+				selectedElementDetails.throwIndex ?? 0,
+			);
+
+			const gameTracker = await this.gameService.removePlayer(this.gameIdFromLocalStorage, playerId);
+			this.updateGameState(gameTracker);
+
+			if (!targetFocus) {
+				this.selectedId = undefined;
+				this.selectedCellElement = undefined;
+				this.requestUpdate();
+				return;
+			}
+
+			await this.updateComplete;
+			this.focusClosestDartThrow(targetFocus.playerIndex, targetFocus.rowIndex, targetFocus.throwIndex);
+		}
+	}
+
+	private getFocusTargetAfterPlayerRemoval(
+		playerIndex: number,
+		rowIndex: number,
+		throwIndex: number,
+	): { playerIndex: number; rowIndex: number; throwIndex: number; } | undefined {
+		const remainingPlayerCount = this.players.length - 1;
+		if (remainingPlayerCount <= 0)
+			return;
+
+		return {
+			playerIndex: Math.min(playerIndex, remainingPlayerCount - 1),
+			rowIndex,
+			throwIndex,
+		};
+	}
+
+	private focusClosestDartThrow(playerIndex: number, rowIndex: number, throwIndex: number): void {
+		const player = this.players[playerIndex];
+		if (!player) {
+			this.selectedId = undefined;
+			this.selectedCellElement = undefined;
+			this.requestUpdate();
+			return;
+		}
+
+		const safeRowIndex = Math.min(rowIndex, Math.max(player.rounds.length - 1, 0));
+		const round = player.rounds[safeRowIndex];
+		const safeThrowIndex = Math.min(throwIndex, Math.max((round?.dartThrows.length ?? 1) - 1, 0));
+
+		this.focusDartThrow(playerIndex, safeRowIndex, safeThrowIndex);
+	}
+
+	private async openShortcutHelp(): Promise<void> {
+		if (!this.isActiveGame)
+			return;
+
+		await this.dialogService.open(
+			gameplayShortcutsTemplate(),
+			{ title: 'Gameplay Shortcuts' },
+		);
+	}
+
+	protected async createGame(): Promise<void> {
+		if (this.creatingGame)
+			return;
+
+		this.creatingGame = true;
+		try {
+			this.players = [];
+			this.isActiveGame = true;
+
+			const user = await this.getNewPlayer();
+			if (!user) {
+				this.isActiveGame = false;
+				return;
+			}
+
+			await this.requestNewGame();
+			await this.addNewPlayer(user);
+		}
+		catch (error) {
+			this.isActiveGame = false;
+			this.reportError(error, 'Unable to create a new game.');
+		}
+		finally {
+			this.creatingGame = false;
+		}
+	}
+
+	protected async saveGame(): Promise<void> {
+		if (!this.isActiveGame)
+			return;
+
+		try {
+			if (!this.gameIdFromLocalStorage)
+				return;
+
+			const isValidGame = this.validateGameCanBeSubmitted();
+			if (!isValidGame) {
+				this.notificationService.addNotification({
+					type: 'info',
+					message: 'Cannot submit game! Play at least one round and select user for all players',
+				});
+				return;
+			}
+
+			const gameResult: GameResult = await this.dataService.SubmitGame(this.gameIdFromLocalStorage);
+			const lastPlayedUserIds = this.players.map(player => player.playerId);
+
+			await this.unSubscribeToAchievementEvents(this.gameIdFromLocalStorage);
+			this.gameService.removeCachedGameId();
+
+			this.lastPlayedUserIds = lastPlayedUserIds;
+			this.cacheService.setLastPlayedUserIds(lastPlayedUserIds);
+
+			this.gameIdFromLocalStorage = undefined;
+			this.isActiveGame = false;
+
+			await this.loadUsers({forceRefresh: true, query: {includeSeasonStatistics: true, limitToSeasonId: this.season!.id}});
+
+			this.players = [];
+			this.requestUpdate();
+
+			const achievementDefinitions = await this.achievementService.getAchievementDefinitions();
+			await this.dialogService.open(
+				postGameTemplate(gameResult, this.users, achievementDefinitions),
+				{ title: 'Game Summary' },
+			);
+		}
+		catch (error) {
+			this.reportError(error, 'Unable to save the game.');
+		}
+	}
+
+	protected override handleDartThrowFocused(event: FocusEvent): void {
+		this.selectedId = (event.target as aaDartThrow).id;
+		this.selectedCellElement = event.target as aaDartThrow;
+		this.requestUpdate();
+	}
+
+	protected focusCombobox(index: number): void {
+		const element = this.renderRoot.querySelector(`#combobox-${index}`) as AaCombobox;
+		element?.focus();
+	}
+
+	protected focusDartThrow(playerIndex: number, rowIndex: number, throwIndex: number): void {
+		const element = this.renderRoot.querySelector(`#throw-${playerIndex}-${rowIndex}-${throwIndex}`) as aaDartThrow;
+		element?.focus();
+	}
+
+	protected focusFirstUnplayedRound(): void{
+		for (let roundIndex = 0; roundIndex < 15; roundIndex++) {
+			for (let playerIndex = 0; playerIndex < this.players.length; playerIndex++){
+				const player = this.players[playerIndex];
+				const round = player?.rounds[roundIndex];
+				if (round?.roundStatus === RoundStatus.Unplayed){
+					this.focusDartThrow(playerIndex, roundIndex, 0)
+					return;
+				}
+			}
+		}
+		this.focusDartThrow(0, 0 ,0);
+	}
+
+	protected focusNextValidPlayerAfterRoundFailure(playerIndex: number, roundIndex: number): void {
+		const roundStatus = this.players[playerIndex]?.rounds[roundIndex]?.roundStatus;
+		if (roundStatus !== RoundStatus.Overshoot
+			&& roundStatus !== RoundStatus.WinConditionFailed)
+			return;
+
+		const nextTurnStart = this.getNextPlayerTurnStart(playerIndex, roundIndex);
+		if (!nextTurnStart || this.isFocusAlreadyOnTurn(nextTurnStart))
+			return;
+
+		this.focusDartThrow(
+			nextTurnStart.nextPlayerIndex,
+			nextTurnStart.nextRoundIndex,
+			nextTurnStart.nextThrowIndex,
+		);
+	}
+
+	protected getNextPlayerTurnStart(
+		playerIndex: number,
+		roundIndex: number,
+	): { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number; } | null {
+		const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'forward');
+
+		if (nextFocusablePlayer === undefined)
+			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
+
+		if (nextFocusablePlayer < playerIndex)
+			return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
+
+		return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
+	}
+
+	protected isFocusAlreadyOnTurn(
+		target: { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number; },
+	): boolean {
+		const selectedElementDetails = this.getSelectedElementDetails();
+		if (selectedElementDetails.type !== 'throw')
+			return false;
+
+		return selectedElementDetails.playerIndex === target.nextPlayerIndex
+			&& selectedElementDetails.rowIndex === target.nextRoundIndex;
+	}
+
+	protected getNextFocusablePlayer(
+		currentPlayerIndex: number,
+		direction: 'forward' | 'backward',
+		ignoreRestrictions = false,
+	): number | undefined {
+		const playerCount = this.players.length;
+		if (playerCount <= 1)
+			return;
+
+		const step = direction === 'forward' ? 1 : -1;
+
+		if (ignoreRestrictions) {
+			const nextPlayerIndex = currentPlayerIndex + step;
+			if (nextPlayerIndex < 0 || nextPlayerIndex >= playerCount)
+				return;
+
+			return nextPlayerIndex;
+		}
+
+		for (let i = 1; i < playerCount; i++) {
+			const nextPlayerIndex = (currentPlayerIndex + step * i + playerCount) % playerCount;
+			const nextPlayer = this.players[nextPlayerIndex];
+
+			if (!ignoreRestrictions) {
+				const nextPlayerHasWon = nextPlayer!.rounds
+					.some(round => round.roundStatus === RoundStatus.Victory);
+
+				if (nextPlayerHasWon)
+					continue;
+			}
+
+			return nextPlayerIndex;
+		}
+
+		return;
+	}
+
+	protected getNextFocusForDartThrow(
+		direction: 'forward' | 'backward' | 'upward' | 'downward',
+		playerIndex: number,
+		roundIndex: number,
+		throwIndex: number,
+		ignoreRestrictions = false,
+	): { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number; } | null {
+		if (direction === 'forward') {
+			if (throwIndex === 2) {
+				const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'forward', ignoreRestrictions);
+
+				if (nextFocusablePlayer === undefined) {
+					if (ignoreRestrictions)
+						return null;
+
+					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
+				}
+
+				if (nextFocusablePlayer < playerIndex)
+					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
+				else
+					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
+			}
+			else {
+				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
+			}
+		}
+		else if (direction === 'backward') {
+			if (playerIndex === 0 && roundIndex === 0 && throwIndex === 0)
+				return null;
+
+			if (throwIndex === 0) {
+				const prevFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'backward', ignoreRestrictions);
+
+				if (prevFocusablePlayer === undefined) {
+					if (ignoreRestrictions)
+						return null;
+
+					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
+				}
+
+				if (roundIndex === 0)
+					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
+
+				if (prevFocusablePlayer > playerIndex)
+					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
+				else
+					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
+			}
+			else {
+				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
+			}
+		}
+		else if (direction === 'upward' && ignoreRestrictions) {
+			if (roundIndex === 0)
+				return null;
+
+			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex - 1, nextThrowIndex: throwIndex };
+		}
+		else if (direction === 'downward' && ignoreRestrictions) {
+			const currentPlayer = this.players[playerIndex];
+			const lastRoundIndex = currentPlayer!.rounds.length - 1;
+
+			if (roundIndex >= lastRoundIndex)
+				return null;
+
+			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: throwIndex };
+		}
+
+		return null;
+	}
+
+	protected validateGameCanBeSubmitted(): boolean {
+		const allPlayersSelectedUser = this.players
+			.every(player => player.playerId !== '');
+
+		const hasPlayedAtLeastOneRound = this.players
+			.every(player => player.rounds[0]?.roundStatus !== RoundStatus.Unplayed);
+
+		return allPlayersSelectedUser && hasPlayedAtLeastOneRound;
+	}
+
+	protected getLastPlayedUsers(): User[] {
+		return this.lastPlayedUserIds
+			.map(id => this.users.find(user => user.id === id))
+			.filter((user): user is User => user !== undefined);
+	}
+
+	protected hasRematchPlayers(): boolean {
+		return this.getLastPlayedUsers().length > 0;
+	}
+
+	protected renderLastPlayedUserBadges(compact = false): unknown {
+		const users = this.getLastPlayedUsers();
+
+		if (users.length === 0)
+			return null;
+
+		return html`
+			<div class=${classMap({
+				'rematch-player-list': true,
+				'compact': compact,
+			})}>
+				${users.map(user => html`
+					<aa-player-chip ?compact=${compact}>
+						${user.alias || user.name}
+					</aa-player-chip>
+				`)}
+			</div>
+		`;
+	}
+
+	protected renderRematchShortcut(compact = false): unknown {
+		if (!this.hasRematchPlayers())
+			return null;
+
+		return html`
+			<div class=${classMap({
+				'rematch-callout': true,
+				'compact': compact,
+			})}>
+				<span class="rematch-keys" aria-hidden="true">
+					<span class="keycap">Shift</span>
+					<span>+</span>
+					<span class="keycap">R</span>
+				</span>
+				<span class="rematch-text">for rematch!</span>
+				${this.renderLastPlayedUserBadges(compact)}
+			</div>
+		`;
+	}
+
+	protected override renderEmptyState(): unknown {
+		const hasRematch = this.hasRematchPlayers();
+
+		return html`
+			<div class="empty-state">
+				<div class="empty-shortcuts-card">
+					<div class="shortcut-section">
+						<div class="shortcut-row">
+							<span class="shortcut-label">Start a new game</span>
+							<span class="shortcut-keys">
+								<span class="keycap">Shift</span>
+								<span>+</span>
+								<span class="keycap">N</span>
+							</span>
+						</div>
+					</div>
+
+					${hasRematch ? html`
+						<div class="shortcut-divider"></div>
+
+						<div class="shortcut-section">
+							<div class="shortcut-row">
+								<span class="shortcut-label">Rematch last game</span>
+								<span class="shortcut-keys">
+									<span class="keycap">Shift</span>
+									<span>+</span>
+									<span class="keycap">R</span>
+								</span>
+							</div>
+
+							${this.renderLastPlayedUserBadges()}
+						</div>
+					` : ''}
+				</div>
+			</div>
+		`;
+	}
+
+	protected override renderBottomContent(): unknown {
+		return null;
+		
+		if (!this.isActiveGame)
+			return null;
+
+		return html`
+			<div class="bottom-bar">
+				${this.renderRematchShortcut(true)}
+			</div>
+		`;
+	}
+}

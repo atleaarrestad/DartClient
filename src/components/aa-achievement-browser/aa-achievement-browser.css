@@ -1,0 +1,241 @@
+.browser {
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
+	gap: 0.8rem;
+	height: 100%;
+	min-height: 0;
+}
+
+.sticky-controls {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	display: grid;
+	padding-bottom: 0.25rem;
+	background: var(--color-surface-cool);
+}
+
+.tab-panel {
+	min-height: 0;
+	overflow: hidden;
+}
+
+.status-count {
+	padding: 0.1rem 0.45rem;
+	background: var(--color-surface-plain);
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+}
+
+.status-columns {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-items: stretch;
+	gap: 0.75rem;
+	height: 100%;
+	min-height: 0;
+}
+
+.status-column {
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr);
+	gap: 0.65rem;
+	min-height: 0;
+	overflow: hidden;
+	padding: 0.7rem;
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-lg);
+}
+
+.status-column--unlocked {
+	background: #dff5bd;
+	box-shadow: 4px 4px 0 #367c2b;
+}
+
+.status-column--locked {
+	background: #ffd7e5;
+	box-shadow: 4px 4px 0 #9b3d68;
+}
+
+.status-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+}
+
+.status-heading h3 {
+	font-size: 1rem;
+}
+
+.achievement-cards {
+	display: grid;
+	gap: 0.55rem;
+	min-height: 0;
+	overflow-y: auto;
+	padding-right: 0.3rem;
+	scrollbar-color: rgba(0, 0, 0, 0.4) transparent;
+	scrollbar-width: thin;
+}
+
+.achievement-cards::-webkit-scrollbar {
+	width: 4px;
+}
+
+.achievement-cards::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.achievement-cards::-webkit-scrollbar-thumb {
+	background: rgba(0, 0, 0, 0.4);
+	border-radius: var(--radius-pill);
+}
+
+.achievement-cards::-webkit-scrollbar-thumb:hover {
+	background: rgba(0, 0, 0, 0.65);
+}
+
+.achievement-card {
+	padding: 0.6rem 0.65rem;
+	background: var(--color-surface-raised);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+	box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.8);
+}
+
+.achievement-card__heading {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.65rem;
+}
+
+.achievement-card p {
+	margin-top: 0.25rem;
+	font-size: 0.82rem;
+	line-height: 1.3;
+	opacity: 0.75;
+}
+
+.progression-progress {
+	display: grid;
+	gap: 0.4rem;
+	margin-top: 0.65rem;
+	padding-top: 0.55rem;
+	border-top: 1.5px dashed rgba(0, 0, 0, 0.3);
+}
+
+.progression-progress__label {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	font-size: 0.72rem;
+	font-weight: 900;
+}
+
+.progression-progress__track {
+	height: 10px;
+	overflow: hidden;
+	background: #eee;
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+}
+
+.progression-progress__track span {
+	display: block;
+	height: 100%;
+	background: #73d13d;
+}
+
+.remaining-targets {
+	font-size: 0.72rem;
+}
+
+.remaining-targets summary {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.25rem 0;
+	font-weight: 900;
+	cursor: pointer;
+	list-style: none;
+}
+
+.remaining-targets summary::-webkit-details-marker {
+	display: none;
+}
+
+.remaining-targets summary::before {
+	content: '+';
+	display: grid;
+	width: 18px;
+	height: 18px;
+	place-items: center;
+	background: var(--color-surface-plain);
+	border: 1px solid var(--color-border-strong);
+	border-radius: 50%;
+	line-height: 1;
+}
+
+.remaining-targets[open] summary::before {
+	content: '−';
+}
+
+.remaining-targets summary strong {
+	padding: 0.05rem 0.35rem;
+	background: var(--color-surface-plain);
+	border: 1px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+}
+
+.remaining-targets__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem;
+	padding-top: 0.35rem;
+}
+
+.remaining-targets__list span,
+.progression-complete {
+	width: fit-content;
+	padding: 0.15rem 0.4rem;
+	background: var(--color-surface-plain);
+	border: 1px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	font-size: 0.68rem;
+	font-weight: 800;
+}
+
+.progression-complete {
+	background: var(--color-surface-success-subtle);
+}
+
+.achievement-card__heading aa-badge {
+	flex: 0 0 auto;
+	text-transform: capitalize;
+}
+
+.achievement-card__heading aa-badge img {
+	width: 16px;
+	height: 16px;
+}
+
+.unknown {
+	margin: 0;
+	font-size: 0.85rem;
+	opacity: 0.65;
+}
+
+@media (max-width: 600px) {
+	.status-columns {
+		grid-template-columns: 1fr;
+		grid-template-rows: repeat(2, minmax(0, 1fr));
+	}
+
+	.achievement-card__heading {
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+}

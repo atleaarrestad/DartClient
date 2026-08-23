@@ -1,0 +1,11 @@
+:host {
+	display: block;
+	height: 100%;
+	min-height: 0;
+}
+
+aa-data-table {
+	height: 100%;
+	min-height: 0;
+	--aa-data-table-min-width: 700px;
+}

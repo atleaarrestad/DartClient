@@ -1,0 +1,221 @@
+.score-modifiers-dialog {
+	display: grid;
+	gap: 0.65rem;
+}
+.score-modifiers-dialog > p {
+	margin: 0 0 0.15rem;
+	font-size: 0.82rem;
+	opacity: 0.68;
+}
+.score-modifiers-dialog .rule-dialog__card {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) 90px;
+	align-items: center;
+	gap: 0.65rem;
+	padding: 0.7rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+}
+.score-modifiers-dialog .rule-dialog__card.selected {
+	background: var(--color-surface-success-subtle);
+}
+.score-modifiers-dialog .rule-dialog__card > input {
+	width: 18px;
+	height: 18px;
+	accent-color: var(--color-text-primary);
+}
+.score-modifiers-dialog .rule-dialog__copy {
+	display: grid;
+	gap: 0.15rem;
+	min-width: 0;
+}
+.score-modifiers-dialog .rule-dialog__copy small {
+	opacity: 0.68;
+}
+.score-modifiers-dialog .rule-dialog__order {
+	display: grid;
+	gap: 0.2rem;
+	font-size: 0.68rem;
+	font-weight: 900;
+}
+.score-modifiers-dialog .rule-dialog__order input {
+	min-width: 0;
+	padding: 0.5rem 0.6rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control-sm);
+	font: inherit;
+}
+.score-modifiers-dialog .rule-dialog__order input:disabled {
+	background: #ddd;
+}
+@media (max-width: 600px) {
+	.score-modifiers-dialog .rule-dialog__card {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+	.score-modifiers-dialog .rule-dialog__order {
+		grid-column: 2;
+	}
+}
+
+.win-conditions-dialog {
+	display: grid;
+	gap: 0.65rem;
+}
+.win-conditions-dialog > p {
+	margin: 0 0 0.15rem;
+	font-size: 0.82rem;
+	opacity: 0.68;
+}
+.win-conditions-dialog .rule-dialog__card {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: start;
+	gap: 0.65rem;
+	padding: 0.7rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+}
+.win-conditions-dialog .rule-dialog__card.selected {
+	background: var(--color-surface-success-subtle);
+}
+.win-conditions-dialog .rule-dialog__card > input {
+	width: 18px;
+	height: 18px;
+	margin-top: 0.1rem;
+	accent-color: var(--color-text-primary);
+}
+.win-conditions-dialog .rule-dialog__copy {
+	display: grid;
+	gap: 0.15rem;
+}
+.win-conditions-dialog .rule-dialog__copy small {
+	opacity: 0.68;
+}
+
+.rank-threshold-dialog {
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr);
+	gap: 0.75rem;
+	height: 100%;
+	min-height: 0;
+}
+.rank-threshold-dialog > p {
+	margin: 0;
+	font-size: 0.82rem;
+	opacity: 0.68;
+}
+.rank-threshold-dialog .rank-threshold-dialog__list {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-content: start;
+	gap: 0.55rem;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 0.15rem 0.35rem 0.35rem 0.15rem;
+	scrollbar-width: thin;
+}
+.rank-threshold-dialog .rank-threshold-dialog__row {
+	display: grid;
+	grid-template-columns: minmax(146px, 1fr) minmax(90px, 0.65fr);
+	align-items: center;
+	gap: 0.55rem;
+	padding: 0.55rem 0.65rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+}
+.rank-threshold-dialog aa-rank-display {
+	--aa-rank-icon-size: 34px;
+}
+.rank-threshold-dialog .rank-threshold-dialog__row input {
+	min-width: 0;
+	padding: 0.5rem 0.6rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control-sm);
+	font: inherit;
+}
+.rank-threshold-dialog .rank-threshold-dialog__row input:disabled {
+	background: #ddd;
+}
+@media (max-width: 700px) {
+	.rank-threshold-dialog .rank-threshold-dialog__list {
+		grid-template-columns: 1fr;
+	}
+}
+
+.achievement-reward-dialog {
+	display: grid;
+	gap: 0.65rem;
+}
+.achievement-reward-dialog > p {
+	margin: 0 0 0.15rem;
+	font-size: 0.82rem;
+	opacity: 0.68;
+}
+.achievement-reward-dialog .achievement-reward-dialog__row {
+	display: grid;
+	grid-template-columns: 42px minmax(120px, 1fr) auto minmax(90px, 0.55fr);
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.65rem 0.75rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+}
+.achievement-reward-dialog .achievement-reward-dialog__row img {
+	width: 38px;
+	height: 38px;
+	object-fit: contain;
+}
+.achievement-reward-dialog .achievement-reward-dialog__row span {
+	font-size: 0.75rem;
+	font-weight: 800;
+	opacity: 0.65;
+}
+.achievement-reward-dialog .achievement-reward-dialog__row input {
+	min-width: 0;
+	padding: 0.5rem 0.6rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control-sm);
+	font: inherit;
+}
+@media (max-width: 600px) {
+	.achievement-reward-dialog .achievement-reward-dialog__row {
+		grid-template-columns: 38px 1fr;
+	}
+	.achievement-reward-dialog .achievement-reward-dialog__row span,
+	.achievement-reward-dialog .achievement-reward-dialog__row input {
+		grid-column: 2;
+	}
+}
+
+.unlock-dialog {
+	display: grid;
+	gap: 0.8rem;
+}
+.unlock-dialog p {
+	margin: 0;
+}
+.unlock-dialog label {
+	display: grid;
+	gap: 0.35rem;
+	font-weight: 900;
+}
+.unlock-dialog input {
+	padding: 0.6rem 0.7rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: 9px;
+	font: inherit;
+}
+.unlock-dialog .error {
+	min-height: 1em;
+	color: #9b1c31;
+	font-size: 0.78rem;
+	font-weight: 900;
+}

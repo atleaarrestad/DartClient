@@ -1,7 +1,7 @@
 import { render, TemplateResult } from 'lit';
 import { injectable } from 'tsyringe';
 
-import { AaDialog } from '../components/aa-dialog.js';
+import { AaDialog } from '../components/aa-dialog/aa-dialog.js';
 
 @injectable()
 export class DialogService {

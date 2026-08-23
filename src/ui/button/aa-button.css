@@ -1,0 +1,106 @@
+:host {
+	display: inline-block;
+}
+
+button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	width: 100%;
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-right-width: 5px;
+	border-bottom-width: 5px;
+	border-radius: var(--radius-md);
+	background: var(--aa-button-background, var(--color-accent-primary));
+	color: var(--aa-button-color, var(--color-text-primary));
+	font: inherit;
+	font-weight: 800;
+	line-height: 1;
+	cursor: pointer;
+	transition:
+		transform 0.15s ease-out,
+		box-shadow 0.15s ease-out,
+		background-color 0.15s ease-out;
+}
+
+button:hover:not(:disabled) {
+	transform: translate(-0.5px, -0.5px);
+	background: var(--aa-button-hover-background, var(--color-accent-primary-hover));
+	box-shadow: var(--shadow-brutal-sm);
+}
+
+button:active:not(:disabled) {
+	transform: translate(2px, 2px);
+	box-shadow: none;
+}
+
+button:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+button[data-size='small'] {
+	padding: var(--space-2) var(--space-3);
+	font-size: var(--font-size-sm);
+}
+
+button[data-size='medium'] {
+	padding: 6px var(--space-3);
+	font-size: var(--font-size-md);
+}
+
+button[data-size='large'] {
+	padding: var(--space-3) var(--space-5);
+	font-size: var(--font-size-lg);
+}
+
+button[data-variant='secondary'] {
+	--aa-button-background: var(--color-surface-raised);
+	--aa-button-hover-background: var(--color-surface-card);
+}
+
+button[data-variant='danger'] {
+	--aa-button-background: var(--color-status-danger);
+	--aa-button-hover-background: #d95c6a;
+}
+
+button[data-variant='ghost'] {
+	border-color: transparent;
+	background: transparent;
+	box-shadow: none;
+}
+
+button[data-variant='ghost']:hover:not(:disabled) {
+	border-color: var(--color-border-strong);
+}
+
+.spinner {
+	width: 0.9em;
+	height: 0.9em;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	button {
+		transition: none;
+	}
+
+	.spinner {
+		animation-duration: 1.4s;
+	}
+}

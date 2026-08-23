@@ -1,0 +1,8 @@
+:host {
+	display: block;
+	margin-top: 1.5rem;
+}
+
+aa-data-table {
+	--aa-data-table-min-width: 1120px;
+}

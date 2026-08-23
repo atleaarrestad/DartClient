@@ -1,0 +1,58 @@
+:host {
+	display: inline-flex;
+	min-width: 0;
+}
+
+.rank-display {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--aa-rank-gap, var(--space-2));
+	min-width: 0;
+}
+
+:host([orientation='vertical']) .rank-display {
+	flex-direction: column;
+}
+
+.rank-icon {
+	display: block;
+	width: var(--aa-rank-icon-size, 2.5rem);
+	height: var(--aa-rank-icon-size, 2.5rem);
+	flex: 0 0 auto;
+	object-fit: contain;
+	image-rendering: -webkit-optimize-contrast;
+}
+
+.rank-copy {
+	display: grid;
+	gap: 0.1rem;
+	min-width: 0;
+}
+
+.context-label {
+	color: var(--aa-rank-context-color, inherit);
+	font-size: var(--aa-rank-context-size, var(--font-size-sm));
+	font-weight: 700;
+	opacity: 0.72;
+}
+
+.rank-name {
+	color: var(--aa-rank-name-color, inherit);
+	font-size: var(--aa-rank-name-size, inherit);
+	font-weight: 800;
+	white-space: nowrap;
+}
+
+::slotted(*) {
+	font-size: var(--aa-rank-meta-size, var(--font-size-sm));
+}
+
+:host([compact]) {
+	--aa-rank-icon-size: 2.125rem;
+	--aa-rank-gap: var(--space-2);
+}
+
+:host([icon-only]) .rank-copy {
+	display: none;
+}

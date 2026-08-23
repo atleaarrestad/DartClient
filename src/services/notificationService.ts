@@ -1,4 +1,4 @@
-import { NotificationElement } from 'src/components/aa-notification-cmp.js';
+import { NotificationElement } from 'src/components/aa-notification-cmp/aa-notification-cmp.js';
 import { injectable } from 'tsyringe';
 
 type NotificationType = 'success' | 'danger' | 'info' | 'achievement';

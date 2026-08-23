@@ -1,0 +1,60 @@
+:host {
+	display: block;
+}
+
+.empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: var(--space-7) var(--space-5);
+	border: var(--border-width-strong) dashed var(--color-border-strong);
+	border-radius: var(--radius-lg);
+	background: var(--color-surface-card);
+	color: var(--color-text-primary);
+	text-align: center;
+}
+
+.icon {
+	display: grid;
+	place-items: center;
+	margin-block-end: var(--space-3);
+	font-size: var(--font-size-2xl);
+}
+
+[hidden] {
+	display: none;
+}
+
+h2 {
+	margin: 0;
+	font-family: var(--font-family-ui);
+	font-size: var(--font-size-xl);
+	line-height: 1.2;
+}
+
+.content {
+	max-width: 42rem;
+	margin-block-start: var(--space-2);
+	font-family: var(--font-family-body);
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--space-3);
+	margin-block-start: var(--space-5);
+}
+
+:host([compact]) .empty-state {
+	padding: var(--space-3);
+	border-width: 1px;
+	border-radius: var(--radius-sm);
+	font-size: var(--font-size-sm);
+}
+
+:host([compact]) .content {
+	margin-block-start: 0;
+	font-family: var(--font-family-ui);
+	font-weight: 700;
+}
