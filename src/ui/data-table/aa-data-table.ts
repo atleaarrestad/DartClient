@@ -27,7 +27,7 @@ export class AaDataTable extends LitElement {
 	@property({ attribute: false }) rows:      unknown[] = [];
 	@property({ attribute: false }) columns:   DataTableColumn[] = [];
 	@property({ attribute: false }) rowLabel?: (row: unknown, index: number) => string;
-	@property({ type: String }) title = '';
+	@property({ type: String }) override title = '';
 	@property({ type: String }) label = 'Data table';
 	@property({ type: String }) sortKey = '';
 	@property({ type: Boolean }) sortAsc = false;

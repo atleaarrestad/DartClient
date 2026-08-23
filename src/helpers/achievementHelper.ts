@@ -11,7 +11,6 @@ const achievementTypeLabels: Record<AchievementType, string> = {
 	[AchievementType.PointsRelated]:    'Points',
 	[AchievementType.PointsRelatedRaw]: 'Raw points',
 	[AchievementType.Progression]:      'Progression',
-	[AchievementType.Meme]:             'Meme',
 	[AchievementType.Shanghai]:         'Shanghai',
 	[AchievementType.ShanghaiBudget]:   'Shanghai budget',
 };

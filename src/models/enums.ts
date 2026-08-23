@@ -114,10 +114,6 @@ export enum SessionAchievement {
 	FinishWithTripple = 407,
 	BigFish = 408,
 
-	// 500-599: Memes
-	MaggaSlayer = 500,
-
-  
 	// 600–699: Shanghai
 
 	Shanghai1 = 600,
@@ -184,14 +180,14 @@ export enum AchievementTier {
 }
 
 export enum AchievementType {
-    RangeKing,
-    TwentyRelated,
-    VictoryRelated,
-    Classic,
-    PointsRelated,
-    PointsRelatedRaw,
-    Progression,
-	Meme,
-	Shanghai,
-	ShanghaiBudget
+	RangeKing = 0,
+	TwentyRelated = 1,
+	VictoryRelated = 2,
+	Classic = 3,
+	PointsRelated = 4,
+	PointsRelatedRaw = 5,
+	Progression = 6,
+	// 7 was the removed Meme category.
+	Shanghai = 8,
+	ShanghaiBudget = 9,
 }
