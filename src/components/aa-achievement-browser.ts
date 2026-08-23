@@ -76,34 +76,8 @@ export class AaAchievementBrowser extends LitElement {
 
 		return html`
 			<div class="status-columns">
-				${ this.renderStatusColumn('unlocked', 'Unlocked', unlocked, badge) }
-				${ this.renderStatusColumn('locked', 'Still locked', locked, badge) }
-			</div>
-		`;
-	}
-
-	private renderCategoryProgress(achievements: AchievementEntry[]): TemplateResult {
-		const unlockedCount = achievements.filter(achievement => achievement.unlocked).length;
-		const percentage = achievements.length > 0
-			? Math.round((unlockedCount / achievements.length) * 100)
-			: 0;
-
-		return html`
-			<div class="category-progress">
-				<div class="category-progress__label">
-					<span>Category progress</span>
-					<strong>${ unlockedCount }/${ achievements.length }</strong>
-				</div>
-				<div
-					class="category-progress__track"
-					role="progressbar"
-					aria-label="Category achievement progress"
-					aria-valuemin="0"
-					aria-valuemax="100"
-					aria-valuenow=${ percentage }
-				>
-					<span style="width: ${ percentage }%"></span>
-				</div>
+				${ this.renderStatusColumn('unlocked', 'Completed', unlocked, badge) }
+				${ this.renderStatusColumn('locked', 'Remaining', locked, badge) }
 			</div>
 		`;
 	}
@@ -128,15 +102,14 @@ export class AaAchievementBrowser extends LitElement {
 					? html`
 						<ul class="achievement-cards">
 							${ achievements.map(achievement =>
-								this.renderAchievementCard(achievement.definition, badge),
-							) }
+								this.renderAchievementCard(achievement.definition, badge)) }
 						</ul>
 					`
 					: html`
 						<p class="status-empty">
 							${ status === 'unlocked'
-								? 'Nothing unlocked in this category yet.'
-								: 'Everything in this category is unlocked.' }
+								? 'Nothing completed in this category yet.'
+								: 'Everything in this category is complete.' }
 						</p>
 					` }
 			</section>
@@ -319,7 +292,6 @@ export class AaAchievementBrowser extends LitElement {
 						.selected=${ activeTabId }
 						@tab-change=${ this.handleTabChange }
 					></aa-tabs>
-					${ this.renderCategoryProgress(activeAchievements) }
 				</div>
 
 				<section
@@ -356,7 +328,6 @@ export class AaAchievementBrowser extends LitElement {
 				top: 0;
 				z-index: 5;
 				display: grid;
-				gap: 0.55rem;
 				padding-bottom: 0.25rem;
 				background: #f5f3ff;
 			}
@@ -370,48 +341,11 @@ export class AaAchievementBrowser extends LitElement {
 				border-radius: 14px;
 			}
 
-			.category-progress {
-				display: grid;
-				grid-template-columns: minmax(160px, 0.35fr) minmax(180px, 1fr);
-				align-items: center;
-				gap: 0.85rem;
-				padding: 0.65rem 0.8rem;
-				background: #fffefb;
-				border: 2px solid #000;
-				border-radius: 12px;
-				box-shadow: 3px 3px 0 #000;
-			}
-
-			.category-progress__label {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				gap: 0.75rem;
-				font-size: 0.82rem;
-				font-weight: 900;
-			}
-
-			.category-progress__label strong,
 			.status-count {
 				padding: 0.1rem 0.45rem;
 				background: #fff;
 				border: 1.5px solid #000;
 				border-radius: 999px;
-			}
-
-			.category-progress__track {
-				height: 16px;
-				overflow: hidden;
-				background: #eee;
-				border: 2px solid #000;
-				border-radius: 999px;
-			}
-
-			.category-progress__track span {
-				display: block;
-				height: 100%;
-				background: #73d13d;
-				border-right: 2px solid #000;
 			}
 
 			.status-columns {
@@ -563,11 +497,6 @@ export class AaAchievementBrowser extends LitElement {
 			@media (max-width: 600px) {
 				.tab-panel {
 					padding: 0.6rem;
-				}
-
-				.category-progress {
-					grid-template-columns: 1fr;
-					gap: 0.45rem;
 				}
 
 				.status-columns {
