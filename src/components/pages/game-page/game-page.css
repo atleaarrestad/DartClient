@@ -305,10 +305,8 @@ aa-loading-state {
 }
 
 .shortcut-divider {
-	height: 2px;
-	background: repeating-linear-gradient(to right,
-			#000 0 10px,
-			transparent 10px 16px);
+	height: 0;
+	border-top: 2px dashed var(--color-border-strong);
 	opacity: 0.35;
 	margin: 0 1rem;
 }

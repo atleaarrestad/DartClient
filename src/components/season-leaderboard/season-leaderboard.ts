@@ -7,11 +7,13 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { Rank } from '../../models/rank.js';
 import type {
 	DataTableColumn,
+	DataTableRowActivateEvent,
 	DataTableSortEvent,
 } from '../../ui/data-table/aa-data-table.js';
 import seasonLeaderboardStyles from './season-leaderboard.css?inline';
 
 export interface SeasonLeaderboardRow {
+	userId:                 string;
 	alias:                  string;
 	rank?:                  Rank;
 	rankLabel:              string;
@@ -21,6 +23,10 @@ export interface SeasonLeaderboardRow {
 	averagePlayersPerMatch: string;
 	averageFinishRound:     string;
 }
+
+export type SeasonLeaderboardUserSelectedEvent = CustomEvent<string>;
+
+export const seasonLeaderboardUserSelectedEventName = 'season-leaderboard-user-selected';
 
 type SeasonLeaderboardSortKey =
 	| 'player'
@@ -116,6 +122,14 @@ export class SeasonLeaderboard extends LitElement {
 		}
 	}
 
+	private handleRowActivate(event: DataTableRowActivateEvent<SeasonLeaderboardRow>): void {
+		this.dispatchEvent(new CustomEvent<string>(seasonLeaderboardUserSelectedEventName, {
+			bubbles:  true,
+			composed: true,
+			detail:   event.detail.userId,
+		}));
+	}
+
 	private parseNumeric(value: string): number {
 		const parsed = Number.parseFloat(value.replace('%', ''));
 
@@ -155,13 +169,16 @@ export class SeasonLeaderboard extends LitElement {
 
 		return html`
 			<aa-data-table
+				activatable
 				title="Leaderboard top 10"
 				label="Season leaderboard top 10"
 				.rows=${ this.getDisplayRows() }
 				.columns=${ this.columns }
 				.sortKey=${ this.sortKey }
 				.sortAsc=${ this.sortAsc }
+				.rowLabel=${ (row: SeasonLeaderboardRow) => `Open ${ row.alias }'s profile` }
 				@data-table-sort=${ this.handleSort }
+				@data-table-row-activate=${ this.handleRowActivate }
 			></aa-data-table>
 		`;
 	}
@@ -173,5 +190,9 @@ export class SeasonLeaderboard extends LitElement {
 declare global {
 	interface HTMLElementTagNameMap {
 		'aa-season-leaderboard': SeasonLeaderboard;
+	}
+
+	interface HTMLElementEventMap {
+		[seasonLeaderboardUserSelectedEventName]: SeasonLeaderboardUserSelectedEvent;
 	}
 }

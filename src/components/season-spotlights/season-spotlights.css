@@ -14,6 +14,12 @@
 	align-items: stretch;
 }
 
+:host([embedded]) .spotlights {
+	gap: 0.65rem;
+	margin: 0;
+	background: transparent;
+}
+
 .spotlight-card {
 	min-width: 0;
 	cursor: pointer;
@@ -34,8 +40,19 @@
 	transition: transform 120ms ease;
 }
 
+:host([embedded]) .spotlight-card::part(card) {
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	box-shadow: none;
+}
+
 .spotlight-card:hover::part(card) {
 	transform: translate(-1px, -1px);
+}
+
+:host([embedded]) .spotlight-card:hover::part(card) {
+	transform: none;
+	background: var(--color-surface-info-subtle);
 }
 
 .spotlight-card:focus-visible {

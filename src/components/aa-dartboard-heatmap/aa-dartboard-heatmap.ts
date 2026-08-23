@@ -190,7 +190,13 @@ export class AaDartboardHeatmap extends LitElement {
 				<div class="heatmap-key">
 					<div>
 						<strong>Hit density</strong>
-						<div class="heat-scale" aria-label="Heat scale from fewer to more hits"></div>
+						<div class="heat-scale" aria-label="Heat scale from fewer to more hits">
+							<span></span>
+							<span></span>
+							<span></span>
+							<span></span>
+							<span></span>
+						</div>
 						<div class="heat-scale-labels"><span>Fewer</span><span>More</span></div>
 					</div>
 					<div class="outside-counts">

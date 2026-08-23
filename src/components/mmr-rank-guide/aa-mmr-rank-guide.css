@@ -158,14 +158,7 @@ button {
 	height: 9px;
 	border: 1px solid #aaa;
 	border-radius: var(--radius-pill);
-	background:
-		repeating-linear-gradient(
-			to right,
-			#f3f3f3 0,
-			#f3f3f3 calc(var(--axis-step) - 1px),
-			#d5d5d5 calc(var(--axis-step) - 1px),
-			#d5d5d5 var(--axis-step)
-		);
+	background: #f3f3f3;
 }
 
 .rank-range-fill {

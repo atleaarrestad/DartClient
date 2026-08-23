@@ -187,7 +187,7 @@
 }
 
 .achievement-notification .progress-bar {
-	background: linear-gradient(90deg, #ff9ecb 0%, #ffd37a 45%, #b7f0c2 100%);
+	background: var(--color-medal-gold);
 }
 
 .progress-bar.active {

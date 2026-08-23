@@ -14,12 +14,12 @@ export interface SeasonOverviewStat {
 export class SeasonOverview extends LitElement {
 
 	@property({ attribute: false }) stats: SeasonOverviewStat[] = [];
+	@property({ type: Boolean, reflect: true }) embedded = false;
 
 	override render(): TemplateResult {
 		return html`
-			<section class="overview-section" aria-labelledby="season-overview-title">
+			<section class="overview-section" aria-label="Season overview">
 				<div class="overview-grid">
-					<h3 id="season-overview-title" class="section-title">Season overview</h3>
 					${ this.stats.map(
 						stat => html`
 							<aa-stat

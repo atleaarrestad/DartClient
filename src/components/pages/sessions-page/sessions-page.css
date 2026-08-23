@@ -41,62 +41,8 @@ aa-loading-state {
 	padding: 0 0.45rem 0.45rem 0;
 }
 
-.empty {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 1.25rem;
-	min-height: 300px;
-	padding: 2rem;
-	background: var(--color-surface-cool);
-	border: 3px dashed var(--color-border-strong);
-	border-radius: 22px;
-	text-align: left;
-}
-
-.empty-target {
-	display: grid;
-	place-items: center;
-	width: 84px;
-	height: 84px;
-	flex: 0 0 auto;
-	background: var(--color-status-success);
-	border: 3px solid var(--color-border-strong);
-	border-radius: 50%;
-	box-shadow: var(--shadow-brutal-hover);
-	font-size: 3rem;
-	font-weight: 900;
-}
-
-.empty h3 {
-	margin: 0;
-	font-size: 1.35rem;
-}
-
-.empty p {
-	max-width: 480px;
-	margin: 0.3rem 0 0;
-	font-weight: 650;
-	opacity: 0.7;
-}
-
 @media (max-width: 720px) {
 	:host {
 		padding: 0.75rem;
-	}
-}
-
-@media (max-width: 460px) {
-	.empty {
-		align-items: stretch;
-		flex-direction: column;
-	}
-
-	.empty {
-		text-align: center;
-	}
-
-	.empty-target {
-		align-self: center;
 	}
 }

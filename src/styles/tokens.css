@@ -29,6 +29,12 @@
 	--color-status-danger: #ed807f;
 	--color-status-info: #7df9ff;
 	--color-status-victory: #62f38d;
+	--color-medal-gold: #f2d14e;
+	--color-medal-gold-light: #fff3a6;
+	--color-medal-silver: #d9d9d9;
+	--color-medal-silver-light: #f3f3f3;
+	--color-medal-bronze: #d59a60;
+	--color-medal-bronze-light: #f1c69b;
 
 	/* Spacing */
 	--space-1: 0.25rem;

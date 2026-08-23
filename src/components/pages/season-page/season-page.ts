@@ -5,12 +5,14 @@ import '../../season-leaderboard/season-leaderboard.js';
 import '../../season-overview/season-overview.js';
 import '../../season-spotlights/season-spotlights.js';
 
+import { Router } from '@vaadin/router';
 import { html, nothing, unsafeCSS } from 'lit';
 import { LitElement } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
 import { faIcons } from '../../../faIcons.js';
+import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
 import { ThrowType } from '../../../models/enums.js';
 import { getRankDisplayValue } from '../../../models/rank.js';
 import { HitCount, Season, SeasonStatistics, User } from '../../../models/schemas.js';
@@ -19,7 +21,10 @@ import { SeasonService } from '../../../services/seasonService.js';
 import { UserService } from '../../../services/userService.js';
 import { sharedStyles } from '../../../styles/shared-styles.js';
 import { seasonSpotlightDialogTemplate, SeasonSpotlightLeaderboardRow } from '../../../templates/dialogTemplates.js';
-import type { SeasonLeaderboardRow } from '../../season-leaderboard/season-leaderboard.js';
+import type {
+	SeasonLeaderboardRow,
+	SeasonLeaderboardUserSelectedEvent,
+} from '../../season-leaderboard/season-leaderboard.js';
 import type { SeasonOverviewStat } from '../../season-overview/season-overview.js';
 import type {
 	SeasonSpotlightAction,
@@ -28,6 +33,8 @@ import type {
 	SeasonSpotlightQualification,
 } from '../../season-spotlights/season-spotlights.js';
 import seasonPageStyles from './season-page.css?inline';
+
+const base = getAbsoluteBase();
 
 @customElement('season-page')
 export class SeasonPage extends LitElement {
@@ -1036,6 +1043,7 @@ export class SeasonPage extends LitElement {
 
 	private renderLeaderboard() {
 		const rows: SeasonLeaderboardRow[] = this.seasonRows.map((row) => ({
+			userId: row.user.id,
 			alias: row.alias,
 			rank: row.rank,
 			rankLabel: getRankDisplayValue(row.rank),
@@ -1047,7 +1055,16 @@ export class SeasonPage extends LitElement {
 		}));
 		if (!rows.length) return html``;
 
-		return html`<aa-season-leaderboard .rows=${rows}></aa-season-leaderboard>`;
+		return html`
+			<aa-season-leaderboard
+				.rows=${rows}
+				@season-leaderboard-user-selected=${this.handleLeaderboardUserSelected}
+			></aa-season-leaderboard>
+		`;
+	}
+
+	private handleLeaderboardUserSelected(event: SeasonLeaderboardUserSelectedEvent): void {
+		Router.go(`${base}user/${event.detail}`);
 	}
 
 	override render(): unknown {
@@ -1073,26 +1090,37 @@ export class SeasonPage extends LitElement {
 							<div class="podium">
 								<div class="column second">
 									${this.podiumCell(p[0], '2nd')}
-									<div class="step step-2"></div>
+									<div class="step step-2" aria-hidden="true"></div>
 								</div>
 								<div class="column first">
 									${this.podiumCell(p[1] ?? p[0], '1st')}
-									<div class="step step-1"></div>
+									<div class="step step-1" aria-hidden="true"></div>
 								</div>
 								<div class="column third">
 									${this.podiumCell(p[2], '3rd')}
-									<div class="step step-3"></div>
+									<div class="step step-3" aria-hidden="true"></div>
 								</div>
 							</div>
 						</section>
 					`}
 
-				<aa-season-overview .stats=${this.overviewStats}></aa-season-overview>
+				<section class="season-stats-panel" aria-labelledby="season-stats-title">
+					<header class="season-stats-panel__header">
+						<i class="fa-solid fa-chart-simple" aria-hidden="true"></i>
+						<h2 id="season-stats-title">Season stats</h2>
+					</header>
+					<aa-season-overview
+						embedded
+						.stats=${this.overviewStats}
+					></aa-season-overview>
+					<div class="season-stats-panel__divider"></div>
+					<aa-season-spotlights
+						embedded
+						.spotlights=${this.spotlightCards}
+						@season-spotlight-action=${this.handleSpotlightAction}
+					></aa-season-spotlights>
+				</section>
 				<aa-season-hit-chart .hits=${this.aggregatedHitCounts}></aa-season-hit-chart>
-				<aa-season-spotlights
-					.spotlights=${this.spotlightCards}
-					@season-spotlight-action=${this.handleSpotlightAction}
-				></aa-season-spotlights>
 				${this.renderLeaderboard()}
 			</section>
 		`;

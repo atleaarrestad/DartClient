@@ -49,6 +49,7 @@ export const seasonSpotlightActionEventName = 'season-spotlight-action';
 export class SeasonSpotlights extends LitElement {
 
 	@property({ attribute: false }) spotlights: SeasonSpotlightCard[] = [];
+	@property({ type: Boolean, reflect: true }) embedded = false;
 
 	private requestAction(action: SeasonSpotlightAction): void {
 		this.dispatchEvent(new CustomEvent<SeasonSpotlightAction>(seasonSpotlightActionEventName, {

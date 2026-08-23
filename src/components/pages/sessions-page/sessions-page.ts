@@ -1,6 +1,5 @@
 import '../../aa-loading-state/aa-loading-state.js';
 import '../../active-game-card/aa-active-game-card.js';
-import '../../../ui/empty-state/aa-empty-state.js';
 import '../../../ui/page-header/aa-page-header.js';
 
 import { html, TemplateResult, unsafeCSS } from 'lit';
@@ -89,15 +88,8 @@ export class SessionsPage extends LitElement {
 					<span slot="title">Active games</span>
 				</aa-page-header>
 
-				${ this.gameTrackers.length === 0
+				${ this.gameTrackers.length > 0
 					? html`
-						<aa-empty-state>
-							<span slot="icon">◎</span>
-							<span slot="title">The oche is quiet</span>
-							<span>Active matches will appear here as soon as somebody starts playing.</span>
-						</aa-empty-state>
-					`
-					: html`
 						<ul
 							class="cards"
 							role="list"
@@ -113,7 +105,8 @@ export class SessionsPage extends LitElement {
 								</li>
 							`) }
 						</ul>
-					` }
+					`
+					: null }
 			</section>
 		`;
 	}

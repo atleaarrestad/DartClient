@@ -38,6 +38,46 @@
 	margin: 0 auto 1rem auto;
 }
 
+.season-stats-panel {
+	display: grid;
+	gap: 0.85rem;
+	margin: 1.5rem 0;
+	padding: 0.85rem;
+	background: var(--color-surface-card);
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 4px;
+	border-bottom-width: 4px;
+	border-radius: var(--radius-xl);
+	box-shadow: var(--shadow-brutal-deep);
+}
+
+.season-stats-panel__header {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
+}
+
+.season-stats-panel__header i {
+	display: grid;
+	width: 34px;
+	height: 34px;
+	place-items: center;
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control-sm);
+	background: var(--color-surface-info-subtle);
+}
+
+.season-stats-panel__header h2 {
+	margin: 0;
+	font-size: 1.2rem;
+	font-weight: 900;
+}
+
+.season-stats-panel__divider {
+	height: 3px;
+	background: var(--color-border-strong);
+}
+
 .column {
 	display: flex;
 	flex-direction: column;
@@ -60,6 +100,21 @@
 	overflow: auto;
 }
 
+.column.first .player-card {
+	border-top: 6px solid var(--color-medal-gold);
+	background: var(--color-medal-gold-light);
+}
+
+.column.second .player-card {
+	border-top: 6px solid var(--color-medal-silver);
+	background: var(--color-medal-silver-light);
+}
+
+.column.third .player-card {
+	border-top: 6px solid var(--color-medal-bronze);
+	background: var(--color-medal-bronze-light);
+}
+
 .placement {
 	display: inline-flex;
 	align-items: center;
@@ -71,7 +126,7 @@
 	border-right-width: 3px;
 	border-bottom-width: 3px;
 	border-radius: var(--radius-pill);
-	background: #f8e16a;
+	background: var(--color-medal-gold-light);
 	font-size: 0.74rem;
 	font-weight: 900;
 }
@@ -154,18 +209,18 @@
 }
 
 .step-1 {
-	height: 170px;
-	background: #f2d14e;
+	height: 112px;
+	background: var(--color-medal-gold);
 }
 
 .step-2 {
-	height: 125px;
-	background: #d9d9d9;
+	height: 82px;
+	background: var(--color-medal-silver);
 }
 
 .step-3 {
-	height: 100px;
-	background: #d59a60;
+	height: 68px;
+	background: var(--color-medal-bronze);
 }
 
 .empty {
@@ -187,7 +242,7 @@
 	.step-1,
 	.step-2,
 	.step-3 {
-		height: 96px;
+		height: 68px;
 	}
 
 	.player-card {
