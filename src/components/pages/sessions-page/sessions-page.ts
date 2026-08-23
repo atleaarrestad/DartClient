@@ -11,6 +11,7 @@ import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
 import { GameTracker, User } from '../../../models/schemas.js';
 import { GameService } from '../../../services/gameService.js';
 import { NotificationService } from '../../../services/notificationService.js';
+import { SeasonService } from '../../../services/seasonService.js';
 import { UserService } from '../../../services/userService.js';
 import { sharedStyles } from '../../../styles/shared-styles.js';
 import sessionsPageStyles from './sessions-page.css?inline';
@@ -22,6 +23,7 @@ export class SessionsPage extends LitElement {
 
 	private notificationService: NotificationService;
 	private gameService:         GameService;
+	private seasonService:       SeasonService;
 	private userService:         UserService;
 
 	@property({ type: Array }) gameTrackers: GameTracker[] = [];
@@ -32,6 +34,7 @@ export class SessionsPage extends LitElement {
 		super();
 		this.notificationService = container.resolve(NotificationService);
 		this.gameService = container.resolve(GameService);
+		this.seasonService = container.resolve(SeasonService);
 		this.userService = container.resolve(UserService);
 	}
 
@@ -46,10 +49,16 @@ export class SessionsPage extends LitElement {
 		try {
 			this.loading = true;
 
-			const [ result, users ] = await Promise.all([
+			const [ result, season ] = await Promise.all([
 				this.gameService.getActiveGames(),
-				this.userService.getAllUsers(),
+				this.seasonService.getCurrentSeason(),
 			]);
+			const users = await this.userService.getAllUsers({
+				query: {
+					includeSeasonStatistics: true,
+					limitToSeasonId:         season.id,
+				},
+			});
 
 			this.gameTrackers = result ?? [];
 			this.users = users ?? [];

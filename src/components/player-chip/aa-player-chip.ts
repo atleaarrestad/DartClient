@@ -10,7 +10,7 @@ export class AaPlayerChip extends LitElement {
 	@property({ type: Boolean, reflect: true }) empty = false;
 
 	override render(): TemplateResult {
-		return html`<span class="chip"><slot></slot></span>`;
+		return html`<span class="chip" part="chip"><slot></slot></span>`;
 	}
 
 	static override styles = unsafeCSS(playerChipStyles);

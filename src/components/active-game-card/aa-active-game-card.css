@@ -6,6 +6,7 @@
 .card {
 	position: relative;
 	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
 	gap: 1rem;
 	width: 100%;
 	min-height: 290px;
@@ -61,27 +62,8 @@
 	opacity: 0.66;
 }
 
-.live-dot {
-	width: 0.7rem;
-	height: 0.7rem;
-	flex: 0 0 auto;
-	border: 2px solid var(--color-border-strong);
-	border-radius: 50%;
-	background: var(--color-status-victory);
-	box-shadow: var(--shadow-brutal-xs);
-	animation: live-pulse 1.8s ease-out infinite;
-}
-
-.match-copy h3 {
-	margin: 0;
-	font-size: 1.45rem;
-	line-height: 1.1;
-}
-
 .ago {
-	display: block;
-	margin-top: 0.3rem;
-	font-size: 0.88rem;
+	font-size: 0.78rem;
 	font-weight: 700;
 	opacity: 0.65;
 }
@@ -94,6 +76,15 @@
 	min-height: 2.15rem;
 }
 
+.players aa-player-chip::part(chip)::before {
+	display: none;
+}
+
+.players aa-rank-display {
+	--aa-rank-icon-size: 1.35rem;
+	--aa-rank-gap: 0;
+}
+
 .card__bottom {
 	align-self: end;
 	padding-top: 0.85rem;
@@ -102,7 +93,34 @@
 
 .stats {
 	display: flex;
-	gap: 1rem;
+	align-items: center;
+	gap: 0.85rem;
+}
+
+.stats aa-stat::part(stat) {
+	flex-direction: row-reverse;
+	align-items: baseline;
+	gap: 0.3rem;
+	padding: 0;
+	background: transparent;
+	border: 0;
+}
+
+.stats aa-stat::part(label) {
+	font-size: 0.72rem;
+	font-weight: 900;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	opacity: 0.62;
+}
+
+.stats aa-stat::part(value) {
+	font-size: 1.05rem;
+}
+
+.stats aa-stat + aa-stat {
+	padding-left: 0.85rem;
+	border-left: 2px solid rgba(0, 0, 0, 0.25);
 }
 
 .watch {
@@ -130,18 +148,6 @@
 	opacity: 0.35;
 }
 
-@keyframes live-pulse {
-	0% {
-		box-shadow: var(--shadow-brutal-xs), 0 0 0 0 rgba(98, 243, 141, 0.8);
-	}
-	70% {
-		box-shadow: var(--shadow-brutal-xs), 0 0 0 7px rgba(98, 243, 141, 0);
-	}
-	100% {
-		box-shadow: var(--shadow-brutal-xs), 0 0 0 0 rgba(98, 243, 141, 0);
-	}
-}
-
 @media (max-width: 720px) {
 	.card {
 		min-height: 270px;
@@ -156,10 +162,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.live-dot {
-		animation: none;
-	}
-
 	.card,
 	.watch span {
 		transition: none;

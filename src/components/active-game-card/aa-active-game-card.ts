@@ -1,11 +1,12 @@
 import '../player-chip/aa-player-chip.js';
-import '../../ui/badge/aa-badge.js';
+import '../rank-display/aa-rank-display.js';
 import '../../ui/stat/aa-stat.js';
 
 import { html, LitElement, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
 import { RoundStatus } from '../../models/enums.js';
+import { Rank } from '../../models/rank.js';
 import { GameTracker, User } from '../../models/schemas.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
 import activeGameCardStyles from './aa-active-game-card.css?inline';
@@ -62,12 +63,30 @@ export class ActiveGameCard extends LitElement {
 		);
 	}
 
-	private get playerNames(): string[] {
+	private get players(): { name: string; rank?: Rank; }[] {
 		return this.gameTracker.playersRounds.map((player, index) => {
 			const user = this.users.find(candidate => candidate.id === player.playerId);
+			const statistics = user?.seasonStatistics[0];
 
-			return user?.alias || user?.name || `Player ${ index + 1 }`;
+			return {
+				name: user?.alias || user?.name || `Player ${ index + 1 }`,
+				rank: statistics?.currentRank,
+			};
 		});
+	}
+
+	private get averageMmr(): number | undefined {
+		const mmrs = this.gameTracker.playersRounds
+			.map(player => this.users
+				.find(user => user.id === player.playerId)
+				?.seasonStatistics[0]
+				?.mmr)
+			.filter((mmr): mmr is number => mmr !== undefined);
+
+		if (mmrs.length === 0)
+			return undefined;
+
+		return Math.round(mmrs.reduce((total, mmr) => total + mmr, 0) / mmrs.length);
 	}
 
 	private getMatchTitle(playerNames: string[]): string {
@@ -94,9 +113,11 @@ export class ActiveGameCard extends LitElement {
 	override render(): TemplateResult {
 		const started = this.gameTracker.started;
 		const startedAgo = this.timeAgo(started);
-		const playerNames = this.playerNames;
+		const players = this.players;
+		const playerNames = players.map(player => player.name);
 		const matchTitle = this.getMatchTitle(playerNames);
 		const colorVariant = (this.matchNumber - 1) % 3;
+		const averageMmr = this.averageMmr;
 
 		return html`
 			<button
@@ -107,20 +128,20 @@ export class ActiveGameCard extends LitElement {
 			>
 				<div class="card__top">
 					<span class="match-number">Match ${ String(this.matchNumber).padStart(2, '0') }</span>
-					<aa-badge variant="success" pill>
-						<span class="live-dot" aria-hidden="true"></span>
-						Live
-					</aa-badge>
-				</div>
-
-				<div class="match-copy">
-					<h3>${ matchTitle }</h3>
 					<span class="ago" title=${ started.toLocaleString() }>Started ${ startedAgo }</span>
 				</div>
 
 				<div class="players" aria-label="Players">
-					${ playerNames.length
-						? playerNames.map(name => html`<aa-player-chip>@${ name }</aa-player-chip>`)
+					${ players.length
+						? players.map(player => html`
+							<aa-player-chip>
+								<aa-rank-display
+									.rank=${ player.rank }
+									icon-only
+								></aa-rank-display>
+								@${ player.name }
+							</aa-player-chip>
+						`)
 						: html`<aa-player-chip empty>Waiting for the first player</aa-player-chip>` }
 				</div>
 
@@ -128,6 +149,9 @@ export class ActiveGameCard extends LitElement {
 					<div class="stats">
 						<aa-stat compact label="Players" value=${ this.playerCount }></aa-stat>
 						<aa-stat compact label="Rounds" value=${ this.totalRounds }></aa-stat>
+						${ averageMmr === undefined
+							? null
+							: html`<aa-stat compact label="Avg MMR" value=${ averageMmr }></aa-stat>` }
 					</div>
 
 					<span class="watch">
