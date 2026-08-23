@@ -103,6 +103,7 @@ export class AaUsersTable extends LitElement {
 			<aa-data-table
 				fill
 				activatable
+				exportparts="table-card"
 				label="Users"
 				.rows=${ this.rows }
 				.columns=${ this.columns }

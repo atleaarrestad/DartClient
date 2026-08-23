@@ -87,7 +87,10 @@ export class AaDataTable extends LitElement {
 
 	override render(): TemplateResult {
 		return html`
-			<section class="table-card ${ this.title ? 'table-card--with-title' : '' }">
+			<section
+				class="table-card ${ this.title ? 'table-card--with-title' : '' }"
+				part="table-card"
+			>
 				${ this.title
 					? html`<h3 class="table-title">${ this.title }</h3>`
 					: nothing }
@@ -153,14 +156,14 @@ export class AaDataTable extends LitElement {
 							`) }
 						</tbody>
 					</table>
-				</div>
 
-				<footer class="table-footer" ?hidden=${ !this.hasFooterActions }>
-					<slot
-						name="footer-actions"
-						@slotchange=${ this.handleFooterSlotChange }
-					></slot>
-				</footer>
+					<footer class="table-footer" ?hidden=${ !this.hasFooterActions }>
+						<slot
+							name="footer-actions"
+							@slotchange=${ this.handleFooterSlotChange }
+						></slot>
+					</footer>
+				</div>
 			</section>
 		`;
 	}
