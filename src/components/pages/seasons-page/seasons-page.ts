@@ -1177,7 +1177,7 @@ rule.executionOrder = Number(
 							<span>
 								${ this.accessGranted
 									? 'Changes can be saved to the live season configuration.'
-									: 'Experiment freely. Nothing changes for other players until saving is unlocked.' }
+									: 'No changes will be saved.' }
 							</span>
 						</div>
 					</div>

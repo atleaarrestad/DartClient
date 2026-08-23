@@ -474,7 +474,7 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2250,
 			oldRank:      4,
 			newRank:      5,
-			unlockedSessionAchievements: [SessionAchievement.AllTwentyVariantsSameGame, SessionAchievement.BudgetTrippleTwenty],
+			unlockedSessionAchievements: [SessionAchievement.ThreeOfAKind20],
 			unlockedProgressAchievements: []
 		},
 		{

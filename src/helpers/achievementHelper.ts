@@ -5,7 +5,7 @@ import { getAbsoluteBase } from '../getAbsoluteBase.js';
 
 const achievementTypeLabels: Record<AchievementType, string> = {
 	[AchievementType.RangeKing]:        'Range king',
-	[AchievementType.TwentyRelated]:    'Twenty',
+	[AchievementType.Special]:          'Special',
 	[AchievementType.VictoryRelated]:   'Victory',
 	[AchievementType.Classic]:          'Classic',
 	[AchievementType.PointsRelated]:    'Points',
@@ -13,6 +13,7 @@ const achievementTypeLabels: Record<AchievementType, string> = {
 	[AchievementType.Progression]:      'Progression',
 	[AchievementType.Shanghai]:         'Shanghai',
 	[AchievementType.ShanghaiBudget]:   'Shanghai budget',
+	[AchievementType.ThreeOfAKind]:     'Three of',
 };
 
 export function getAchievementTypeLabel(achievementType: number): string {
