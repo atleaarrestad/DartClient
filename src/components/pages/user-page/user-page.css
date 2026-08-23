@@ -11,25 +11,29 @@ aa-loading-state {
 }
 
 .page-shell {
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+	padding: 1rem;
+	background: var(--color-surface-warm);
+}
+
+.statistics-layout {
 	display: grid;
 	grid-template-rows: auto minmax(0, 1fr) auto;
 	gap: 1rem;
 	height: 100%;
 	min-height: 0;
 	overflow: hidden;
-	padding: 1rem;
 }
 
-.panel {
-	background: var(--color-surface-warm);
-	border: 3px solid var(--color-border-strong);
-	border-radius: var(--radius-xl);
-	box-shadow: var(--shadow-brutal-panel);
-	padding: 1rem;
-}
-
-.achievement-summary {
-	background: var(--color-surface-warm);
+aa-user-season-summary::part(hero-panel),
+aa-user-statistics-charts::part(stats-grid) {
+	padding: 0;
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
 }
 
 .achievement-summary {
@@ -37,7 +41,8 @@ aa-loading-state {
 	grid-template-columns: auto minmax(220px, 1fr) auto;
 	align-items: center;
 	gap: 1.25rem;
-	padding: 0.75rem 1rem;
+	padding-top: 1rem;
+	border-top: 3px solid var(--color-border-strong);
 }
 
 .achievement-summary__copy h3 {
@@ -111,6 +116,11 @@ aa-loading-state {
 	}
 
 	.page-shell {
+		height: auto;
+		overflow: visible;
+	}
+
+	.statistics-layout {
 		grid-template-rows: auto;
 		height: auto;
 		overflow: visible;

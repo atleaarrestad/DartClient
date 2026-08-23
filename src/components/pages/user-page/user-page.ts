@@ -250,7 +250,7 @@ export class UserPage extends LitElement {
 		const percentage = total > 0 ? Math.round((earned / total) * 100) : 0;
 
 		return html`
-			<section class="panel achievement-summary">
+			<section class="achievement-summary">
 				<div class="achievement-summary__copy">
 					<h3>Achievements</h3>
 					<p>Season collection progress</p>
@@ -308,20 +308,22 @@ export class UserPage extends LitElement {
 
 		return html`
 			<div class="page-shell">
-				<aa-user-season-summary
-					.user=${this.user}
-					.seasons=${this.seasons}
-					.selectedSeason=${this.selectedSeason}
-					.statistics=${stats}
-					.loading=${this.isLoadingSeasonStats}
-					@user-season-changed=${this.handleSeasonChange}
-				></aa-user-season-summary>
-				<aa-user-statistics-charts
-					.statistics=${stats}
-					.hitDistributionView=${this.hitDistributionView}
-					@hit-distribution-view-changed=${this.handleHitDistributionViewChange}
-				></aa-user-statistics-charts>
-				${this.renderAchievementSummary(stats)}
+				<section class="statistics-layout">
+					<aa-user-season-summary
+						.user=${this.user}
+						.seasons=${this.seasons}
+						.selectedSeason=${this.selectedSeason}
+						.statistics=${stats}
+						.loading=${this.isLoadingSeasonStats}
+						@user-season-changed=${this.handleSeasonChange}
+					></aa-user-season-summary>
+					<aa-user-statistics-charts
+						.statistics=${stats}
+						.hitDistributionView=${this.hitDistributionView}
+						@hit-distribution-view-changed=${this.handleHitDistributionViewChange}
+					></aa-user-statistics-charts>
+					${this.renderAchievementSummary(stats)}
+				</section>
 			</div>
 		`;
 	}

@@ -46,26 +46,18 @@ export class AaUserStatisticsCharts extends LitElement {
 		if (!stats)
 			return html``;
 
-		const trackedHits = stats.hitCounts.reduce((total, hit) => total + hit.count, 0);
-
 		return html`
-			<section class="stats-grid">
-				<div class="panel chart-panel">
-					<div class="panel-header">
-						<h3>MMR History</h3>
-						<p>${stats.matchSnapshots.length} rated matches tracked this season.</p>
-					</div>
-					<div class="chart-slot">
+			<section class="stats-grid" part="stats-grid">
+				<div class="panel chart-panel chart-panel--embedded-title">
+					<div class="chart-slot chart-slot--titled">
+						<h3 class="chart-title">MMR History</h3>
 						<aa-match-snapshot-chart .snapshots=${stats.matchSnapshots}></aa-match-snapshot-chart>
 					</div>
 				</div>
 
-				<div class="panel chart-panel chart-panel-wide">
-					<div class="panel-header chart-panel-header">
-						<div>
-							<h3>Hit Distribution</h3>
-							<p>${trackedHits.toLocaleString()} recorded hits this season.</p>
-						</div>
+				<div class="panel chart-panel chart-panel--embedded-title chart-panel-wide">
+					<div class="chart-slot chart-slot--titled chart-slot--switchable">
+						<h3 class="chart-title">Hit Distribution</h3>
 						<aa-segmented-control
 							label="Hit distribution view"
 							.items=${ hitDistributionViews }
@@ -73,8 +65,6 @@ export class AaUserStatisticsCharts extends LitElement {
 							@segmented-control-change=${ (event: SegmentedControlChangeEvent) =>
 								this.selectHitDistributionView(event.detail as HitDistributionView) }
 						></aa-segmented-control>
-					</div>
-					<div class="chart-slot">
 						${this.hitDistributionView === 'bars'
 							? html`<aa-hit-count-chart .hits=${stats.hitCounts}></aa-hit-count-chart>`
 							: html`
@@ -83,11 +73,9 @@ export class AaUserStatisticsCharts extends LitElement {
 					</div>
 				</div>
 
-				<div class="panel chart-panel">
-					<div class="panel-header">
-						<h3>Finishes by Round</h3>
-					</div>
-					<div class="chart-slot">
+				<div class="panel chart-panel chart-panel--embedded-title">
+					<div class="chart-slot chart-slot--titled">
+						<h3 class="chart-title">Finishes by Round</h3>
 						<aa-finish-count-chart .finishCounts=${stats.finishCount}></aa-finish-count-chart>
 					</div>
 				</div>

@@ -42,7 +42,7 @@ export class AaUserSeasonSummary extends LitElement {
 		const totalFinishes = stats.finishCount.reduce((total, finish) => total + finish.count, 0);
 
 		return html`
-			<section class="hero-panel">
+			<section class="hero-panel" part="hero-panel">
 				<div class="hero-row">
 					<div class="identity-line">
 						<h2>${this.user.name}</h2>
