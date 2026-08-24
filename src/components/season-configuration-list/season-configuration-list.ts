@@ -1,7 +1,7 @@
 import '../../ui/button/aa-button.js';
 import '../../ui/card/aa-card.js';
 
-import { html, LitElement, nothing, TemplateResult, unsafeCSS } from 'lit';
+import { html, LitElement, nothing, PropertyValues, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
 import { sharedStyles } from '../../styles/shared-styles.js';
@@ -10,6 +10,7 @@ import seasonConfigurationListStyles from './season-configuration-list.css?inlin
 export type SeasonConfigurationItemId =
 	| 'score-modifiers'
 	| 'win-conditions'
+	| 'game-constraints'
 	| 'rank-thresholds'
 	| 'achievement-rewards'
 	| 'mmr-calculation';
@@ -35,6 +36,54 @@ export const seasonConfigurationItemActivateEventName = 'season-configuration-it
 export class SeasonConfigurationList extends LitElement {
 
 	@property({ attribute: false }) items: SeasonConfigurationListItem[] = [];
+
+	private configurationPanel?: HTMLElement;
+	private readonly configurationPanelResizeObserver = new ResizeObserver(() =>
+		this.updateColumnCount());
+
+	override disconnectedCallback(): void {
+		this.configurationPanelResizeObserver.disconnect();
+		this.configurationPanel = undefined;
+		super.disconnectedCallback();
+	}
+
+	override updated(changedProperties: PropertyValues): void {
+		super.updated(changedProperties);
+
+		const configurationPanel =
+			this.renderRoot.querySelector<HTMLElement>('.configuration-panel');
+		if (configurationPanel !== this.configurationPanel) {
+			this.configurationPanelResizeObserver.disconnect();
+			this.configurationPanel = configurationPanel;
+
+			if (configurationPanel)
+				this.configurationPanelResizeObserver.observe(configurationPanel);
+		}
+
+		this.updateColumnCount();
+	}
+
+	private updateColumnCount(): void {
+		const panel = this.configurationPanel;
+		if (!panel || panel.clientWidth === 0 || this.items.length === 0)
+			return;
+
+		const styles = getComputedStyle(panel);
+		const minimumItemWidth =
+			Number.parseFloat(styles.getPropertyValue('--configuration-item-min-width'))
+			|| 220;
+		const gap = Number.parseFloat(styles.columnGap) || 0;
+		const maximumColumns = Math.max(
+			1,
+			Math.floor((panel.clientWidth + gap) / (minimumItemWidth + gap)),
+		);
+		const rowCount = Math.ceil(this.items.length / maximumColumns);
+		const balancedColumns = Math.ceil(this.items.length / rowCount);
+		const columnCount = String(Math.max(1, balancedColumns));
+
+		if (panel.style.getPropertyValue('--configuration-columns') !== columnCount)
+			panel.style.setProperty('--configuration-columns', columnCount);
+	}
 
 	private activateItem(id: SeasonConfigurationItemId): void {
 		this.dispatchEvent(new CustomEvent<SeasonConfigurationItemId>(

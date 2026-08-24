@@ -40,6 +40,7 @@ export class GamePage extends LitElement {
 	@state() protected browserOnline = navigator.onLine;
 	@state() protected achievementDefinitions?: AchievementDefinitionsResponse;
 	@state() protected visibleRoundCapacity = 10;
+	@state() protected maximumRounds: number | null = null;
 	@state() protected compactAchievementPlayers: ReadonlySet<string> = new Set();
 
 	protected dataService: DataService;
@@ -367,6 +368,7 @@ export class GamePage extends LitElement {
 		const newRoundCount = Math.max(...gameTracker.playersRounds.map(p => p.rounds.length), 0);
 		const roundCountChanged = oldRoundCount !== newRoundCount;
 
+		this.maximumRounds = gameTracker.maximumRounds;
 		this.players = [ ...gameTracker.playersRounds ];
 		this.projectedSessionAchievementsByPlayer = {
 			...gameTracker.projectedSessionAchievementsByPlayer,
@@ -393,6 +395,30 @@ export class GamePage extends LitElement {
 
 	protected getDifferenceFromBase(player: PlayerRounds): number | undefined {
 		return this.getCumulativePoints(player) - this.season!.goal;
+	}
+
+	protected getMaximumRoundCount(): number | null {
+		return this.maximumRounds;
+	}
+
+	protected getPlaceholderRoundCount(player: PlayerRounds): number {
+		const maximumRounds = this.getMaximumRoundCount();
+		const remainingRounds = maximumRounds === null
+			? this.visibleRoundCapacity - player.rounds.length
+			: Math.min(this.visibleRoundCapacity, maximumRounds - player.rounds.length);
+
+		return Math.max(0, remainingRounds);
+	}
+
+	protected shouldRenderRoundLimitBarrier(player: PlayerRounds): boolean {
+		const maximumRounds = this.getMaximumRoundCount();
+		if (maximumRounds === null)
+			return false;
+
+		const renderedRoundCount =
+			player.rounds.length + this.getPlaceholderRoundCount(player);
+
+		return renderedRoundCount >= maximumRounds;
 	}
 
 	protected getLatestSeasonStatsForPlayer(playerIndex: number): SeasonStatistics | undefined {
@@ -426,7 +452,9 @@ export class GamePage extends LitElement {
 
 		const scrollContainers = this.shadowRoot?.querySelectorAll('.rounds-scroll-container');
 		scrollContainers?.forEach(container => {
-			container.scrollTop = container.scrollHeight;
+			container.scrollTop = container.scrollHeight > container.clientHeight
+				? container.scrollHeight
+				: 0;
 		});
 	}
 
@@ -491,10 +519,18 @@ export class GamePage extends LitElement {
 			const roundsViewport =
 				playerCard.querySelector<HTMLElement>('.rounds-scroll-container');
 			const roundGrid = playerCard.querySelector<HTMLElement>('.round-grid');
+			const scrollbarWidth = roundsViewport
+				? roundsViewport.offsetWidth - roundsViewport.clientWidth
+				: 0;
+
+			playerCard.style.setProperty(
+				'--round-scrollbar-width',
+				`${ scrollbarWidth }px`,
+			);
 
 			return {
 				fixedHeight: roundsViewport
-					? playerCard.offsetHeight - roundsViewport.offsetHeight
+					? playerCard.offsetHeight - roundsViewport.clientHeight
 					: playerCard.offsetHeight,
 				roundHeight: roundGrid?.offsetHeight ?? 32,
 			};
@@ -510,10 +546,15 @@ export class GamePage extends LitElement {
 
 		const naturalRowHeight = Math.max(...playerLayouts.map((layout, playerIndex) =>
 			layout.fixedHeight
-			+ Math.max(
-				this.players[playerIndex]?.rounds.length ?? 1,
-				visibleRoundCapacity,
-			) * layout.roundHeight));
+			+ (() => {
+				const player = this.players[playerIndex];
+				if (!player)
+					return 1;
+
+				return player.rounds.length
+					+ this.getPlaceholderRoundCount(player)
+					+ (this.shouldRenderRoundLimitBarrier(player) ? 1 : 0);
+			})() * layout.roundHeight));
 		const rowHeight = Math.min(availableRowHeight, naturalRowHeight);
 		const rowHeightValue = `${ rowHeight }px`;
 
@@ -712,6 +753,7 @@ export class GamePage extends LitElement {
 							const rank = seasonStats?.currentRank;
 
 							const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
+							const placeholderRoundCount = this.getPlaceholderRoundCount(player);
 
 							return html`
 								<article
@@ -739,69 +781,63 @@ export class GamePage extends LitElement {
 									<div class="rounds-scroll-container" @scroll=${this.onPlayerScroll}>
 										<div class="rounds-container">
 											${player.rounds.map((round, roundIndex) => html`
-												<div class=${classMap({
-													'victory': hasVictory,
-													'alternate-color': roundIndex % 2 === 0 && !hasVictory,
-													'overshoot': round.roundStatus === RoundStatus.Overshoot,
-												})}>
-													<div class="round-grid">
-														<div class="round-number">${roundIndex + 1 }</div>
-														<div class="throws-container">
-															${map(round.dartThrows, (dartThrow, throwIndex) => {
-																const onThrowUpdated = async (e: CustomEvent) => {
-																	const cmp = e.currentTarget as aaDartThrow;
-																	const previousThrow = this.players[playerIndex]?.rounds[roundIndex]?.dartThrows[throwIndex];
+													<div class=${classMap({
+														'victory': hasVictory,
+														'alternate-color': roundIndex % 2 === 0 && !hasVictory,
+														'overshoot': round.roundStatus === RoundStatus.Overshoot,
+													})}>
+														<div class="round-grid">
+															<div class="round-number">${ roundIndex + 1 }</div>
+															<div class="throws-container">
+																${map(round.dartThrows, (dartThrow, throwIndex) => {
+																	const onThrowUpdated = async (e: CustomEvent) => {
+																		const cmp = e.currentTarget as aaDartThrow;
+																		const previousThrow = this.players[playerIndex]?.rounds[roundIndex]?.dartThrows[throwIndex];
 
-																	cmp.isSaving = true;
-																	try {
-																		await this.handleThrowUpdated?.(
-																			e.detail.dartThrow,
-																			playerIndex,
-																			roundIndex,
-																		);
-																	}
-																	catch (error) {
-																		if (previousThrow) {
-																			cmp.dartThrow = { ...previousThrow };
-																			cmp.requestUpdate();
+																		cmp.isSaving = true;
+																		try {
+																			await this.handleThrowUpdated?.(
+																				e.detail.dartThrow,
+																				playerIndex,
+																				roundIndex,
+																			);
 																		}
-																		this.reportError(error, 'Unable to save dart throw.');
-																	}
-																	finally {
-																		cmp.isSaving = false;
-																	}
-																};
+																		catch (error) {
+																			if (previousThrow) {
+																				cmp.dartThrow = { ...previousThrow };
+																				cmp.requestUpdate();
+																			}
+																			this.reportError(error, 'Unable to save dart throw.');
+																		}
+																		finally {
+																			cmp.isSaving = false;
+																		}
+																	};
 
-																const onFocus = (e: FocusEvent) =>
-																	this.handleDartThrowFocused?.(e);
+																	const onFocus = (e: FocusEvent) =>
+																		this.handleDartThrowFocused?.(e);
 
-																return html`
-																	<aa-dart-throw
-																		id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
-																		.dartThrow=${dartThrow}
-																		?isDisabled=${this.isReadOnly}
-																		@throw-updated=${onThrowUpdated}
-																		@focus=${onFocus}>
-																	</aa-dart-throw>
-																`;
-															})}
-														</div>
-														<div class="cumulative-points-round">
-															<span>${this.getRoundSum(round)}</span>
+																	return html`
+																		<aa-dart-throw
+																			id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
+																			.dartThrow=${dartThrow}
+																			?isDisabled=${this.isReadOnly}
+																			@throw-updated=${onThrowUpdated}
+																			@focus=${onFocus}>
+																		</aa-dart-throw>
+																	`;
+																})}
+															</div>
+															<div class="cumulative-points-round">
+																<span>${ this.getRoundSum(round) }</span>
+															</div>
 														</div>
 													</div>
-												</div>
-											`)}
+												`)}
 											${Array.from(
-												{
-													length: Math.max(
-														0,
-														this.visibleRoundCapacity - player.rounds.length,
-													),
-												},
+												{ length: placeholderRoundCount },
 												(_, placeholderIndex) => {
-													const roundIndex =
-														player.rounds.length + placeholderIndex;
+													const roundIndex = player.rounds.length + placeholderIndex;
 
 													return html`
 														<div
@@ -824,6 +860,26 @@ export class GamePage extends LitElement {
 													`;
 												},
 											)}
+											${ this.shouldRenderRoundLimitBarrier(player) && this.maximumRounds !== null
+												? html`
+													<div
+														class="round-limit-barrier"
+														role="img"
+														aria-label="Round limit reached. Round ${ this.maximumRounds + 1 } is locked."
+														title="Round limit — no more rounds"
+													>
+														<div class="round-grid">
+															<div class="round-number">${ this.maximumRounds + 1 }</div>
+															<div class="throws-container placeholder-throws">
+																<span></span>
+																<span></span>
+																<span></span>
+															</div>
+															<div class="cumulative-points-round"></div>
+														</div>
+													</div>
+												`
+												: null }
 										</div>
 									</div>
 

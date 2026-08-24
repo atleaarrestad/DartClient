@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { DartThrowSchema } from './dartThrowSchema.js';
-import { AchievementTier, ProgressAchievement, RoundStatus, ScoreModifier, SessionAchievement, ThrowType, WinCondition } from './enums.js';
+import { AchievementTier, GameConstraint, ProgressAchievement, RoundStatus, ScoreModifier, SessionAchievement, ThrowType, WinCondition } from './enums.js';
 import { Rank } from './rank.js';
 
 
@@ -40,6 +40,7 @@ export const PlayerResultSchema = z.object({
 export const GameTrackerSchema = z.object({
 	id:                                   z.string().uuid(),
 	started:                              z.string().transform(str => new Date(str)),
+	maximumRounds:                        z.number().int().nullable().default(null),
 	playersRounds:                        z.array(PlayerRoundsSchema),
 	projectedSessionAchievementsByPlayer: z.record(
 		z.string().uuid(),
@@ -137,6 +138,11 @@ export const WinConditionRuleSchema = z.object({
 	winCondition: z.nativeEnum(WinCondition),
 });
 
+export const GameConstraintRuleSchema = z.object({
+	gameConstraint: z.nativeEnum(GameConstraint),
+	value:          z.number().int().nullable(),
+});
+
 export const ScoreModifierRuleSchema = z.object({
 	scoreModifier:  z.nativeEnum(ScoreModifier),
 	executionOrder: z.number().int(),
@@ -176,6 +182,7 @@ export const SeasonSchema = z.object({
 	endDate:                z.string().transform(str => new Date(str)),
 	scoreModifierRules:     z.array(ScoreModifierRuleSchema),
 	winConditionRules:      z.array(WinConditionRuleSchema),
+	gameConstraintRules:    z.array(GameConstraintRuleSchema).default([]),
 	rankThresholds:         z.array(RankThresholdSchema),
 	achievementTierRewards: z.array(AchievementTierRewardSchema),
 	mmrConfiguration:       MmrConfigurationSchema,
@@ -198,10 +205,16 @@ export const RuleDefinitionSchema = z.object({
 	name:               z.string(),
 	description:        z.string(),
 	codeImplementation: z.string(),
+	label:              z.string().optional(),
+	min:                z.number().int().nullable().optional(),
+	max:                z.number().int().nullable().optional(),
+	defaultValue:       z.number().int().nullable().optional(),
+	required:           z.boolean().optional(),
 });
 export const RuleDefinitionsResponseSchema = z.object({
 	scoreModifiers: z.array(RuleDefinitionSchema),
 	winConditions:  z.array(RuleDefinitionSchema),
+	gameConstraints: z.array(RuleDefinitionSchema).default([]),
 });
 
 export const SessionAchievementDefinition = z.object({
@@ -273,6 +286,7 @@ export type User = z.infer<typeof UserSchema>;
 export type Season = z.infer<typeof SeasonSchema>;
 export type GameResult = z.infer<typeof GameResultSchema>;
 export type WinConditionRule = z.infer<typeof WinConditionRuleSchema>;
+export type GameConstraintRule = z.infer<typeof GameConstraintRuleSchema>;
 export type ScoreModifierRule = z.infer<typeof ScoreModifierRuleSchema>;
 export type RankThreshold = z.infer<typeof RankThresholdSchema>;
 export type AchievementTierReward = z.infer<typeof AchievementTierRewardSchema>;

@@ -198,7 +198,7 @@ aa-loading-state {
 	overflow-x: hidden;
 	scrollbar-gutter: stable;
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(300px, auto));
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 	grid-auto-rows: var(--player-row-height);
 	justify-items: center;
 	align-items: stretch;
@@ -225,6 +225,7 @@ aa-loading-state {
 }
 
 .player {
+	--round-scrollbar-width: 0px;
 	display: grid;
 	grid-template-rows: auto auto auto 1fr auto;
 	min-width: 250px;
@@ -255,6 +256,7 @@ aa-loading-state {
 	display: block;
 	min-height: 0;
 	overflow-y: auto;
+	scrollbar-gutter: stable;
 	border-bottom: 1px solid var(--color-border-strong);
 
 	&::-webkit-scrollbar {
@@ -284,8 +286,45 @@ aa-loading-state {
 	pointer-events: none;
 }
 
-.placeholder-throws span + span {
+.placeholder-throws span:nth-child(2) {
 	border-left: 1px solid rgba(0, 0, 0, 0.25);
+	border-right: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+.round-limit-barrier {
+	position: relative;
+	cursor: not-allowed;
+	user-select: none;
+	background: rgba(70, 70, 70, 0.18);
+}
+
+.round-limit-barrier::before,
+.round-limit-barrier::after {
+	position: absolute;
+	z-index: 1;
+	left: 0;
+	width: 100%;
+	border-top: 1px dashed color-mix(
+		in srgb,
+		var(--color-status-danger) 62%,
+		var(--color-border-strong)
+	);
+	content: "";
+	pointer-events: none;
+}
+
+.round-limit-barrier::before {
+	top: 0;
+}
+
+.round-limit-barrier::after {
+	bottom: 0;
+}
+
+.round-limit-barrier .round-number,
+.round-limit-barrier .cumulative-points-round,
+.round-limit-barrier .placeholder-throws {
+	opacity: 0.3;
 }
 
 .round-grid {
@@ -296,7 +335,11 @@ aa-loading-state {
 
 .round-labels-container {
 	display: grid;
-	grid-template-columns: 1.5rem 1fr 3rem;
+	grid-template-columns:
+		1.5rem
+		minmax(0, 1fr)
+		3rem
+		var(--round-scrollbar-width);
 	text-align: center;
 	border-bottom: 1px solid var(--color-border-strong);
 	background-color: #B4CCB9;
@@ -313,7 +356,14 @@ aa-loading-state {
 
 .throws-container {
 	display: grid;
-	grid-template-columns: 1fr 1fr 1fr;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	min-width: 0;
+}
+
+.throws-container > * {
+	min-width: 0;
+	width: 100%;
+	height: 100%;
 }
 
 .round-number {

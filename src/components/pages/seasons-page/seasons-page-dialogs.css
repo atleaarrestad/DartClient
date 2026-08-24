@@ -95,6 +95,78 @@
 	opacity: 0.68;
 }
 
+.game-constraints-dialog {
+	display: grid;
+	gap: 0.65rem;
+}
+.game-constraints-dialog > p {
+	margin: 0 0 0.15rem;
+	font-size: 0.82rem;
+	opacity: 0.68;
+}
+.game-constraints-dialog .rule-dialog__card {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) minmax(180px, 0.9fr);
+	align-items: start;
+	gap: 0.65rem;
+	padding: 0.7rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+}
+.game-constraints-dialog .rule-dialog__card.selected {
+	background: var(--color-surface-success-subtle);
+}
+.game-constraints-dialog .rule-dialog__card > input {
+	width: 18px;
+	height: 18px;
+	margin-top: 0.1rem;
+	accent-color: var(--color-text-primary);
+}
+.game-constraints-dialog .rule-dialog__copy {
+	display: grid;
+	gap: 0.15rem;
+	min-width: 0;
+}
+.game-constraints-dialog .rule-dialog__copy small {
+	opacity: 0.68;
+}
+.game-constraints-dialog .rule-dialog__value {
+	display: grid;
+	gap: 0.2rem;
+	font-size: 0.68rem;
+	font-weight: 900;
+}
+.game-constraints-dialog .rule-dialog__value span {
+	white-space: nowrap;
+}
+.game-constraints-dialog .rule-dialog__value small {
+	opacity: 0.68;
+	font-weight: 800;
+}
+.game-constraints-dialog .rule-dialog__value input {
+	min-width: 0;
+	padding: 0.5rem 0.6rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control-sm);
+	font: inherit;
+}
+.game-constraints-dialog .rule-dialog__value input:disabled {
+	background: #ddd;
+}
+.game-constraints-dialog .rule-dialog__value[hidden] {
+	display: none;
+}
+@media (max-width: 600px) {
+	.game-constraints-dialog .rule-dialog__card {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+	.game-constraints-dialog .rule-dialog__value {
+		grid-column: 2;
+	}
+}
+
 .rank-threshold-dialog {
 	display: grid;
 	grid-template-rows: auto minmax(0, 1fr);

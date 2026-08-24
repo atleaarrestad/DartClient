@@ -25,6 +25,10 @@ export enum ScoreModifier {
 	DoublePointsAt69 = 0,
 	reserved = 1,
 }
+
+export enum GameConstraint {
+	MaximumRounds = 0,
+}
 export enum SessionAchievement {
 	// 0–99: Triples / Variants / Budget
 	TrippleSixty = 0,

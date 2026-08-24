@@ -26,6 +26,10 @@ export class aaDartThrow extends LitElement {
 		this.shadowRoot?.querySelector('input')?.focus(options);
 	}
 
+	override blur(): void {
+		this.shadowRoot?.querySelector('input')?.blur();
+	}
+
 	private handleBlur() {
 		const isSameHitLocation = this.oldValue === this.dartThrow.hitLocation;
 		const isSameThrowType = this.oldThrowType === this.dartThrow.throwType;
