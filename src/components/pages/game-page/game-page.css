@@ -115,15 +115,20 @@ aa-loading-state {
 
 .projected-achievements {
 	display: inline-flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: center;
+	flex: 0 0 auto;
 	gap: 0.35rem;
 	padding: 0.25rem 0.4rem;
 	border: 2px solid var(--color-border-strong);
 	border-radius: var(--radius-lg);
 	background: var(--color-surface-warning-subtle);
 	box-shadow: var(--shadow-brutal-sm);
+}
+
+.projected-achievements--compact {
+	display: none;
 }
 
 .projected-achievement {
@@ -155,33 +160,48 @@ aa-loading-state {
 
 .rank-container {
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	justify-content: center;
 	padding-block: 8px;
 }
 
 .rank-inner-container {
+	position: relative;
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: center;
+	width: 100%;
 	gap: 0.5rem;
+}
+
+.rank-inner-container.is-achievement-compact .projected-achievements--detailed {
+	position: absolute;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.rank-inner-container.is-achievement-compact .projected-achievements--compact {
+	display: inline-flex;
 }
 
 .rank-inner-container aa-rank-display {
 	--aa-rank-icon-size: 64px;
+	flex: 0 0 auto;
 }
 
 .player-container {
 	--scrollbar-width: 4px;
+	--player-row-height: 50cqh;
 	container-type: size;
 	overflow-y: auto;
 	overflow-x: hidden;
 	scrollbar-gutter: stable;
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(300px, auto));
-	grid-auto-rows: max-content;
+	grid-auto-rows: var(--player-row-height);
 	justify-items: center;
-	align-items: start;
+	align-items: stretch;
 	padding-top: 24px;
 	padding-bottom: 88px;
 	padding-left: 12px;
@@ -208,7 +228,9 @@ aa-loading-state {
 	display: grid;
 	grid-template-rows: auto auto auto 1fr auto;
 	min-width: 250px;
-	max-height: 50cqh;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
 	width: 100%;
 	border: 1px solid var(--color-border-strong);
 	background: var(--player-bg, #f0f0f0);
@@ -231,6 +253,7 @@ aa-loading-state {
 
 .rounds-scroll-container {
 	display: block;
+	min-height: 0;
 	overflow-y: auto;
 	border-bottom: 1px solid var(--color-border-strong);
 
@@ -252,9 +275,17 @@ aa-loading-state {
 }
 
 .rounds-container {
-	min-height: calc(2rem * 10);
+	min-height: 0;
 	display: grid;
 	grid-auto-rows: max-content;
+}
+
+.round-placeholder {
+	pointer-events: none;
+}
+
+.placeholder-throws span + span {
+	border-left: 1px solid rgba(0, 0, 0, 0.25);
 }
 
 .round-grid {
@@ -265,7 +296,7 @@ aa-loading-state {
 
 .round-labels-container {
 	display: grid;
-	grid-template-columns: 1.5rem 1fr calc(3rem + 2px);
+	grid-template-columns: 1.5rem 1fr 3rem;
 	text-align: center;
 	border-bottom: 1px solid var(--color-border-strong);
 	background-color: #B4CCB9;

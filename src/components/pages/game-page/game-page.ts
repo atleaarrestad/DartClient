@@ -1,6 +1,7 @@
 import '../../aa-loading-state/aa-loading-state.js';
 
 import { html, unsafeCSS } from 'lit';
+import type { PropertyValues } from 'lit';
 import { LitElement } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -38,6 +39,8 @@ export class GamePage extends LitElement {
 	@state() protected syncStatusMessage = 'Live sync offline';
 	@state() protected browserOnline = navigator.onLine;
 	@state() protected achievementDefinitions?: AchievementDefinitionsResponse;
+	@state() protected visibleRoundCapacity = 10;
+	@state() protected compactAchievementPlayers: ReadonlySet<string> = new Set();
 
 	protected dataService: DataService;
 	protected seasonService: SeasonService;
@@ -56,6 +59,11 @@ export class GamePage extends LitElement {
 	protected scrollLeader: HTMLElement | null = null;
 	protected signalRService: signalRService;
 	private removeSignalRStatusListener?: () => void;
+	private observedPlayerContainer?: HTMLElement;
+	private readonly playerContainerResizeObserver = new ResizeObserver(() =>
+		this.schedulePlayerGridLayout());
+	private playerGridAnimationFrame?: number;
+
 	private hasShownInitialSyncFailure = false;
 	private readonly achievementSubscriptionKey = 'session-achievement';
 	private readonly onSessionAchievementUnlocked = (
@@ -90,9 +98,18 @@ export class GamePage extends LitElement {
 
 		window.removeEventListener('offline', this.handleBrowserOffline);
 		window.removeEventListener('online', this.handleBrowserOnline);
+		this.playerContainerResizeObserver.disconnect();
+		this.observedPlayerContainer = undefined;
+		if (this.playerGridAnimationFrame !== undefined)
+			cancelAnimationFrame(this.playerGridAnimationFrame);
 		this.removeSignalRStatusListener?.();
 		await this.beforeSignalRStop();
 		await this.signalRService.stop();
+	}
+
+	override updated(changedProperties: PropertyValues): void {
+		super.updated(changedProperties);
+		this.observePlayerContainer();
 	}
 
 	protected async initialize(): Promise<void> {
@@ -413,6 +430,132 @@ export class GamePage extends LitElement {
 		});
 	}
 
+	private observePlayerContainer(): void {
+		const playerContainer =
+			this.shadowRoot?.querySelector<HTMLElement>('.player-container');
+
+		if (playerContainer === this.observedPlayerContainer) {
+			this.schedulePlayerGridLayout();
+			return;
+		}
+
+		this.playerContainerResizeObserver.disconnect();
+		this.observedPlayerContainer = playerContainer;
+
+		if (!playerContainer)
+			return;
+
+		this.playerContainerResizeObserver.observe(playerContainer);
+		this.schedulePlayerGridLayout();
+	}
+
+	private schedulePlayerGridLayout(): void {
+		if (this.playerGridAnimationFrame !== undefined)
+			cancelAnimationFrame(this.playerGridAnimationFrame);
+
+		this.playerGridAnimationFrame = requestAnimationFrame(() => {
+			this.playerGridAnimationFrame = undefined;
+			this.updatePlayerGridRows();
+		});
+	}
+
+	private updatePlayerGridRows(): void {
+		const playerContainer = this.observedPlayerContainer;
+		if (!playerContainer || playerContainer.clientHeight === 0)
+			return;
+
+		const playerCards: HTMLElement[] = [
+			...playerContainer.querySelectorAll('.player'),
+		];
+		if (playerCards.length === 0)
+			return;
+
+		const rowCount = new Set(
+			playerCards.map(playerCard => Math.round(playerCard.offsetTop)),
+		).size;
+
+		const styles = getComputedStyle(playerContainer);
+		const verticalPadding =
+			Number.parseFloat(styles.paddingTop)
+			+ Number.parseFloat(styles.paddingBottom);
+		const rowGap = Number.parseFloat(styles.rowGap) || 0;
+		const availableHeight =
+			playerContainer.clientHeight
+			- verticalPadding
+			- rowGap * (rowCount - 1);
+		const availableRowHeight = Math.max(
+			240,
+			Math.floor(availableHeight / rowCount),
+		);
+		const playerLayouts = playerCards.map(playerCard => {
+			const roundsViewport =
+				playerCard.querySelector<HTMLElement>('.rounds-scroll-container');
+			const roundGrid = playerCard.querySelector<HTMLElement>('.round-grid');
+
+			return {
+				fixedHeight: roundsViewport
+					? playerCard.offsetHeight - roundsViewport.offsetHeight
+					: playerCard.offsetHeight,
+				roundHeight: roundGrid?.offsetHeight ?? 32,
+			};
+		});
+		const visibleRoundCapacity = Math.max(
+			1,
+			Math.floor(Math.min(...playerLayouts.map(layout =>
+				(availableRowHeight - layout.fixedHeight) / layout.roundHeight))),
+		);
+
+		if (this.visibleRoundCapacity !== visibleRoundCapacity)
+			this.visibleRoundCapacity = visibleRoundCapacity;
+
+		const naturalRowHeight = Math.max(...playerLayouts.map((layout, playerIndex) =>
+			layout.fixedHeight
+			+ Math.max(
+				this.players[playerIndex]?.rounds.length ?? 1,
+				visibleRoundCapacity,
+			) * layout.roundHeight));
+		const rowHeight = Math.min(availableRowHeight, naturalRowHeight);
+		const rowHeightValue = `${ rowHeight }px`;
+
+		if (playerContainer.style.getPropertyValue('--player-row-height') !== rowHeightValue)
+			playerContainer.style.setProperty('--player-row-height', rowHeightValue);
+
+		this.updateAchievementLayouts(playerCards);
+	}
+
+	private updateAchievementLayouts(playerCards: HTMLElement[]): void {
+		const compactPlayers = new Set<string>();
+
+		for (const playerCard of playerCards) {
+			const rankInner =
+				playerCard.querySelector<HTMLElement>('.rank-inner-container');
+			const rankDisplay =
+				rankInner?.querySelector<HTMLElement>('aa-rank-display');
+			const detailedAchievements =
+				rankInner?.querySelector<HTMLElement>('.projected-achievements--detailed');
+			const playerId = rankInner?.dataset.playerId;
+
+			if (!rankInner || !rankDisplay || !detailedAchievements || !playerId)
+				continue;
+
+			const gap = Number.parseFloat(getComputedStyle(rankInner).columnGap) || 0;
+			const requiredWidth =
+				rankDisplay.offsetWidth + detailedAchievements.scrollWidth + gap;
+
+			if (requiredWidth > rankInner.clientWidth)
+				compactPlayers.add(playerId);
+		}
+
+		const layoutChanged =
+			compactPlayers.size !== this.compactAchievementPlayers.size
+			|| [...compactPlayers].some(
+				playerId => !this.compactAchievementPlayers.has(playerId),
+			);
+
+		if (layoutChanged)
+			this.compactAchievementPlayers = compactPlayers;
+	}
+
 	protected onPlayerInteract = (event: Event): void => {
 		const target = event.currentTarget as HTMLElement;
 		const scrollContainer = target.querySelector('.rounds-scroll-container') as HTMLElement;
@@ -488,11 +631,21 @@ export class GamePage extends LitElement {
 			AchievementTier.bronze,
 		];
 
+		const groupedTiers = tierOrder.filter(tier => countsByTier.has(tier));
+		const total = groupedTiers.reduce(
+			(sum, tier) => sum + (countsByTier.get(tier) ?? 0),
+			0,
+		);
+		const breakdown = groupedTiers
+			.map(tier => `${ countsByTier.get(tier) } ${ AchievementTier[tier] }`)
+			.join(', ');
+
 		return html`
-			<span class="projected-achievements" aria-label="Achievements unlocked when this game is submitted">
-				${tierOrder
-					.filter(tier => countsByTier.has(tier))
-					.map(tier => html`
+			<span
+				class="projected-achievements projected-achievements--detailed"
+				aria-label="Achievements unlocked when this game is submitted"
+			>
+				${groupedTiers.map(tier => html`
 						<span
 							class="projected-achievement"
 							title="${ countsByTier.get(tier) } ${ AchievementTier[tier] } achievement(s) when submitted"
@@ -505,6 +658,20 @@ export class GamePage extends LitElement {
 							/>
 						</span>
 					`)}
+			</span>
+			<span
+				class="projected-achievements projected-achievements--compact"
+				title="${ total } achievement(s) when submitted: ${ breakdown }"
+				aria-label="${ total } achievements unlocked when this game is submitted"
+			>
+				<span class="projected-achievement">
+					<span class="projected-achievement__count">${ total }x</span>
+					<img
+						class="projected-achievement__icon"
+						src=${ getAchievementTierIcon(groupedTiers[0]!) }
+						alt="Achievement"
+					/>
+				</span>
 			</span>
 		`;
 	}
@@ -625,11 +792,50 @@ export class GamePage extends LitElement {
 													</div>
 												</div>
 											`)}
+											${Array.from(
+												{
+													length: Math.max(
+														0,
+														this.visibleRoundCapacity - player.rounds.length,
+													),
+												},
+												(_, placeholderIndex) => {
+													const roundIndex =
+														player.rounds.length + placeholderIndex;
+
+													return html`
+														<div
+															class=${classMap({
+																'round-placeholder': true,
+																'alternate-color': roundIndex % 2 === 0,
+															})}
+															aria-hidden="true"
+														>
+															<div class="round-grid">
+																<div class="round-number">${ roundIndex + 1 }</div>
+																<div class="throws-container placeholder-throws">
+																	<span></span>
+																	<span></span>
+																	<span></span>
+																</div>
+																<div class="cumulative-points-round"></div>
+															</div>
+														</div>
+													`;
+												},
+											)}
 										</div>
 									</div>
 
 									<div class="rank-container">
-										<div class="rank-inner-container">
+										<div
+											class=${classMap({
+												'rank-inner-container': true,
+												'is-achievement-compact':
+													this.compactAchievementPlayers.has(player.playerId),
+											})}
+											data-player-id=${ player.playerId }
+										>
 											<aa-rank-display .rank=${rank}>
 												<span class="mmr">${mmr}</span>
 											</aa-rank-display>
