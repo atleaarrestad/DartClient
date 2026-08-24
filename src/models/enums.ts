@@ -25,12 +25,20 @@ export enum ScoreModifier {
 	DoublePointsAt69 = 0,
 	reserved = 1,
 }
+
+export enum GameConstraint {
+	MaximumRounds = 0,
+	FinalPlayerExtraRounds = 1,
+}
 export enum SessionAchievement {
 	// 0–99: Triples / Variants / Budget
 	TrippleSixty = 0,
 	TrippleForty = 1,
 	// 2-3 were removed duplicate Shanghai achievements.
 	ThreeOfAKind20 = 4,
+	Rimmer = 5,
+	RimReaper = 6,
+	PerfectlyBalanced = 7,
 
 	// 100–199: Score thresholds (Adjusted + Raw)
 	ScoreAtLeast50InOneRound = 100,
@@ -112,6 +120,9 @@ export enum SessionAchievement {
 	FinishWithDouble = 406,
 	FinishWithTripple = 407,
 	BigFish = 408,
+	TaskFailedSuccessfully = 409,
+	NoMultipliersNeeded = 410,
+	CleanGame = 411,
 
 	// 600–699: Shanghai
 
@@ -178,6 +189,50 @@ export enum SessionAchievement {
 	ThreeOfAKind19 = 718,
 	ThreeOfAKindBull = 719,
 	ThreeOfAKindDoubleBull = 720,
+
+	// 800-899: Ladder
+	Climbing1 = 800,
+	Climbing2 = 801,
+	Climbing3 = 802,
+	Climbing4 = 803,
+	Climbing5 = 804,
+	Climbing6 = 805,
+	Climbing7 = 806,
+	Climbing8 = 807,
+	Climbing9 = 808,
+	Climbing10 = 809,
+	Climbing11 = 810,
+	Climbing12 = 811,
+	Climbing13 = 812,
+	Climbing14 = 813,
+	Climbing15 = 814,
+	Climbing16 = 815,
+	Climbing17 = 816,
+	Climbing18 = 817,
+	Climbing19 = 818,
+	Climbing20 = 819,
+	Descending50 = 820,
+	Descending25 = 821,
+	Descending20 = 822,
+	Descending19 = 823,
+	Descending18 = 824,
+	Descending17 = 825,
+	Descending16 = 826,
+	Descending15 = 827,
+	Descending14 = 828,
+	Descending13 = 829,
+	Descending12 = 830,
+	Descending11 = 831,
+	Descending10 = 832,
+	Descending9 = 833,
+	Descending8 = 834,
+	Descending7 = 835,
+	Descending6 = 836,
+	Descending5 = 837,
+	Descending4 = 838,
+	Descending3 = 839,
+	Descending2 = 840,
+	Descending1 = 841,
 }
 
 
@@ -213,4 +268,5 @@ export enum AchievementType {
 	Shanghai = 8,
 	// 9 was the merged Shanghai budget category.
 	ThreeOfAKind = 10,
+	Ladder = 11,
 }

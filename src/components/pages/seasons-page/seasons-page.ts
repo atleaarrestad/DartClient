@@ -13,6 +13,7 @@ import { container } from 'tsyringe';
 import { getAchievementTierIcon } from '../../../helpers/achievementHelper.js';
 import {
 	AchievementTier,
+	GameConstraint,
 	ScoreModifier,
 	WinCondition,
 } from '../../../models/enums.js';
@@ -27,6 +28,7 @@ import {
 } from '../../../models/rank.js';
 import {
 	AchievementTierReward,
+	GameConstraintRule,
 	RankThreshold,
 	RuleDefinitionsResponse,
 	ScoreModifierRule,
@@ -112,6 +114,10 @@ const defaultAchievementCapIncreases: Record<AchievementTier, number> = {
 	[AchievementTier.platinum]: 2,
 	[AchievementTier.diamond]:  2,
 };
+
+interface GameConstraintRuleDraft extends GameConstraintRule {
+	value: number | null;
+}
 
 @customElement('seasons-page')
 export class SeasonsPage extends LitElement {
@@ -225,6 +231,7 @@ export class SeasonsPage extends LitElement {
 			goal:                   season.goal,
 			scoreModifierRules:     season.scoreModifierRules.map(rule => ({ ...rule })),
 			winConditionRules:      season.winConditionRules.map(rule => ({ ...rule })),
+			gameConstraintRules:    season.gameConstraintRules.map(rule => ({ ...rule })),
 			rankThresholds:         this.normalizeThresholds(season.rankThresholds),
 			achievementTierRewards: this.normalizeAchievementRewards(season.achievementTierRewards),
 			mmrConfiguration:       { ...season.mmrConfiguration },
@@ -257,6 +264,7 @@ export class SeasonsPage extends LitElement {
 			goal:                   latest?.goal ?? 180,
 			scoreModifierRules:     latest?.scoreModifierRules.map(rule => ({ ...rule })) ?? [],
 			winConditionRules:      latest?.winConditionRules.map(rule => ({ ...rule })) ?? [],
+			gameConstraintRules:    latest?.gameConstraintRules.map(rule => ({ ...rule })) ?? [],
 			rankThresholds:         this.normalizeThresholds(latest?.rankThresholds),
 			achievementTierRewards: this.normalizeAchievementRewards(latest?.achievementTierRewards),
 			mmrConfiguration:       {
@@ -305,6 +313,8 @@ export class SeasonsPage extends LitElement {
 				.sort((left, right) => left.scoreModifier - right.scoreModifier),
 			winConditionRules: [ ...draft.winConditionRules ]
 				.sort((left, right) => left.winCondition - right.winCondition),
+			gameConstraintRules: [ ...draft.gameConstraintRules ]
+				.sort((left, right) => left.gameConstraint - right.gameConstraint),
 			rankThresholds: [ ...draft.rankThresholds ]
 				.sort((left, right) => left.rank - right.rank),
 			achievementTierRewards: [ ...draft.achievementTierRewards ]
@@ -352,6 +362,40 @@ export class SeasonsPage extends LitElement {
 		return names.length > 0 ? names.join(', ') : 'None selected';
 	}
 
+	private getGameConstraintDefinition(value: GameConstraint): RuleDefinitionsResponse['gameConstraints'][number] | undefined {
+		return this.definitions?.gameConstraints.find(definition => definition.value === value);
+	}
+
+	private formatGameConstraintValue(
+		definition: RuleDefinitionsResponse['gameConstraints'][number],
+		value: number | null,
+	): string {
+		if (value === null)
+			return 'No value';
+
+		const label = definition.label?.trim();
+		return label ? `${ label } ${ value }` : `${ value }`;
+	}
+
+	private getGameConstraintSummary(rules: GameConstraintRule[]): string {
+		if (!this.definitions)
+			return 'None selected';
+
+		const summaries = rules
+			.map(rule => {
+				const definition = this.getGameConstraintDefinition(rule.gameConstraint);
+				if (!definition)
+					return undefined;
+
+				return rule.value === null
+					? definition.name
+					: this.formatGameConstraintValue(definition, rule.value);
+			})
+			.filter((summary): summary is string => !!summary);
+
+		return summaries.length > 0 ? summaries.join(', ') : 'None selected';
+	}
+
 	private getScoreModifierErrors(rules: ScoreModifierRule[]): string[] {
 		const executionOrders = rules.map(rule => rule.executionOrder);
 		if (executionOrders.some(order => !Number.isInteger(order) || order < 0))
@@ -360,6 +404,42 @@ export class SeasonsPage extends LitElement {
 			return [ 'Score-modifier execution orders must be unique.' ];
 
 		return [];
+	}
+
+	private getGameConstraintErrors(rules: GameConstraintRule[]): string[] {
+		const errors: string[] = [];
+		const constraintValues = rules.map(rule => rule.gameConstraint);
+		if (new Set(constraintValues).size !== constraintValues.length)
+			errors.push('Each game constraint can only be configured once.');
+
+		for (const rule of rules) {
+			const definition = this.getGameConstraintDefinition(rule.gameConstraint);
+			if (!definition) {
+				errors.push('Unknown game constraint selected.');
+				continue;
+			}
+
+			const hasParameter = !!definition.label;
+			if (!hasParameter) {
+				if (rule.value !== null)
+					errors.push(`${ definition.name } does not take a numeric value.`);
+
+				continue;
+			}
+
+			if (rule.value === null) {
+				if (definition.required)
+					errors.push(`${ definition.name } requires a ${ definition.label }.`);
+				continue;
+			}
+
+			if (!Number.isInteger(rule.value))
+				errors.push(`${ definition.name } ${ definition.label } must be a whole number.`);
+			else if ((definition.min != null && rule.value < definition.min) || (definition.max != null && rule.value > definition.max))
+				errors.push(`${ definition.name } ${ definition.label } must be between ${ definition.min } and ${ definition.max }.`);
+		}
+
+		return errors;
 	}
 
 	private closeDialog(event: Event): void {
@@ -561,6 +641,151 @@ rule.executionOrder = Number(
 			this.notificationService.addNotification({
 				type:    'danger',
 				message: error instanceof Error ? error.message : 'Unable to open win conditions.',
+			});
+		}
+	}
+
+	private async openGameConstraints(): Promise<void> {
+		if (!this.draft || !this.definitions)
+			return;
+
+		const rules: GameConstraintRuleDraft[] = this.draft.gameConstraintRules.map(rule => ({ ...rule }));
+
+		try {
+			await this.dialogService.open(
+				html`
+					<aa-button
+						slot="footer-secondary"
+						type="button"
+						variant="secondary"
+						@click=${ this.closeDialog }
+					>
+						Cancel
+					</aa-button>
+					<aa-button
+						slot="footer-primary"
+						type="button"
+						variant="primary"
+						@click=${ (event: Event) => {
+							const errors = this.getGameConstraintErrors(rules);
+							if (errors.length > 0) {
+								this.notificationService.addNotification({
+									type:    'danger',
+									message: errors[0],
+								});
+
+								return;
+							}
+
+							this.updateDraft({
+								gameConstraintRules: rules.map(rule => ({
+									gameConstraint: rule.gameConstraint,
+									value: rule.value,
+								})),
+							});
+							this.closeDialog(event);
+						} }
+					>
+						Apply constraints
+					</aa-button>
+					<div class="rule-dialog game-constraints-dialog">
+						${ this.definitions.gameConstraints.map(definition => {
+							const gameConstraint = definition.value as GameConstraint;
+							const selected = rules.find(rule => rule.gameConstraint === gameConstraint);
+							const hasNumericParameter = !!definition.label;
+							const inputId = `game-constraint-${ definition.value }`;
+							const initialValue = selected
+								? (selected.value === null ? '' : selected.value)
+								: definition.defaultValue ?? '';
+
+							return html`
+								<article class="rule-dialog__card ${ selected ? 'selected' : '' }">
+									<input
+										type="checkbox"
+										aria-label=${ `Select ${ definition.name }` }
+										.checked=${ !!selected }
+										@change=${ (event: Event) => {
+											const checkbox = event.currentTarget as HTMLInputElement;
+											const card = checkbox.closest('.rule-dialog__card');
+											const valueField = card?.querySelector<HTMLElement>('[data-game-constraint-value]');
+											const valueInput = card?.querySelector<HTMLInputElement>('[data-game-constraint-input]');
+											const existingIndex = rules.findIndex(
+												rule => rule.gameConstraint === gameConstraint,
+											);
+
+											if (checkbox.checked && existingIndex < 0) {
+												rules.push({
+													gameConstraint,
+													value: definition.defaultValue ?? null,
+												});
+											}
+											else if (!checkbox.checked && existingIndex >= 0) {
+												rules.splice(existingIndex, 1);
+											}
+
+											card?.classList.toggle(
+												'selected',
+												checkbox.checked,
+											);
+											if (valueField)
+												valueField.hidden = !checkbox.checked || !hasNumericParameter;
+											if (valueInput) {
+												valueInput.disabled = !checkbox.checked || !hasNumericParameter;
+												if (checkbox.checked && existingIndex < 0)
+													valueInput.value = initialValue === '' ? '' : String(initialValue);
+											}
+										} }
+									/>
+									<span class="rule-dialog__copy">
+										<strong>${ definition.name }</strong>
+										<small>${ definition.description }</small>
+									</span>
+									${ hasNumericParameter ? html`
+										<label
+											class="rule-dialog__value"
+											data-game-constraint-value
+											?hidden=${ !selected }
+										>
+											<span>${ definition.label }</span>
+											<input
+												id=${ inputId }
+												data-game-constraint-input
+												type="number"
+												min=${ String(definition.min) }
+												max=${ String(definition.max) }
+												step="1"
+												.value=${ initialValue === '' ? '' : String(initialValue) }
+												?required=${ definition.required }
+												?disabled=${ !selected }
+												@input=${ (event: InputEvent) => {
+													const input = event.currentTarget as HTMLInputElement;
+													const rule = rules.find(item => item.gameConstraint === gameConstraint);
+
+													if (rule) {
+														rule.value = input.value.trim() === ''
+															? null
+															: Number(input.value);
+													}
+												} }
+											/>
+											<small>
+												${ definition.required ? 'Required' : 'Optional' } ·
+												${ definition.min } to ${ definition.max }
+											</small>
+										</label>
+									` : null }
+								</article>
+							`;
+						}) }
+					</div>
+				`,
+				{ title: 'Game constraints' },
+			);
+		}
+		catch (error) {
+			this.notificationService.addNotification({
+				type:    'danger',
+				message: error instanceof Error ? error.message : 'Unable to open game constraints.',
 			});
 		}
 	}
@@ -908,6 +1133,7 @@ rule.executionOrder = Number(
 		errors.push(...validateMmrConfiguration(this.draft.mmrConfiguration));
 
 		errors.push(...this.getScoreModifierErrors(this.draft.scoreModifierRules));
+		errors.push(...this.getGameConstraintErrors(this.draft.gameConstraintRules));
 
 		return errors;
 	}
@@ -1128,6 +1354,7 @@ rule.executionOrder = Number(
 			this.draft.winConditionRules.map(rule => rule.winCondition),
 			this.definitions.winConditions,
 		);
+		const gameConstraintSummary = this.getGameConstraintSummary(this.draft.gameConstraintRules);
 
 		return [
 			{
@@ -1143,6 +1370,13 @@ rule.executionOrder = Number(
 				summary:
 					`${ this.draft.winConditionRules.length } selected · ${ winConditionNames }`,
 				activateLabel: 'Configure win conditions',
+			},
+			{
+				id:    'game-constraints',
+				title: 'Game constraints',
+				summary:
+					`${ this.draft.gameConstraintRules.length } configured · ${ gameConstraintSummary }`,
+				activateLabel: 'Configure game constraints',
 			},
 			{
 				id:            'rank-thresholds',
@@ -1184,6 +1418,9 @@ rule.executionOrder = Number(
 			break;
 		case 'win-conditions':
 			void this.openWinConditions();
+			break;
+		case 'game-constraints':
+			void this.openGameConstraints();
 			break;
 		case 'rank-thresholds':
 			void this.openRankThresholds();

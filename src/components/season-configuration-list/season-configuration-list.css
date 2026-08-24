@@ -20,8 +20,10 @@
 }
 
 .configuration-panel {
-	display: flex;
-	flex-wrap: wrap;
+	--configuration-item-min-width: 220px;
+	--configuration-columns: 1;
+	display: grid;
+	grid-template-columns: repeat(var(--configuration-columns), minmax(0, 1fr));
 	gap: 2px;
 	overflow: hidden;
 	background: var(--color-border-strong);
@@ -30,7 +32,6 @@
 }
 
 .configuration-item {
-	flex: 1 1 240px;
 	min-width: 0;
 }
 
@@ -133,7 +134,7 @@
 }
 
 @media (max-width: 700px) {
-	.configuration-item {
-		flex-basis: 100%;
+	.configuration-panel {
+		grid-template-columns: 1fr;
 	}
 }

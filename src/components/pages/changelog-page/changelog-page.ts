@@ -14,6 +14,17 @@ interface ChangelogEntry {
 
 const changelogEntries: ChangelogEntry[] = [
 	{
+		date: '2026-08-24',
+		title: 'Game constraints',
+		tag: 'feature',
+		changes: [
+			'Added configurable maximum game length',
+			'Added a final player round limit after every other player finishes',
+			'Added many new achievements',
+			'Game area now uses the available screen space more generously',
+		],
+	},
+	{
 		date: '2026-08-23',
 		title: 'Biiiig update',
 		tag: 'feature',

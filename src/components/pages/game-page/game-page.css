@@ -113,6 +113,39 @@ aa-loading-state {
 	font-size: 1.5rem;
 }
 
+.projected-achievements {
+	display: inline-flex;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	gap: 0.35rem;
+	padding: 0.25rem 0.4rem;
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-lg);
+	background: var(--color-surface-warning-subtle);
+	box-shadow: var(--shadow-brutal-sm);
+}
+
+.projected-achievements--compact {
+	display: none;
+}
+
+.projected-achievement {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.15rem;
+	font-size: 0.78rem;
+	font-weight: 900;
+	line-height: 1;
+}
+
+.projected-achievement__icon {
+	width: 1.55rem;
+	height: 1.55rem;
+	object-fit: contain;
+}
+
 .overshoot {
 	background-color: #ed817f89 !important;
 }
@@ -127,32 +160,48 @@ aa-loading-state {
 
 .rank-container {
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	justify-content: center;
 	padding-block: 8px;
 }
 
 .rank-inner-container {
+	position: relative;
 	display: flex;
+	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: center;
+	width: 100%;
 	gap: 0.5rem;
+}
+
+.rank-inner-container.is-achievement-compact .projected-achievements--detailed {
+	position: absolute;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.rank-inner-container.is-achievement-compact .projected-achievements--compact {
+	display: inline-flex;
 }
 
 .rank-inner-container aa-rank-display {
 	--aa-rank-icon-size: 64px;
+	flex: 0 0 auto;
 }
 
 .player-container {
 	--scrollbar-width: 4px;
+	--player-row-height: 50cqh;
 	container-type: size;
 	overflow-y: auto;
 	overflow-x: hidden;
 	scrollbar-gutter: stable;
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(300px, auto));
-	grid-auto-rows: max-content;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	grid-auto-rows: var(--player-row-height);
 	justify-items: center;
-	align-items: start;
+	align-items: stretch;
 	padding-top: 24px;
 	padding-bottom: 88px;
 	padding-left: 12px;
@@ -176,10 +225,13 @@ aa-loading-state {
 }
 
 .player {
+	--round-scrollbar-width: 0px;
 	display: grid;
 	grid-template-rows: auto auto auto 1fr auto;
 	min-width: 250px;
-	max-height: 50cqh;
+	min-height: 0;
+	height: 100%;
+	overflow: hidden;
 	width: 100%;
 	border: 1px solid var(--color-border-strong);
 	background: var(--player-bg, #f0f0f0);
@@ -202,7 +254,9 @@ aa-loading-state {
 
 .rounds-scroll-container {
 	display: block;
+	min-height: 0;
 	overflow-y: auto;
+	scrollbar-gutter: stable;
 	border-bottom: 1px solid var(--color-border-strong);
 
 	&::-webkit-scrollbar {
@@ -223,9 +277,55 @@ aa-loading-state {
 }
 
 .rounds-container {
-	min-height: calc(2rem * 10);
+	min-height: 0;
 	display: grid;
 	grid-auto-rows: max-content;
+}
+
+.round-placeholder {
+	pointer-events: none;
+}
+
+.placeholder-throws span:nth-child(2) {
+	border-left: 1px solid rgba(0, 0, 0, 0.25);
+	border-right: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+.round-limit-barrier-region {
+	position: relative;
+	display: grid;
+	cursor: not-allowed;
+	user-select: none;
+	background: rgba(70, 70, 70, 0.18);
+}
+
+.round-limit-barrier-region::before,
+.round-limit-barrier-region::after {
+	position: absolute;
+	z-index: 1;
+	left: 0;
+	width: 100%;
+	border-top: 1px dashed color-mix(
+		in srgb,
+		var(--color-status-danger) 62%,
+		var(--color-border-strong)
+	);
+	content: "";
+	pointer-events: none;
+}
+
+.round-limit-barrier-region::before {
+	top: 0;
+}
+
+.round-limit-barrier-region::after {
+	bottom: 0;
+}
+
+.round-limit-barrier-row .round-number,
+.round-limit-barrier-row .cumulative-points-round,
+.round-limit-barrier-row .placeholder-throws {
+	opacity: 0.3;
 }
 
 .round-grid {
@@ -236,7 +336,11 @@ aa-loading-state {
 
 .round-labels-container {
 	display: grid;
-	grid-template-columns: 1.5rem 1fr calc(3rem + 2px);
+	grid-template-columns:
+		1.5rem
+		minmax(0, 1fr)
+		3rem
+		var(--round-scrollbar-width);
 	text-align: center;
 	border-bottom: 1px solid var(--color-border-strong);
 	background-color: #B4CCB9;
@@ -253,7 +357,14 @@ aa-loading-state {
 
 .throws-container {
 	display: grid;
-	grid-template-columns: 1fr 1fr 1fr;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	min-width: 0;
+}
+
+.throws-container > * {
+	min-width: 0;
+	width: 100%;
+	height: 100%;
 }
 
 .round-number {

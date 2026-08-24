@@ -299,6 +299,9 @@ export class IndexPage extends GamePage {
 					nextThrow.nextThrowIndex,
 				);
 			}
+			else if (direction === 'forward') {
+				this.selectedCellElement?.blur();
+			}
 		}
 	}
 
@@ -538,7 +541,12 @@ export class IndexPage extends GamePage {
 	}
 
 	protected focusFirstUnplayedRound(): void{
-		for (let roundIndex = 0; roundIndex < 15; roundIndex++) {
+		const roundLimit = this.maximumRounds ?? Math.max(
+			15,
+			...this.players.map(player => player.rounds.length),
+		);
+
+		for (let roundIndex = 0; roundIndex < roundLimit; roundIndex++) {
 			for (let playerIndex = 0; playerIndex < this.players.length; playerIndex++){
 				const player = this.players[playerIndex];
 				const round = player?.rounds[roundIndex];
@@ -573,14 +581,19 @@ export class IndexPage extends GamePage {
 		roundIndex: number,
 	): { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number; } | null {
 		const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'forward');
+		const nextRoundIndex = roundIndex + 1;
+		const target = nextFocusablePlayer === undefined
+			? { nextPlayerIndex: playerIndex, nextRoundIndex, nextThrowIndex: 0 }
+			: {
+				nextPlayerIndex: nextFocusablePlayer,
+				nextRoundIndex: nextFocusablePlayer < playerIndex ? nextRoundIndex : roundIndex,
+				nextThrowIndex: 0,
+			};
 
-		if (nextFocusablePlayer === undefined)
-			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
+		if (this.maximumRounds !== null && target.nextRoundIndex >= this.maximumRounds)
+			return null;
 
-		if (nextFocusablePlayer < playerIndex)
-			return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
-
-		return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
+		return target;
 	}
 
 	protected isFocusAlreadyOnTurn(
@@ -641,18 +654,25 @@ export class IndexPage extends GamePage {
 		if (direction === 'forward') {
 			if (throwIndex === 2) {
 				const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'forward', ignoreRestrictions);
-
+				const nextRoundIndex = roundIndex + 1;
+				let target;
 				if (nextFocusablePlayer === undefined) {
 					if (ignoreRestrictions)
 						return null;
 
-					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
+					target = { nextPlayerIndex: playerIndex, nextRoundIndex, nextThrowIndex: 0 };
 				}
-
-				if (nextFocusablePlayer < playerIndex)
-					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex + 1, nextThrowIndex: 0 };
 				else
-					return { nextPlayerIndex: nextFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 0 };
+					target = {
+						nextPlayerIndex: nextFocusablePlayer,
+						nextRoundIndex: nextFocusablePlayer < playerIndex ? nextRoundIndex : roundIndex,
+						nextThrowIndex: 0,
+					};
+
+				if (this.maximumRounds !== null && target.nextRoundIndex >= this.maximumRounds)
+					return null;
+
+				return target;
 			}
 			else {
 				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
