@@ -1,8 +1,9 @@
-import { html, unsafeCSS } from 'lit';
+import { html, TemplateResult, unsafeCSS } from 'lit';
 import { LitElement } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
+import { faIcons } from '../../faIcons.js';
 import { getAbsoluteBase } from '../../getAbsoluteBase.js';
 import { Season } from '../../models/schemas.js';
 import {
@@ -20,6 +21,8 @@ const base = getAbsoluteBase();
 export class AaNavigationbar extends LitElement {
 
 	private seasonService:             SeasonService;
+	private shortcutResetTimer?:       number;
+	private shortcutPrefixActive = false;
 	@state() private season?:          Season;
 	@property({ type: Boolean }) test: boolean;
 
@@ -28,12 +31,15 @@ export class AaNavigationbar extends LitElement {
 
 		this.seasonService = container.resolve(SeasonService);
 		window.addEventListener(seasonUpdatedEventName, this.handleSeasonUpdated);
+		window.addEventListener('keydown', this.handleShortcutKeyDown);
 
 		this.initialize();
 	}
 
 	override disconnectedCallback(): void {
 		window.removeEventListener(seasonUpdatedEventName, this.handleSeasonUpdated);
+		window.removeEventListener('keydown', this.handleShortcutKeyDown);
+		window.clearTimeout(this.shortcutResetTimer);
 		super.disconnectedCallback();
 	}
 
@@ -48,31 +54,125 @@ export class AaNavigationbar extends LitElement {
 			this.season = updatedSeason;
 	};
 
+	private handleShortcutKeyDown = (event: KeyboardEvent): void => {
+		if (
+			event.repeat
+			|| event.altKey
+			|| event.ctrlKey
+			|| event.metaKey
+			|| event.shiftKey
+			|| document.querySelector('aa-dialog')
+			|| this.isEditableTarget(event)
+		) {
+			this.resetShortcutPrefix();
+
+			return;
+		}
+
+		const key = event.key.toLowerCase();
+		if (this.shortcutPrefixActive) {
+			this.resetShortcutPrefix();
+
+			const link = this.shadowRoot
+				?.querySelector<HTMLAnchorElement>(`a[data-shortcut="${ key }"]`);
+			if (!link || (key === 'c' && !this.season))
+				return;
+
+			event.preventDefault();
+			link.click();
+
+			return;
+		}
+
+		if (key !== 'g')
+			return;
+
+		event.preventDefault();
+		this.shortcutPrefixActive = true;
+		this.shortcutResetTimer = window.setTimeout(
+			() => this.resetShortcutPrefix(),
+			1_200,
+		);
+	};
+
+	private isEditableTarget(event: KeyboardEvent): boolean {
+		const target = event.composedPath()[0];
+
+		return target instanceof HTMLElement
+			&& (
+				target.matches('input, textarea, select')
+				|| target.isContentEditable
+			);
+	}
+
+	private resetShortcutPrefix(): void {
+		this.shortcutPrefixActive = false;
+		window.clearTimeout(this.shortcutResetTimer);
+		this.shortcutResetTimer = undefined;
+	}
+
+	private renderShortcut(key: string): TemplateResult {
+		return html`<kbd class="nav-shortcut" aria-hidden="true">G ${ key }</kbd>`;
+	}
+
 	override render(): unknown {
 		return html`
 		<nav class="navbar">
-			<s-logo-wrapper>
-				<a class="logo" href=${ base }>
-					<img class="logo-icon" src=${ `${ base }icons/home.png` } alt="Home" />
-					<span>Play</span>
-				</a>
+			<ul class="nav-links nav-links--primary" aria-label="Play and current season">
+				<li class="nav-item--play">
+					<a href=${ base } data-shortcut="p" title="Play (G then P)">
+						<i class="fa-solid fa-play" aria-hidden="true"></i>
+						<span>Play</span>
+						${ this.renderShortcut('P') }
+					</a>
+				</li>
+				<li class="nav-item--season">
+					<a
+						href=${ `${ base }season/${ this.season?.id }` }
+						data-shortcut="c"
+						title="Current season (G then C)"
+					>
+						<i class="fa-solid fa-trophy" aria-hidden="true"></i>
+						<span>${ this.season?.name ?? 'Season' }</span>
+						${ this.renderShortcut('C') }
+					</a>
+				</li>
+			</ul>
 
-				<a class="logo center" href=${ `${ base }season/${ this.season?.id }` }>
-					<img
-						class="logo-icon"
-						src=${ `${ base }icons/season_beta.png` }
-						alt=${ this.season?.name ?? 'Season' }
-					/>
-					<span class="fit-content">${ this.season?.name ?? 'Season' }</span>
-				</a>
-			</s-logo-wrapper>
-
-			<ul class="nav-links">
-				<li><a href=${ `${ base }users` }>Users</a></li>
-				<li><a href=${ `${ base }sessions` }>Active games</a></li>
-				<li><a href=${ `${ base }changelog` }>Change log</a></li>
+			<ul class="nav-links" aria-label="Site navigation">
+				<li>
+					<a href=${ `${ base }users` } data-shortcut="u" title="Users (G then U)">
+						Users
+						${ this.renderShortcut('U') }
+					</a>
+				</li>
+				<li>
+					<a
+						href=${ `${ base }sessions` }
+						data-shortcut="a"
+						title="Active games (G then A)"
+					>
+						Active games
+						${ this.renderShortcut('A') }
+					</a>
+				</li>
+				<li>
+					<a
+						href=${ `${ base }changelog` }
+						data-shortcut="l"
+						title="Change log (G then L)"
+					>
+						Change log
+						${ this.renderShortcut('L') }
+					</a>
+				</li>
 				<li><a href="#" class="disabled">Game-log</a></li>
-				<li><a href=${ `${ base }seasons` }>Seasons</a></li>
+				<li>
+					<a href=${ `${ base }seasons` } data-shortcut="s" title="Seasons (G then S)">
+						Seasons
+						${ this.renderShortcut('S') }
+					</a>
+				</li>
 			</ul>
 		</nav>
 		`;
@@ -80,6 +180,7 @@ export class AaNavigationbar extends LitElement {
 
 	static override styles = [
 		sharedStyles,
+		faIcons,
 		unsafeCSS(navigationbarStyles),
 	];
 

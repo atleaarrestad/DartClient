@@ -462,6 +462,7 @@ aa-loading-state {
 	border-radius: var(--radius-control);
 	line-height: 1;
 	box-shadow: var(--shadow-brutal-sm);
+	white-space: nowrap;
 }
 
 .top-bar {
@@ -564,27 +565,17 @@ aa-loading-state {
 	justify-content: center;
 }
 
-.rematch-player-pill {
-	display: inline-flex;
-	align-items: center;
-	padding: 0.3rem 0.65rem;
-	background: var(--color-surface-info-subtle);
-	border: 2px solid var(--color-border-strong);
-	border-radius: var(--radius-pill);
-	font-weight: 800;
-	box-shadow: var(--shadow-brutal-sm);
+.rematch-player-list aa-player-chip::part(chip)::before {
+	display: none;
 }
 
-.rematch-player-pill::before {
-	content: '•';
-	margin-right: 0.35rem;
-	font-size: 0.9em;
+.rematch-player-list aa-rank-display {
+	--aa-rank-icon-size: 1.35rem;
+	--aa-rank-gap: 0;
 }
 
-.rematch-player-list.compact .rematch-player-pill {
-	padding: 0.18rem 0.5rem;
-	font-size: 0.9rem;
-	box-shadow: 1.5px 1.5px 0 #000;
+.rematch-player-list.compact aa-rank-display {
+	--aa-rank-icon-size: 1.1rem;
 }
 
 .player-name {

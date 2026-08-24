@@ -2,6 +2,8 @@ import { html, TemplateResult } from 'lit';
 import { createRef, ref } from 'lit/directives/ref.js';
 
 import { AaDialog } from '../components/aa-dialog/aa-dialog.js';
+import '../components/player-chip/aa-player-chip.js';
+import '../components/rank-display/aa-rank-display.js';
 import '../ui/button/aa-button.js';
 import { defaultMmrConfiguration } from '../models/mmr.js';
 import { getRankDisplayValue, getRankIcon, Rank } from '../models/rank.js';
@@ -162,19 +164,15 @@ const gameplayShortcutSections: ShortcutSection[] = [
 
 const renderShortcutCombo = (combo: string[]): TemplateResult => html`
 	<span class="shortcut-keys" aria-hidden="true">
-		${combo.map((part, index) => html`
-			${index > 0 ? html`<span>+</span>` : null}
-			<span class="keycap">${part}</span>
-		`)}
+		<span class="keycap">
+			${combo.map(part => part === 'Shift' ? '⇧' : part).join(
+				combo[0] === 'Shift' ? ' ' : ' + ',
+			)}
+		</span>
 	</span>
 `;
 
 export const gameplayShortcutsTemplate = (): TemplateResult => {
-	const closeDialog = (e: Event) => {
-		const dialog = (e.currentTarget as HTMLElement).closest('aa-dialog') as any;
-		dialog?.close();
-	};
-
 	return html`
 		<div class="shortcut-help-dialog">
 			<div class="shortcut-help-grid">
@@ -205,12 +203,6 @@ export const gameplayShortcutsTemplate = (): TemplateResult => {
 							: null}
 					`)}
 				</div>
-			</div>
-
-			<div class="shortcut-help-footer">
-				<aa-button type="button" variant="secondary" size="small" @click=${closeDialog}>
-					Close
-				</aa-button>
 			</div>
 		</div>
 	`;
@@ -251,60 +243,41 @@ export const confirmRematchTemplate = (users: User[]): TemplateResult => {
 		}));
 	};
 
-	const onKeyDown = (event: KeyboardEvent) => {
-		if (event.key === 'Escape') {
-			event.preventDefault();
-			closeDialog(false);
-		}
-	};
-
 	return html`
-		<div class="confirm-rematch" tabindex="-1" @keydown=${onKeyDown}>
-			<div class="confirm-copy">
-				<div class="confirm-title">Start rematch?</div>
-				<div class="confirm-text">
-					You are currently in an active game!
-				</div>
-			</div>
-
-			<div class="rematch-card">
-				<div class="rematch-header">
-					<span class="rematch-label">Rematch roster</span>
-					<span class="rematch-keys" aria-hidden="true">
-						<span class="keycap">Shift</span>
-						<span>+</span>
-						<span class="keycap">R</span>
-					</span>
-				</div>
-
-				<div class="roster-label">Players</div>
-
+		<div class="confirm-rematch">
+			<div class="rematch-roster">
+				<div class="roster-label">Rematch players</div>
 				<div class="player-list">
 					${users.map(user => html`
-						<span class="player-pill">${user.alias || user.name}</span>
+						<aa-player-chip>
+							<aa-rank-display
+								.rank=${ user.seasonStatistics[0]?.currentRank }
+								icon-only
+							></aa-rank-display>
+							<span>${ user.alias || user.name }</span>
+						</aa-player-chip>
 					`)}
 				</div>
 			</div>
-
-			<div class="actions">
-				<aa-button
-					type="button"
-					variant="primary"
-					data-autofocus
-					@click=${() => closeDialog(true)}
-				>
-					Yes, rematch
-				</aa-button>
-
-				<aa-button
-					type="button"
-					variant="secondary"
-					@click=${() => closeDialog(false)}
-				>
-					No, keep game
-				</aa-button>
-			</div>
 		</div>
+
+		<aa-button
+			slot="footer-secondary"
+			type="button"
+			variant="secondary"
+			@click=${() => closeDialog(false)}
+		>
+			No, keep game
+		</aa-button>
+		<aa-button
+			slot="footer-primary"
+			type="button"
+			variant="primary"
+			data-autofocus
+			@click=${() => closeDialog(true)}
+		>
+			Yes, rematch
+		</aa-button>
 	`;
 };
 

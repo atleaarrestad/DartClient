@@ -256,12 +256,10 @@
 	border-radius: var(--radius-control);
 	line-height: 1;
 	box-shadow: var(--shadow-brutal-sm);
+	white-space: nowrap;
 }
 
-.shortcut-help-dialog .shortcut-help-footer {
-	display: flex;
-	justify-content: flex-end;
-}
+
 
 .select-user-dialog {
 	height: 70vh;
@@ -273,62 +271,9 @@
 	outline: none;
 }
 
-.confirm-rematch .confirm-copy {
+.confirm-rematch .rematch-roster {
 	display: grid;
-	gap: 0.4rem;
-}
-
-.confirm-rematch .confirm-title {
-	font-size: 1.1rem;
-	font-weight: 900;
-}
-
-.confirm-rematch .confirm-text {
-	opacity: 0.8;
-	line-height: 1.4;
-}
-
-.confirm-rematch .rematch-card {
-	display: grid;
-	gap: 0.75rem;
-	padding: 0.9rem 1rem;
-	background: #fffdf6;
-	border: 2px solid var(--color-border-strong);
-	border-radius: 20px;
-	box-shadow: var(--shadow-brutal-md);
-}
-
-.confirm-rematch .rematch-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 1rem;
-	flex-wrap: wrap;
-}
-
-.confirm-rematch .rematch-label {
-	font-size: 1rem;
-	font-weight: 900;
-}
-
-.confirm-rematch .rematch-keys {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.35rem;
-	font-weight: 900;
-}
-
-.confirm-rematch .keycap {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 2.1rem;
-	padding: 0.2rem 0.5rem;
-	background: var(--color-surface-plain);
-	border: 2px solid var(--color-border-strong);
-	border-radius: var(--radius-control);
-	line-height: 1;
-	box-shadow: var(--shadow-brutal-sm);
+	gap: 0.55rem;
 }
 
 .confirm-rematch .roster-label {
@@ -343,23 +288,13 @@
 	gap: 0.5rem;
 }
 
-.confirm-rematch .player-pill {
-	display: inline-flex;
-	align-items: center;
-	padding: 0.3rem 0.65rem;
-	background: var(--color-surface-info-subtle);
-	border: 2px solid var(--color-border-strong);
-	border-radius: var(--radius-pill);
-	font-weight: 800;
-	box-shadow: var(--shadow-brutal-sm);
+.confirm-rematch aa-player-chip::part(chip)::before {
+	display: none;
 }
 
-.confirm-rematch .actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 0.75rem;
-	flex-wrap: wrap;
-	margin-top: 0.25rem;
+.confirm-rematch aa-rank-display {
+	--aa-rank-icon-size: 1.5rem;
+	--aa-rank-gap: 0;
 }
 
 .postgame * {

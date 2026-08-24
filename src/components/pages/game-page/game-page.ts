@@ -636,7 +636,9 @@ export class GamePage extends LitElement {
 	protected renderEmptyState(): unknown {
 		return html`
 			<div class="empty-state">
-				<div class="shortcut">[SHIFT + N]</div>
+				<div class="shortcut">
+					<span class="keycap" aria-label="Shift plus N">⇧ N</span>
+				</div>
 				<div class="subtitle">to start a new game!</div>
 			</div>
 		`;

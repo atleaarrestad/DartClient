@@ -15,6 +15,7 @@ import type { aaDartThrow } from '../../aa-dart-throw-cmp/aa-dart-throw-cmp.js';
 import { GamePage } from '../game-page/game-page.js';
 import { DartThrow } from '../../../models/dartThrowSchema.js';
 import '../../player-chip/aa-player-chip.js';
+import '../../rank-display/aa-rank-display.js';
 
 interface ElementDetails {
 	type: 'throw' | 'nothing';
@@ -365,9 +366,7 @@ export class IndexPage extends GamePage {
 					@click=${() => void this.openShortcutHelp()}
 				>
 					<span class="shortcut-keys" aria-hidden="true">
-						<span class="keycap">Shift</span>
-						<span>+</span>
-						<span class="keycap">H</span>
+						<span class="keycap">⇧ H</span>
 					</span>
 					<span class="shortcut-help-trigger-text">Shortcuts</span>
 				</button>
@@ -756,7 +755,11 @@ export class IndexPage extends GamePage {
 			})}>
 				${users.map(user => html`
 					<aa-player-chip ?compact=${compact}>
-						${user.alias || user.name}
+						<aa-rank-display
+							.rank=${ user.seasonStatistics[0]?.currentRank }
+							icon-only
+						></aa-rank-display>
+						<span>${ user.alias || user.name }</span>
 					</aa-player-chip>
 				`)}
 			</div>
@@ -773,9 +776,7 @@ export class IndexPage extends GamePage {
 				'compact': compact,
 			})}>
 				<span class="rematch-keys" aria-hidden="true">
-					<span class="keycap">Shift</span>
-					<span>+</span>
-					<span class="keycap">R</span>
+					<span class="keycap">⇧ R</span>
 				</span>
 				<span class="rematch-text">for rematch!</span>
 				${this.renderLastPlayedUserBadges(compact)}
@@ -793,9 +794,7 @@ export class IndexPage extends GamePage {
 						<div class="shortcut-row">
 							<span class="shortcut-label">Start a new game</span>
 							<span class="shortcut-keys">
-								<span class="keycap">Shift</span>
-								<span>+</span>
-								<span class="keycap">N</span>
+								<span class="keycap" aria-label="Shift plus N">⇧ N</span>
 							</span>
 						</div>
 					</div>
@@ -807,9 +806,7 @@ export class IndexPage extends GamePage {
 							<div class="shortcut-row">
 								<span class="shortcut-label">Rematch last game</span>
 								<span class="shortcut-keys">
-									<span class="keycap">Shift</span>
-									<span>+</span>
-									<span class="keycap">R</span>
+									<span class="keycap" aria-label="Shift plus R">⇧ R</span>
 								</span>
 							</div>
 
