@@ -291,15 +291,16 @@ aa-loading-state {
 	border-right: 1px solid rgba(0, 0, 0, 0.25);
 }
 
-.round-limit-barrier {
+.round-limit-barrier-region {
 	position: relative;
+	display: grid;
 	cursor: not-allowed;
 	user-select: none;
 	background: rgba(70, 70, 70, 0.18);
 }
 
-.round-limit-barrier::before,
-.round-limit-barrier::after {
+.round-limit-barrier-region::before,
+.round-limit-barrier-region::after {
 	position: absolute;
 	z-index: 1;
 	left: 0;
@@ -313,17 +314,17 @@ aa-loading-state {
 	pointer-events: none;
 }
 
-.round-limit-barrier::before {
+.round-limit-barrier-region::before {
 	top: 0;
 }
 
-.round-limit-barrier::after {
+.round-limit-barrier-region::after {
 	bottom: 0;
 }
 
-.round-limit-barrier .round-number,
-.round-limit-barrier .cumulative-points-round,
-.round-limit-barrier .placeholder-throws {
+.round-limit-barrier-row .round-number,
+.round-limit-barrier-row .cumulative-points-round,
+.round-limit-barrier-row .placeholder-throws {
 	opacity: 0.3;
 }
 

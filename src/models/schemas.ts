@@ -41,6 +41,7 @@ export const GameTrackerSchema = z.object({
 	id:                                   z.string().uuid(),
 	started:                              z.string().transform(str => new Date(str)),
 	maximumRounds:                        z.number().int().nullable().default(null),
+	configuredMaximumRounds:              z.number().int().nullable().default(null),
 	playersRounds:                        z.array(PlayerRoundsSchema),
 	projectedSessionAchievementsByPlayer: z.record(
 		z.string().uuid(),

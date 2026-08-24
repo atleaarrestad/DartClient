@@ -28,6 +28,7 @@ export enum ScoreModifier {
 
 export enum GameConstraint {
 	MaximumRounds = 0,
+	FinalPlayerExtraRounds = 1,
 }
 export enum SessionAchievement {
 	// 0–99: Triples / Variants / Budget

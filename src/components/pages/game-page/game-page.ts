@@ -41,6 +41,7 @@ export class GamePage extends LitElement {
 	@state() protected achievementDefinitions?: AchievementDefinitionsResponse;
 	@state() protected visibleRoundCapacity = 10;
 	@state() protected maximumRounds: number | null = null;
+	@state() protected configuredMaximumRounds: number | null = null;
 	@state() protected compactAchievementPlayers: ReadonlySet<string> = new Set();
 
 	protected dataService: DataService;
@@ -369,6 +370,7 @@ export class GamePage extends LitElement {
 		const roundCountChanged = oldRoundCount !== newRoundCount;
 
 		this.maximumRounds = gameTracker.maximumRounds;
+		this.configuredMaximumRounds = gameTracker.configuredMaximumRounds;
 		this.players = [ ...gameTracker.playersRounds ];
 		this.projectedSessionAchievementsByPlayer = {
 			...gameTracker.projectedSessionAchievementsByPlayer,
@@ -410,15 +412,21 @@ export class GamePage extends LitElement {
 		return Math.max(0, remainingRounds);
 	}
 
-	protected shouldRenderRoundLimitBarrier(player: PlayerRounds): boolean {
+	protected getRoundLimitBarrierCount(player: PlayerRounds): number {
 		const maximumRounds = this.getMaximumRoundCount();
 		if (maximumRounds === null)
-			return false;
+			return 0;
 
 		const renderedRoundCount =
 			player.rounds.length + this.getPlaceholderRoundCount(player);
+		if (renderedRoundCount < maximumRounds)
+			return 0;
 
-		return renderedRoundCount >= maximumRounds;
+		const preservedRoundCount = this.configuredMaximumRounds === null
+			? Math.max(this.visibleRoundCapacity, player.rounds.length, maximumRounds + 1)
+			: Math.max(this.configuredMaximumRounds + 1, player.rounds.length);
+
+		return Math.max(1, preservedRoundCount - renderedRoundCount);
 	}
 
 	protected getLatestSeasonStatsForPlayer(playerIndex: number): SeasonStatistics | undefined {
@@ -553,7 +561,7 @@ export class GamePage extends LitElement {
 
 				return player.rounds.length
 					+ this.getPlaceholderRoundCount(player)
-					+ (this.shouldRenderRoundLimitBarrier(player) ? 1 : 0);
+					+ this.getRoundLimitBarrierCount(player);
 			})() * layout.roundHeight));
 		const rowHeight = Math.min(availableRowHeight, naturalRowHeight);
 		const rowHeightValue = `${ rowHeight }px`;
@@ -754,6 +762,7 @@ export class GamePage extends LitElement {
 
 							const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
 							const placeholderRoundCount = this.getPlaceholderRoundCount(player);
+							const roundLimitBarrierCount = this.getRoundLimitBarrierCount(player);
 
 							return html`
 								<article
@@ -843,7 +852,8 @@ export class GamePage extends LitElement {
 														<div
 															class=${classMap({
 																'round-placeholder': true,
-																'alternate-color': roundIndex % 2 === 0,
+																'victory': hasVictory,
+																'alternate-color': roundIndex % 2 === 0 && !hasVictory,
 															})}
 															aria-hidden="true"
 														>
@@ -860,23 +870,32 @@ export class GamePage extends LitElement {
 													`;
 												},
 											)}
-											${ this.shouldRenderRoundLimitBarrier(player) && this.maximumRounds !== null
+											${ roundLimitBarrierCount > 0 && this.maximumRounds !== null
 												? html`
 													<div
-														class="round-limit-barrier"
+														class="round-limit-barrier-region"
 														role="img"
-														aria-label="Round limit reached. Round ${ this.maximumRounds + 1 } is locked."
+														aria-label=${ roundLimitBarrierCount === 1
+															? `Round limit reached. Round ${ this.maximumRounds + 1 } is locked.`
+															: `Round limit reached. Rounds ${ this.maximumRounds + 1 } through ${ this.maximumRounds + roundLimitBarrierCount } are locked.` }
 														title="Round limit — no more rounds"
 													>
-														<div class="round-grid">
-															<div class="round-number">${ this.maximumRounds + 1 }</div>
-															<div class="throws-container placeholder-throws">
-																<span></span>
-																<span></span>
-																<span></span>
-															</div>
-															<div class="cumulative-points-round"></div>
-														</div>
+														${Array.from(
+															{ length: roundLimitBarrierCount },
+															(_, barrierIndex) => html`
+																<div class="round-limit-barrier-row">
+																	<div class="round-grid">
+																		<div class="round-number">${ this.maximumRounds! + barrierIndex + 1 }</div>
+																		<div class="throws-container placeholder-throws">
+																			<span></span>
+																			<span></span>
+																			<span></span>
+																		</div>
+																		<div class="cumulative-points-round"></div>
+																	</div>
+																</div>
+															`,
+														)}
 													</div>
 												`
 												: null }
