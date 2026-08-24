@@ -14,6 +14,19 @@ interface ChangelogEntry {
 
 const changelogEntries: ChangelogEntry[] = [
 	{
+		date: '2026-08-23',
+		title: 'Biiiig update',
+		tag: 'feature',
+		changes: [
+			'New design across most pages and dialogs',
+			'Season creation and editing with rank, MMR and achievement settings',
+			'Better player stats with MMR graphs, heatmaps and achievement progress',
+			'More achievements, cleaner categories and a simpler achievement browser',
+			'Added caching and ETags',
+			'Hopefully the migration does not break production :)',
+		],
+	},
+	{
 		date: '2026-03-20',
 		title: 'Spectate mode indicator',
 		tag: 'improvement',
