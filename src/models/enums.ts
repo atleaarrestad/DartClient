@@ -29,9 +29,8 @@ export enum SessionAchievement {
 	// 0–99: Triples / Variants / Budget
 	TrippleSixty = 0,
 	TrippleForty = 1,
-	AllTwentyVariantsSameGame = 2,
-	AllTwentyVariantsSameRound = 3,
-	BudgetTrippleTwenty = 4,
+	// 2-3 were removed duplicate Shanghai achievements.
+	ThreeOfAKind20 = 4,
 
 	// 100–199: Score thresholds (Adjusted + Raw)
 	ScoreAtLeast50InOneRound = 100,
@@ -114,10 +113,6 @@ export enum SessionAchievement {
 	FinishWithTripple = 407,
 	BigFish = 408,
 
-	// 500-599: Memes
-	MaggaSlayer = 500,
-
-  
 	// 600–699: Shanghai
 
 	Shanghai1 = 600,
@@ -160,6 +155,29 @@ export enum SessionAchievement {
 	ShanghaiBudget18 = 637,
 	ShanghaiBudget19 = 638,
 	ShanghaiBudget20 = 639,
+
+	// 700-799: Three of a kind
+	ThreeOfAKind1 = 700,
+	ThreeOfAKind2 = 701,
+	ThreeOfAKind3 = 702,
+	ThreeOfAKind4 = 703,
+	ThreeOfAKind5 = 704,
+	ThreeOfAKind6 = 705,
+	ThreeOfAKind7 = 706,
+	ThreeOfAKind8 = 707,
+	ThreeOfAKind9 = 708,
+	ThreeOfAKind10 = 709,
+	ThreeOfAKind11 = 710,
+	ThreeOfAKind12 = 711,
+	ThreeOfAKind13 = 712,
+	ThreeOfAKind14 = 713,
+	ThreeOfAKind15 = 714,
+	ThreeOfAKind16 = 715,
+	ThreeOfAKind17 = 716,
+	ThreeOfAKind18 = 717,
+	ThreeOfAKind19 = 718,
+	ThreeOfAKindBull = 719,
+	ThreeOfAKindDoubleBull = 720,
 }
 
 
@@ -184,14 +202,15 @@ export enum AchievementTier {
 }
 
 export enum AchievementType {
-    RangeKing,
-    TwentyRelated,
-    VictoryRelated,
-    Classic,
-    PointsRelated,
-    PointsRelatedRaw,
-    Progression,
-	Meme,
-	Shanghai,
-	ShanghaiBudget
+	RangeKing = 0,
+	Special = 1,
+	VictoryRelated = 2,
+	Classic = 3,
+	PointsRelated = 4,
+	// 5 was the merged Raw points category.
+	Progression = 6,
+	// 7 was the removed Meme category.
+	Shanghai = 8,
+	// 9 was the merged Shanghai budget category.
+	ThreeOfAKind = 10,
 }

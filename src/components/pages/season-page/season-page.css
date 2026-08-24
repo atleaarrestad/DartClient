@@ -1,0 +1,254 @@
+:host {
+	display: block;
+	height: auto !important;
+	min-height: unset !important;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+.wrap {
+	padding: 1rem;
+	max-width: 1400px;
+	margin: 0 auto;
+}
+
+.empty {
+	background: var(--color-surface-card);
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 4px;
+	border-bottom-width: 4px;
+	border-radius: var(--radius-xl);
+	box-shadow: var(--shadow-brutal-deep);
+}
+
+.podium-stage {
+	position: relative;
+	margin: 1rem 0 0.5rem;
+	padding: 0.25rem 0 0;
+}
+
+.podium {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	align-items: end;
+	gap: 0.8rem;
+	max-width: 1000px;
+	margin: 0 auto 1rem auto;
+}
+
+.season-stats-panel {
+	display: grid;
+	gap: 0.85rem;
+	margin: 1.5rem 0;
+	padding: 0.85rem;
+	background: var(--color-surface-warm);
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 4px;
+	border-bottom-width: 4px;
+	border-radius: var(--radius-xl);
+	box-shadow: var(--shadow-brutal-deep);
+}
+
+.season-stats-panel__header {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
+}
+
+.season-stats-panel__header i {
+	display: grid;
+	width: 34px;
+	height: 34px;
+	place-items: center;
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control-sm);
+	background: var(--color-surface-info-subtle);
+}
+
+.season-stats-panel__header h2 {
+	margin: 0;
+	font-size: 1.2rem;
+	font-weight: 900;
+}
+
+.column {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-end;
+	min-width: 0;
+}
+
+.player-card {
+	width: min(100%, 320px);
+	padding: 0.75rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 4px;
+	border-bottom-width: 4px;
+	border-radius: var(--radius-xl);
+	box-shadow: var(--shadow-brutal-deep);
+	margin-bottom: 0.45rem;
+	max-height: min(52vh, 430px);
+	overflow: auto;
+}
+
+.column.first .player-card {
+	border-top: 6px solid var(--color-medal-gold);
+	background: var(--color-medal-gold-light);
+}
+
+.column.second .player-card {
+	border-top: 6px solid var(--color-medal-silver);
+	background: var(--color-medal-silver-light);
+}
+
+.column.third .player-card {
+	border-top: 6px solid var(--color-medal-bronze);
+	background: var(--color-medal-bronze-light);
+}
+
+.placement {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+	padding: 0.14rem 0.48rem;
+	margin-bottom: 0.45rem;
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 3px;
+	border-bottom-width: 3px;
+	border-radius: var(--radius-pill);
+	background: var(--color-medal-gold-light);
+	font-size: 0.74rem;
+	font-weight: 900;
+}
+
+.player {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	min-width: 0;
+}
+
+.alias {
+	font-weight: 900;
+	font-size: 1.08rem;
+	max-width: 100%;
+	overflow-wrap: anywhere;
+}
+
+.player-card aa-rank-display {
+	--aa-rank-icon-size: clamp(64px, 10vw, 104px);
+	--aa-rank-name-size: 0.92rem;
+}
+
+.mmr {
+	font-size: 0.86rem;
+	font-family:
+		ui-monospace,
+		SFMono-Regular,
+		Menlo,
+		Monaco,
+		Consolas,
+		'Liberation Mono',
+		'Courier New',
+		monospace;
+	color: #444;
+	margin-top: 0.2rem;
+	opacity: 0.85;
+}
+
+.player-meta-grid {
+	margin-top: 0.6rem;
+	width: 100%;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.45rem;
+}
+
+.player-meta-grid > div {
+	background: #f8f8f8;
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 3px;
+	border-bottom-width: 3px;
+	border-radius: var(--radius-md);
+	padding: 0.38rem;
+	min-width: 0;
+}
+
+.player-meta-grid span {
+	display: block;
+	font-size: 0.68rem;
+	opacity: 0.75;
+}
+
+.player-meta-grid strong {
+	display: block;
+	font-size: 0.84rem;
+	margin-top: 0.1rem;
+	overflow-wrap: anywhere;
+}
+
+.step {
+	width: 100%;
+	max-width: 260px;
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 4px;
+	border-bottom-width: 4px;
+	border-radius: 16px 16px 8px 8px;
+	box-shadow: var(--shadow-brutal-deep);
+}
+
+.step-1 {
+	height: 112px;
+	background: var(--color-medal-gold);
+}
+
+.step-2 {
+	height: 82px;
+	background: var(--color-medal-silver);
+}
+
+.step-3 {
+	height: 68px;
+	background: var(--color-medal-bronze);
+}
+
+.empty {
+	padding: 1rem;
+	color: #666;
+	text-align: center;
+}
+
+@media (max-width: 820px) {
+	.podium {
+		grid-template-columns: 1fr;
+		gap: 1rem;
+	}
+
+	.column.first {
+		order: -1;
+	}
+
+	.step-1,
+	.step-2,
+	.step-3 {
+		height: 68px;
+	}
+
+	.player-card {
+		max-height: none;
+		overflow: visible;
+	}
+}
+
+@media (max-width: 640px) {
+	.wrap {
+		padding: 0.7rem;
+	}
+
+}

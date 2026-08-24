@@ -1,0 +1,42 @@
+:host {
+	display: block;
+}
+
+.error-state {
+	display: grid;
+	justify-items: center;
+	gap: var(--space-3);
+	padding: var(--space-6);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-lg);
+	background: #ffd9de;
+	color: var(--color-text-primary);
+	text-align: center;
+	box-shadow: var(--shadow-brutal-md);
+}
+
+.icon {
+	font-size: var(--font-size-2xl);
+}
+
+h2 {
+	margin: 0;
+	font-family: var(--font-family-ui);
+	font-size: var(--font-size-xl);
+}
+
+.message {
+	max-width: 42rem;
+	font-family: var(--font-family-body);
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--space-3);
+}
+
+[hidden] {
+	display: none;
+}

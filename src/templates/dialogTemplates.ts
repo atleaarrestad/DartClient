@@ -1,24 +1,26 @@
 import { html, TemplateResult } from 'lit';
 import { createRef, ref } from 'lit/directives/ref.js';
 
-import { AaDialog } from '../components/aa-dialog.js';
+import { AaDialog } from '../components/aa-dialog/aa-dialog.js';
+import '../ui/button/aa-button.js';
+import { defaultMmrConfiguration } from '../models/mmr.js';
 import { getRankDisplayValue, getRankIcon, Rank } from '../models/rank.js';
 import { AchievementDefinitionsResponse, GameResult, User, RuleDefinition } from '../models/schemas.js';
 import { SessionAchievement } from "../models/enums.js";
 import { renderAchievementSummary } from "../helpers/achievementHelper.js";
 
-export type SeasonRuleDialogItem = {
+export interface SeasonRuleDialogItem {
 	value: number;
 	execOrder?: number;
-};
+}
 
-type SeasonRuleDialogTemplateOptions = {
+interface SeasonRuleDialogTemplateOptions {
 	title: string;
 	description?: string;
 	items: SeasonRuleDialogItem[];
 	definitions: RuleDefinition[];
 	renderRuleCode: (code: string) => TemplateResult;
-};
+}
 
 export const seasonRuleDialogTemplate = ({
 	title,
@@ -40,176 +42,6 @@ export const seasonRuleDialogTemplate = ({
 	};
 
 	return html`
-		<style>
-			.rules-dialog {
-				display: grid;
-				gap: 1rem;
-			}
-
-			.rules-dialog-intro {
-				margin: 0;
-				font-size: 0.95rem;
-				line-height: 1.45;
-				opacity: 0.82;
-			}
-
-			.rules-dialog-list {
-				display: grid;
-				gap: 0.9rem;
-			}
-
-			.rules-dialog-card {
-				background: #fffdf8;
-				border: 2px solid black;
-				border-right-width: 4px;
-				border-bottom-width: 4px;
-				border-radius: 16px;
-				box-shadow: 5px 6px 0 0 black;
-				overflow: hidden;
-			}
-
-			.rules-dialog-card-header {
-				padding: 0.9rem 1rem 0.65rem;
-				border-bottom: 1px dashed #cfcfcf;
-				background: rgba(255, 255, 255, 0.8);
-			}
-
-			.rules-dialog-title-row {
-				display: flex;
-				flex-wrap: wrap;
-				align-items: center;
-				gap: 0.45rem;
-				margin-bottom: 0.35rem;
-			}
-
-			.rules-dialog-title {
-				font-size: 1rem;
-				font-weight: 900;
-				line-height: 1.2;
-			}
-
-			.rules-dialog-pill {
-				display: inline-flex;
-				align-items: center;
-				padding: 0.12rem 0.5rem;
-				border: 2px solid black;
-				border-right-width: 3px;
-				border-bottom-width: 3px;
-				border-radius: 999px;
-				background: #f5f5f5;
-				font-size: 0.78rem;
-				font-weight: 800;
-				white-space: nowrap;
-			}
-
-			.rules-dialog-description {
-				margin: 0;
-				font-size: 0.9rem;
-				line-height: 1.4;
-				opacity: 0.82;
-			}
-
-			.rules-dialog-body {
-				padding: 0.85rem 1rem 1rem;
-			}
-
-			.rules-dialog-footer {
-				display: flex;
-				justify-content: flex-end;
-				padding-top: 0.2rem;
-			}
-
-			.rules-dialog-btn {
-				appearance: none;
-				background: white;
-				border: 2px solid black;
-				border-right-width: 4px;
-				border-bottom-width: 4px;
-				border-radius: 14px;
-				padding: 0.5rem 0.9rem;
-				font-weight: 800;
-				cursor: pointer;
-				box-shadow: 4px 4px 0 black;
-			}
-
-			.rules-dialog-btn:active {
-				transform: translate(2px, 2px);
-				box-shadow: 2px 2px 0 black;
-			}
-
-			.rule-code {
-				max-width: 100%;
-				max-height: min(52vh, 520px);
-				overflow: auto;
-				white-space: pre;
-			}
-
-			pre.hljs {
-				display: block;
-				overflow: auto;
-				padding: 1rem;
-				border-radius: 12px;
-				background: #f6f8fa;
-				color: #24292e;
-				line-height: 1.45;
-				font-family: 'Cascadia Code', 'Consolas', monospace;
-				font-size: 0.88rem;
-				margin: 0;
-				border: 1px solid #d0d7de;
-			}
-
-			.hljs-comment,
-			.hljs-quote {
-				color: #6a737d;
-				font-style: italic;
-			}
-
-			.hljs-keyword,
-			.hljs-selector-tag,
-			.hljs-literal,
-			.hljs-name {
-				color: #d73a49;
-			}
-
-			.hljs-variable,
-			.hljs-template-variable,
-			.hljs-attribute {
-				color: #005cc5;
-			}
-
-			.hljs-string,
-			.hljs-doctag,
-			.hljs-title,
-			.hljs-section,
-			.hljs-type {
-				color: #032f62;
-			}
-
-			.hljs-number,
-			.hljs-symbol,
-			.hljs-bullet {
-				color: #005cc5;
-			}
-
-			.hljs-built_in,
-			.hljs-builtin-name,
-			.hljs-class .hljs-title {
-				color: #6f42c1;
-			}
-
-			.hljs-meta {
-				color: #22863a;
-			}
-
-			.hljs-emphasis {
-				font-style: italic;
-			}
-
-			.hljs-strong {
-				font-weight: 700;
-			}
-		</style>
-
 		<div class="rules-dialog">
 			${description ? html`<p class="rules-dialog-intro">${description}</p>` : null}
 
@@ -236,22 +68,24 @@ export const seasonRuleDialogTemplate = ({
 			</div>
 
 			<div class="rules-dialog-footer">
-				<button class="rules-dialog-btn" @click=${closeDialog}>Close</button>
+				<aa-button type="button" variant="secondary" size="small" @click=${closeDialog}>
+					Close
+				</aa-button>
 			</div>
 		</div>
 	`;
 };
 
-type ShortcutEntry = {
+interface ShortcutEntry {
 	label: string;
 	subtext?: string;
 	combos: string[][];
-};
+}
 
-type ShortcutSection = {
+interface ShortcutSection {
 	title: string;
 	items: ShortcutEntry[];
-};
+}
 
 const gameplayShortcutSections: ShortcutSection[] = [
 	{
@@ -342,143 +176,6 @@ export const gameplayShortcutsTemplate = (): TemplateResult => {
 	};
 
 	return html`
-		<style>
-			.shortcut-help-dialog {
-				display: grid;
-				gap: 1rem;
-			}
-
-			.shortcut-help-intro {
-				margin: 0;
-				font-size: 0.95rem;
-				line-height: 1.45;
-				opacity: 0.82;
-			}
-
-			.shortcut-help-grid {
-				display: grid;
-				gap: 1rem;
-			}
-
-			.empty-shortcuts-card {
-				display: grid;
-				gap: 0;
-				background: #fffdf6;
-				border: 2px solid #000;
-				border-radius: 20px;
-				box-shadow: 4px 4px 0 #000;
-				overflow: hidden;
-			}
-
-			.shortcut-section {
-				display: grid;
-				gap: 0.75rem;
-				padding: 1rem 1.1rem;
-			}
-
-			.shortcut-section-title {
-				margin: 0;
-				font-size: 0.9rem;
-				font-weight: 900;
-				text-transform: uppercase;
-				letter-spacing: 0.04em;
-				opacity: 0.65;
-				text-align: left;
-			}
-
-			.shortcut-divider {
-				height: 2px;
-				background: repeating-linear-gradient(to right,
-						#000 0 10px,
-						transparent 10px 16px);
-				opacity: 0.35;
-				margin: 0 1rem;
-			}
-
-			.shortcut-row {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				gap: 1rem;
-				flex-wrap: wrap;
-			}
-
-			.shortcut-text {
-				display: grid;
-				gap: 0.2rem;
-				flex: 1 1 16rem;
-			}
-
-			.shortcut-label {
-				font-size: 1.05rem;
-				font-weight: 900;
-				text-align: left;
-			}
-
-			.shortcut-subtext {
-				font-size: 0.85rem;
-				font-weight: 800;
-				opacity: 0.65;
-				text-align: left;
-			}
-
-			.shortcut-key-group {
-				display: inline-flex;
-				align-items: center;
-				gap: 0.5rem;
-				flex-wrap: wrap;
-			}
-
-			.shortcut-keys {
-				display: inline-flex;
-				align-items: center;
-				gap: 0.35rem;
-				font-weight: 900;
-			}
-
-			.shortcut-separator {
-				font-size: 0.85rem;
-				font-weight: 900;
-				opacity: 0.55;
-			}
-
-			.keycap {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				min-width: 2.1rem;
-				padding: 0.2rem 0.5rem;
-				background: #fff;
-				border: 2px solid #000;
-				border-radius: 12px;
-				line-height: 1;
-				box-shadow: 2px 2px 0 #000;
-			}
-
-			.shortcut-help-footer {
-				display: flex;
-				justify-content: flex-end;
-			}
-
-			.shortcut-help-btn {
-				appearance: none;
-				background: white;
-				border: 2px solid black;
-				border-right-width: 4px;
-				border-bottom-width: 4px;
-				border-radius: 14px;
-				padding: 0.5rem 0.9rem;
-				font-weight: 800;
-				cursor: pointer;
-				box-shadow: 4px 4px 0 black;
-			}
-
-			.shortcut-help-btn:active {
-				transform: translate(2px, 2px);
-				box-shadow: 2px 2px 0 black;
-			}
-		</style>
-
 		<div class="shortcut-help-dialog">
 			<div class="shortcut-help-grid">
 				<div class="empty-shortcuts-card">
@@ -511,7 +208,9 @@ export const gameplayShortcutsTemplate = (): TemplateResult => {
 			</div>
 
 			<div class="shortcut-help-footer">
-				<button class="shortcut-help-btn" @click=${closeDialog}>Close</button>
+				<aa-button type="button" variant="secondary" size="small" @click=${closeDialog}>
+					Close
+				</aa-button>
 			</div>
 		</div>
 	`;
@@ -531,16 +230,11 @@ export const selectUserTemplate = (users: User[]): TemplateResult => {
 	};
 
 	return html`
-	<style>
-		:host{
-			height: 70vh;
-		}
-    </style>
-
-	 <aa-user-picker
-		.users=${ users }
-		@user-selected=${ (e: CustomEvent<User>) => handleUserSelected(e, e.detail) }
-  ></aa-user-picker>
+		<aa-user-picker
+			class="select-user-dialog"
+			.users=${ users }
+			@user-selected=${ (e: CustomEvent<User>) => handleUserSelected(e, e.detail) }
+		></aa-user-picker>
 	`;
 };
 
@@ -565,133 +259,6 @@ export const confirmRematchTemplate = (users: User[]): TemplateResult => {
 	};
 
 	return html`
-		<style>
-			.confirm-rematch {
-				display: grid;
-				gap: 1rem;
-				outline: none;
-			}
-
-			.confirm-copy {
-				display: grid;
-				gap: 0.4rem;
-			}
-
-			.confirm-title {
-				font-size: 1.1rem;
-				font-weight: 900;
-			}
-
-			.confirm-text {
-				opacity: 0.8;
-				line-height: 1.4;
-			}
-
-			.rematch-card {
-				display: grid;
-				gap: 0.75rem;
-				padding: 0.9rem 1rem;
-				background: #fffdf6;
-				border: 2px solid #000;
-				border-radius: 20px;
-				box-shadow: 4px 4px 0 #000;
-			}
-
-			.rematch-header {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				gap: 1rem;
-				flex-wrap: wrap;
-			}
-
-			.rematch-label {
-				font-size: 1rem;
-				font-weight: 900;
-			}
-
-			.rematch-keys {
-				display: inline-flex;
-				align-items: center;
-				gap: 0.35rem;
-				font-weight: 900;
-			}
-
-			.keycap {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				min-width: 2.1rem;
-				padding: 0.2rem 0.5rem;
-				background: #fff;
-				border: 2px solid #000;
-				border-radius: 12px;
-				line-height: 1;
-				box-shadow: 2px 2px 0 #000;
-			}
-
-			.roster-label {
-				font-size: 0.85rem;
-				font-weight: 800;
-				opacity: 0.65;
-			}
-
-			.player-list {
-				display: flex;
-				flex-wrap: wrap;
-				gap: 0.5rem;
-			}
-
-			.player-pill {
-				display: inline-flex;
-				align-items: center;
-				padding: 0.3rem 0.65rem;
-				background: #eef6ff;
-				border: 2px solid #000;
-				border-radius: 999px;
-				font-weight: 800;
-				box-shadow: 2px 2px 0 #000;
-			}
-
-			.actions {
-				display: flex;
-				justify-content: flex-end;
-				gap: 0.75rem;
-				flex-wrap: wrap;
-				margin-top: 0.25rem;
-			}
-
-			.dialog-button {
-				font: inherit;
-				font-weight: 900;
-				border: 2px solid #000;
-				border-radius: 14px;
-				padding: 0.65rem 0.9rem;
-				box-shadow: 3px 3px 0 #000;
-				cursor: pointer;
-				background: #fff;
-			}
-
-			.dialog-button:hover {
-				transform: translate(-1px, -1px);
-				box-shadow: 4px 4px 0 #000;
-			}
-
-			.dialog-button:active {
-				transform: translate(2px, 2px);
-				box-shadow: 1px 1px 0 #000;
-			}
-
-			.dialog-button:focus-visible {
-				outline: 3px solid #000;
-				outline-offset: 3px;
-			}
-
-			.dialog-button.confirm {
-				background: #fff7d6;
-			}
-		</style>
-
 		<div class="confirm-rematch" tabindex="-1" @keydown=${onKeyDown}>
 			<div class="confirm-copy">
 				<div class="confirm-title">Start rematch?</div>
@@ -720,22 +287,22 @@ export const confirmRematchTemplate = (users: User[]): TemplateResult => {
 			</div>
 
 			<div class="actions">
-				<button
+				<aa-button
 					type="button"
-					class="dialog-button confirm"
+					variant="primary"
 					data-autofocus
 					@click=${() => closeDialog(true)}
 				>
 					Yes, rematch
-				</button>
+				</aa-button>
 
-				<button
+				<aa-button
 					type="button"
-					class="dialog-button"
+					variant="secondary"
 					@click=${() => closeDialog(false)}
 				>
 					No, keep game
-				</button>
+				</aa-button>
 			</div>
 		</div>
 	`;
@@ -768,7 +335,7 @@ export const newUserTemplate = (options: {
       </label>
 
       <div class="actions">
-        <button @click=${ handleSave }>Save</button>
+        <aa-button type="button" variant="primary" @click=${ handleSave }>Save</aa-button>
       </div>
     </div>
   `;
@@ -789,154 +356,6 @@ export const postGameTemplate = (
 	});
 
 	return html`
-		<style>
-			.postgame * {
-				width: auto;
-				height: auto;
-				box-sizing: border-box;
-			}
-
-			.list {
-				display: grid;
-				gap: 1rem;
-				padding: 0.25rem 0;
-			}
-
-			.player-row {
-				display: grid;
-				gap: 0.35rem;
-			}
-
-			.divider {
-				border-bottom: 2px dashed #000;
-				opacity: 0.35;
-				margin-top: 0.5rem;
-			}
-
-			.header-row {
-				display: flex;
-				align-items: baseline;
-				justify-content: space-between;
-				gap: 1rem;
-			}
-
-			.name-line {
-				font-size: 1.15rem;
-				font-weight: 800;
-				display: inline-flex;
-				align-items: baseline;
-				gap: 0.5rem;
-				flex-wrap: wrap;
-			}
-
-			.mmr {
-				display: inline-flex;
-				align-items: center;
-				gap: 0.35rem;
-				font-weight: 800;
-				background: #fff;
-				border: 2px solid #000;
-				border-radius: 999px;
-				padding: 0.15rem 0.6rem;
-				line-height: 1.2;
-			}
-
-			.mmr .delta.up { color: #008000; }
-			.mmr .delta.down { color: #cc0000; }
-			.mmr .delta.flat { opacity: 0.65; }
-
-			.placement {
-				background: #e8f0ff;
-				border: 2px solid #000;
-				border-radius: 14px;
-				padding: 0.2rem 0.6rem;
-				font-weight: 800;
-			}
-
-			.rankline {
-				font-size: 0.95rem;
-				opacity: 0.85;
-			}
-
-			.stats {
-				display: flex;
-				flex-wrap: wrap;
-				gap: 0.4rem;
-			}
-
-			.pill {
-				background: #fff;
-				border: 2px solid #000;
-				border-radius: 14px;
-				padding: 0.35rem 0.55rem;
-				display: inline-flex;
-				align-items: center;
-				gap: 0.5rem;
-				font-weight: 700;
-			}
-
-			.pill .label { opacity: 0.7; }
-
-			@media (min-width: 900px) {
-				.name-line { font-size: 1.25rem; }
-			}
-
-			.achievements { margin-top: 0.5rem; }
-			.achievements > summary { list-style: none; }
-			.achievements > summary::-webkit-details-marker { display: none; }
-
-			.ach-summary {
-				display: flex;
-				align-items: center;
-				gap: 0.5rem;
-				flex-wrap: wrap;
-				cursor: pointer;
-				user-select: none;
-			}
-
-			.ach-label { font-weight: 800; opacity: 0.75; }
-			.ach-hint { font-weight: 800; opacity: 0.55; font-size: 0.9em; }
-			.achievements[open] .ach-hint { opacity: 0.35; }
-
-			.ach-total {
-				font-weight: 900;
-				background: #fff;
-				border: 2px solid #000;
-				border-radius: 999px;
-				padding: 0.1rem 0.55rem;
-			}
-
-			.ach-badges { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
-
-			.ach-badge {
-				display: inline-flex;
-				align-items: center;
-				gap: 0.25rem;
-				background: #fff;
-				border: 2px solid #000;
-				border-radius: 999px;
-				padding: 0.15rem 0.45rem;
-				font-weight: 800;
-			}
-
-			.ach-icon { width: 18px; height: 18px; }
-			.ach-count { line-height: 1; }
-
-			.ach-list { margin-top: 0.35rem; }
-			.ach-tier-group { margin-top: 0.35rem; }
-			.ach-tier-header {
-				display: inline-flex;
-				align-items: center;
-				gap: 0.35rem;
-				font-weight: 900;
-			}
-			.ach-tier-group ul {
-				margin: 0.25rem 0 0 1.1rem;
-				padding: 0;
-			}
-			.muted { opacity: 0.7; }
-		</style>
-
 		<div class="postgame">
 			<div class="list">
 				${sortedPlayerResults.map((pr, index) => {
@@ -987,11 +406,11 @@ export const postGameTemplate = (
 	`;
 };
 
-export type SeasonSpotlightLeaderboardRow = {
+export interface SeasonSpotlightLeaderboardRow {
 	position: number;
 	alias: string;
 	value: string;
-};
+}
 
 export const seasonSpotlightDialogTemplate = (options: {
 	title: string;
@@ -1004,106 +423,6 @@ export const seasonSpotlightDialogTemplate = (options: {
 	const valueLabel = options.valueLabel ?? 'Value';
 
 	return html`
-		<style>
-			.spotlight-dialog {
-				display: grid;
-				gap: 0.9rem;
-				min-width: 0;
-			}
-
-			.description {
-				margin: 0;
-				font-size: 0.92rem;
-				line-height: 1.4;
-				opacity: 0.8;
-			}
-
-			.empty {
-				padding: 1rem;
-				text-align: center;
-				font-weight: 700;
-				border: 2px solid black;
-				border-right-width: 4px;
-				border-bottom-width: 4px;
-				border-radius: 16px;
-				background: #fff;
-				box-shadow: 5px 5px 0 0 black;
-			}
-
-			.table-wrap {
-				overflow: auto;
-				border: 2px solid black;
-				border-right-width: 4px;
-				border-bottom-width: 4px;
-				border-radius: 16px;
-				background: #fff;
-				box-shadow: 5px 5px 0 0 black;
-			}
-
-			table {
-				width: 100%;
-				border-collapse: collapse;
-				font-size: 0.95rem;
-			}
-
-			thead th {
-				text-align: left;
-				padding: 0.8rem 0.9rem;
-				font-size: 0.82rem;
-				font-weight: 900;
-				text-transform: uppercase;
-				letter-spacing: 0.03em;
-				background: #eef6ff;
-				border-bottom: 2px solid black;
-				white-space: nowrap;
-			}
-
-			tbody td {
-				padding: 0.8rem 0.9rem;
-				vertical-align: middle;
-			}
-
-			tbody tr:nth-child(even) {
-				background: rgba(0, 0, 0, 0.05);
-			}
-
-			tbody tr + tr td {
-				border-top: 1px solid rgba(0, 0, 0, 0.12);
-			}
-
-			.col-pos {
-				width: 70px;
-				font-weight: 900;
-				white-space: nowrap;
-			}
-
-			.col-name {
-				font-weight: 800;
-				overflow-wrap: anywhere;
-			}
-
-			.col-value {
-				text-align: right;
-				font-weight: 900;
-				white-space: nowrap;
-			}
-
-			@media (max-width: 640px) {
-				table {
-					font-size: 0.9rem;
-				}
-
-				thead th,
-				tbody td {
-					padding: 0.7rem 0.65rem;
-				}
-
-				.col-pos {
-					width: 54px;
-				}
-			}
-		</style>
-
 		<div class="spotlight-dialog">
 			${options.description
 				? html`<p class="description">${options.description}</p>`
@@ -1155,7 +474,7 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2250,
 			oldRank:      4,
 			newRank:      5,
-			unlockedSessionAchievements: [SessionAchievement.AllTwentyVariantsSameGame, SessionAchievement.BudgetTrippleTwenty, SessionAchievement.MaggaSlayer],
+			unlockedSessionAchievements: [SessionAchievement.ThreeOfAKind20],
 			unlockedProgressAchievements: []
 		},
 		{
@@ -1328,6 +647,9 @@ export const gameResultDummyData: GameResult = {
 				winCondition: 1,
 			},
 		],
+		rankThresholds: [],
+		achievementTierRewards: [],
+		mmrConfiguration: { ...defaultMmrConfiguration },
 		goal: 250,
 	},
 	goal: 250,

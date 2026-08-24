@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { DartThrowSchema } from './dartThrowSchema.js';
-import { AchievementTier, AchievementType, ProgressAchievement, RoundStatus, ScoreModifier, SessionAchievement, ThrowType, WinCondition } from './enums.js';
+import { AchievementTier, ProgressAchievement, RoundStatus, ScoreModifier, SessionAchievement, ThrowType, WinCondition } from './enums.js';
 import { Rank } from './rank.js';
 
 
@@ -9,7 +9,7 @@ export const RoundSchema = z.object({
 	roundIndex:       z.number().int().min(0),
 	dartThrows:       z.array(DartThrowSchema).min(1).max(3),
 	cumulativePoints: z.number().min(0),
-	roundStatus:      z.enum(RoundStatus),
+	roundStatus:      z.nativeEnum(RoundStatus),
 });
 
 export const PlayerRoundsSchema = z.object({
@@ -22,19 +22,19 @@ export const GameSubmissionSchema = z.object({
 });
 
 export const PlayerResultSchema = z.object({
-	id:           z.number().int(),
-	userId:       z.string().uuid(),
-	placement:    z.number().int(),
-	totalScore:   z.number().int(),
-	averageScore: z.number(),
-	overShoots:   z.number(),
-	roundsPlayed: z.number().int(),
-	oldMMR:       z.number().int(),
-	newMMR:       z.number().int(),
-	oldRank:      z.enum(Rank),
-	newRank:      z.enum(Rank),
-	unlockedProgressAchievements: z.array(z.enum(ProgressAchievement)),
-	unlockedSessionAchievements: z.array(z.enum(SessionAchievement)),
+	id:                           z.number().int(),
+	userId:                       z.string().uuid(),
+	placement:                    z.number().int(),
+	totalScore:                   z.number().int(),
+	averageScore:                 z.number(),
+	overShoots:                   z.number(),
+	roundsPlayed:                 z.number().int(),
+	oldMMR:                       z.number().int(),
+	newMMR:                       z.number().int(),
+	oldRank:                      z.nativeEnum(Rank),
+	newRank:                      z.nativeEnum(Rank),
+	unlockedProgressAchievements: z.array(z.nativeEnum(ProgressAchievement)),
+	unlockedSessionAchievements:  z.array(z.nativeEnum(SessionAchievement)),
 });
 
 export const GameTrackerSchema = z.object({
@@ -48,13 +48,13 @@ export const MatchSnapshotSchema = z.object({
 	seasonStatisticsId: z.number(),
 	date:               z.string().transform(str => new Date(str)),
 	mmr:                z.number(),
-	rank:               z.enum(Rank),
+	rank:               z.nativeEnum(Rank),
 	playerCount:        z.number(),
 });
 
 export const HitCountSchema = z.object({
 	id:                 z.number(),
-	throwType:          z.enum(ThrowType),
+	throwType:          z.nativeEnum(ThrowType),
 	hitLocation:        z.number(),
 	count:              z.number(),
 	seasonStatisticsId: z.number(),
@@ -67,48 +67,59 @@ export const FinishCountSchema = z.object({
 });
 
 const SessionAchievementValues = Object.values(SessionAchievement).filter(
-  (v): v is number => typeof v === "number"
+	(v): v is number => typeof v === 'number',
 );
 
 const ProgressionAchievementValues = Object.values(ProgressAchievement).filter(
-  (v): v is number => typeof v === "number"
+	(v): v is number => typeof v === 'number',
 );
 
 export const SessionAchievementSafeSchema = z
-  .number()
-  .int()
-  .transform((value) =>
-    SessionAchievementValues.includes(value)
-      ? (value as SessionAchievement)
-      : "unknown"
-  );
+	.number()
+	.int()
+	.transform((value) =>
+		SessionAchievementValues.includes(value)
+			? (value as SessionAchievement)
+			: 'unknown');
 export const ProgressionAchievementSafeSchema = z
-  .number()
-  .int()
-  .transform((value) =>
-    ProgressionAchievementValues.includes(value)
-      ? (value as ProgressAchievement)
-      : "unknown"
-  );
+	.number()
+	.int()
+	.transform((value) =>
+		ProgressionAchievementValues.includes(value)
+			? (value as ProgressAchievement)
+			: 'unknown');
 
-export type SessionAchievementSafe = SessionAchievement | "unknown";
-export type ProgressionAchievementSafe = ProgressAchievement | "unknown";
+export type SessionAchievementSafe = SessionAchievement | 'unknown';
+export type ProgressionAchievementSafe = ProgressAchievement | 'unknown';
+
+export const ProgressionAchievementTargetSchema = z.object({
+	hitLocation: z.number().int(),
+	throwType:   z.nativeEnum(ThrowType),
+});
+
+export const ProgressionAchievementProgressSchema = z.object({
+	achievement:      ProgressionAchievementSafeSchema,
+	completedTargets: z.number().int().nonnegative(),
+	requiredTargets:  z.number().int().nonnegative(),
+	remainingTargets: z.array(ProgressionAchievementTargetSchema),
+});
 
 export const SeasonStatisticsSchema = z.object({
-	id:                           	z.number(),
-	userId:                       	z.string().uuid(),
-	seasonId:                     	z.string().uuid(),
-	currentRank:                  	z.nativeEnum(Rank),
-	highestAchievedRank:          	z.nativeEnum(Rank),
-	highestRoundScore:            	z.number(),
-	highestRoundScoreForVictory:  	z.number(),
+	id:                           	 z.number(),
+	userId:                       	 z.string().uuid(),
+	seasonId:                     	 z.string().uuid(),
+	currentRank:                  	 z.nativeEnum(Rank),
+	highestAchievedRank:          	 z.nativeEnum(Rank),
+	highestRoundScore:            	 z.number(),
+	highestRoundScoreForVictory:  	 z.number(),
 	highestRoundScoreNoSeasonRules: z.number(),
-	mmr:                          	z.number(),
-	matchSnapshots:               	z.array(MatchSnapshotSchema),
-	hitCounts:                    	z.array(HitCountSchema),
-	finishCount:                  	z.array(FinishCountSchema),
-	unlockedProgressAchievements: 	z.array(ProgressionAchievementSafeSchema),
-  	unlockedSessionAchievements:  	z.array(SessionAchievementSafeSchema),
+	mmr:                          	 z.number(),
+	matchSnapshots:               	 z.array(MatchSnapshotSchema),
+	hitCounts:                    	 z.array(HitCountSchema),
+	finishCount:                  	 z.array(FinishCountSchema),
+	unlockedProgressAchievements: 	 z.array(ProgressionAchievementSafeSchema),
+	unlockedSessionAchievements:  	 z.array(SessionAchievementSafeSchema),
+	progressAchievementProgress:    z.array(ProgressionAchievementProgressSchema).default([]),
 });
 
 export const UserSchema = z.object({
@@ -119,22 +130,52 @@ export const UserSchema = z.object({
 });
 
 export const WinConditionRuleSchema = z.object({
-	winCondition: z.enum(WinCondition),
+	winCondition: z.nativeEnum(WinCondition),
 });
 
 export const ScoreModifierRuleSchema = z.object({
-	scoreModifier:  z.enum(ScoreModifier),
+	scoreModifier:  z.nativeEnum(ScoreModifier),
 	executionOrder: z.number().int(),
 });
 
+export const RankThresholdSchema = z.object({
+	rank:       z.nativeEnum(Rank),
+	minimumMmr: z.number().int().nonnegative(),
+});
+
+export const AchievementTierRewardSchema = z.object({
+	achievementTier: z.nativeEnum(AchievementTier),
+	mmrReward:       z.number().int().nonnegative(),
+	mmrCapIncrease:  z.number().int().min(0).max(100),
+});
+
+export const MmrConfigurationSchema = z.object({
+	startingMmr:                 z.number().int(),
+	maximumGain:                 z.number().int(),
+	maximumLoss:                 z.number().int(),
+	ratingPivot:                 z.number().int(),
+	ratingPullDivisor:           z.number().int(),
+	baseScore:                   z.number().int(),
+	averageScoreMultiplier:      z.number(),
+	overshootPenalty:            z.number(),
+	placementBonus:              z.number().int(),
+	finishBonus:                 z.number().int(),
+	roundPenalty:                z.number().int(),
+	minimumOpponentFactor:       z.number(),
+	maximumOpponentFactor:       z.number(),
+});
+
 export const SeasonSchema = z.object({
-	id:                 z.string().uuid(),
-	name:               z.string(),
-	startDate:          z.string().transform(str => new Date(str)),
-	endDate:            z.string().transform(str => new Date(str)),
-	scoreModifierRules: z.array(ScoreModifierRuleSchema),
-	winConditionRules:  z.array(WinConditionRuleSchema),
-	goal:               z.number().int(),
+	id:                     z.string().uuid(),
+	name:                   z.string(),
+	startDate:              z.string().transform(str => new Date(str)),
+	endDate:                z.string().transform(str => new Date(str)),
+	scoreModifierRules:     z.array(ScoreModifierRuleSchema),
+	winConditionRules:      z.array(WinConditionRuleSchema),
+	rankThresholds:         z.array(RankThresholdSchema),
+	achievementTierRewards: z.array(AchievementTierRewardSchema),
+	mmrConfiguration:       MmrConfigurationSchema,
+	goal:                   z.number().int(),
 
 	seasonStatistics: z.array(SeasonStatisticsSchema).optional(),
 	gameResults:      z.array(z.unknown()).optional(),
@@ -160,55 +201,54 @@ export const RuleDefinitionsResponseSchema = z.object({
 });
 
 export const SessionAchievementDefinition = z.object({
-	name: z.string(),
-	description: z.string(),
+	name:            z.string(),
+	description:     z.string(),
 	achievementTier: z.number(),
 	achievementType: z.number(),
 });
 
 export const ProgressionAchievementDefinition = z.object({
-	name: z.string(),
-	description: z.string(),
+	name:            z.string(),
+	description:     z.string(),
 	achievementTier: z.number(),
 	achievementType: z.number(),
 });
 
 const SessionAchievementKeySchema = z.string().refine(
-  (k): k is keyof typeof SessionAchievement => k in SessionAchievement,
-  { message: "Invalid SessionAchievement key" }
+	(k): k is keyof typeof SessionAchievement => k in SessionAchievement,
+	{ message: 'Invalid SessionAchievement key' },
 );
 
 const ProgressAchievementKeySchema = z.string().refine(
-  (k): k is keyof typeof ProgressAchievement => k in ProgressAchievement,
-  { message: "Invalid ProgressAchievement key" }
+	(k): k is keyof typeof ProgressAchievement => k in ProgressAchievement,
+	{ message: 'Invalid ProgressAchievement key' },
 );
 
 export const AchievementDefinitionsResponseSchema = z.object({
-  sessionAchievementDefinitions: z.record(
-    SessionAchievementKeySchema,
-    SessionAchievementDefinition
-  ),
-  progressionAchievementDefinitions: z.record(
-    ProgressAchievementKeySchema,
-    ProgressionAchievementDefinition
-  ),
+	sessionAchievementDefinitions: z.record(
+		SessionAchievementKeySchema,
+		SessionAchievementDefinition,
+	),
+	progressionAchievementDefinitions: z.record(
+		ProgressAchievementKeySchema,
+		ProgressionAchievementDefinition,
+	),
 }).transform((resp) => {
-  return {
-    sessionAchievementDefinitions: new Map(
-      Object.entries(resp.sessionAchievementDefinitions).map(([k, v]) => [
-        SessionAchievement[k as keyof typeof SessionAchievement],
-        v,
-      ])
-    ),
-    progressionAchievementDefinitions: new Map(
-      Object.entries(resp.progressionAchievementDefinitions).map(([k, v]) => [
-        ProgressAchievement[k as keyof typeof ProgressAchievement],
-        v,
-      ])
-    ),
-  };
+	return {
+		sessionAchievementDefinitions: new Map(
+			Object.entries(resp.sessionAchievementDefinitions).map(([ k, v ]) => [
+				SessionAchievement[k as keyof typeof SessionAchievement],
+				v,
+			]),
+		),
+		progressionAchievementDefinitions: new Map(
+			Object.entries(resp.progressionAchievementDefinitions).map(([ k, v ]) => [
+				ProgressAchievement[k as keyof typeof ProgressAchievement],
+				v,
+			]),
+		),
+	};
 });
-
 
 
 export type Round = z.infer<typeof RoundSchema>;
@@ -220,6 +260,8 @@ export type SeasonStatistics = z.infer<typeof SeasonStatisticsSchema>;
 export type MatchSnapshot = z.infer<typeof MatchSnapshotSchema>;
 export type HitCount = z.infer<typeof HitCountSchema>;
 export type FinishCount = z.infer<typeof FinishCountSchema>;
+export type ProgressionAchievementTarget = z.infer<typeof ProgressionAchievementTargetSchema>;
+export type ProgressionAchievementProgress = z.infer<typeof ProgressionAchievementProgressSchema>;
 export type GameTracker = z.infer<typeof GameTrackerSchema>;
 
 export type User = z.infer<typeof UserSchema>;
@@ -228,9 +270,11 @@ export type Season = z.infer<typeof SeasonSchema>;
 export type GameResult = z.infer<typeof GameResultSchema>;
 export type WinConditionRule = z.infer<typeof WinConditionRuleSchema>;
 export type ScoreModifierRule = z.infer<typeof ScoreModifierRuleSchema>;
+export type RankThreshold = z.infer<typeof RankThresholdSchema>;
+export type AchievementTierReward = z.infer<typeof AchievementTierRewardSchema>;
+export type MmrConfiguration = z.infer<typeof MmrConfigurationSchema>;
 export type RuleDefinition = z.infer<typeof RuleDefinitionSchema>;
 export type RuleDefinitionsResponse = z.infer<typeof RuleDefinitionsResponseSchema>;
 export type AchievementDefinitionsResponse = z.infer<typeof AchievementDefinitionsResponseSchema>;
 export type SessionsAchievementDefinition = z.infer<typeof SessionAchievementDefinition>;
 export type ProgressionAchievementDefinition = z.infer<typeof ProgressionAchievementDefinition>;
-

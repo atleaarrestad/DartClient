@@ -1,0 +1,607 @@
+.rules-dialog {
+	display: grid;
+	gap: 1rem;
+}
+
+.rules-dialog .rules-dialog-intro {
+	margin: 0;
+	font-size: 0.95rem;
+	line-height: 1.45;
+	opacity: 0.82;
+}
+
+.rules-dialog .rules-dialog-list {
+	display: grid;
+	gap: 0.9rem;
+}
+
+.rules-dialog .rules-dialog-card {
+	background: var(--color-surface-card);
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 4px;
+	border-bottom-width: 4px;
+	border-radius: var(--radius-panel);
+	box-shadow: 5px 6px 0 0 black;
+	overflow: hidden;
+}
+
+.rules-dialog .rules-dialog-card-header {
+	padding: 0.9rem 1rem 0.65rem;
+	border-bottom: 1px dashed #cfcfcf;
+	background: rgba(255, 255, 255, 0.8);
+}
+
+.rules-dialog .rules-dialog-title-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.45rem;
+	margin-bottom: 0.35rem;
+}
+
+.rules-dialog .rules-dialog-title {
+	font-size: 1rem;
+	font-weight: 900;
+	line-height: 1.2;
+}
+
+.rules-dialog .rules-dialog-pill {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.12rem 0.5rem;
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 3px;
+	border-bottom-width: 3px;
+	border-radius: var(--radius-pill);
+	background: #f5f5f5;
+	font-size: 0.78rem;
+	font-weight: 800;
+	white-space: nowrap;
+}
+
+.rules-dialog .rules-dialog-description {
+	margin: 0;
+	font-size: 0.9rem;
+	line-height: 1.4;
+	opacity: 0.82;
+}
+
+.rules-dialog .rules-dialog-body {
+	padding: 0.85rem 1rem 1rem;
+}
+
+.rules-dialog .rules-dialog-footer {
+	display: flex;
+	justify-content: flex-end;
+	padding-top: 0.2rem;
+}
+
+.rules-dialog .rule-code {
+	max-width: 100%;
+	max-height: min(52vh, 520px);
+	overflow: auto;
+	white-space: pre;
+}
+
+.rules-dialog pre.hljs {
+	display: block;
+	overflow: auto;
+	padding: 1rem;
+	border-radius: var(--radius-control);
+	background: #f6f8fa;
+	color: #24292e;
+	line-height: 1.45;
+	font-family: 'Cascadia Code', 'Consolas', monospace;
+	font-size: 0.88rem;
+	margin: 0;
+	border: 1px solid #d0d7de;
+}
+
+.rules-dialog .hljs-comment,
+.rules-dialog .hljs-quote {
+	color: #6a737d;
+	font-style: italic;
+}
+
+.rules-dialog .hljs-keyword,
+.rules-dialog .hljs-selector-tag,
+.rules-dialog .hljs-literal,
+.rules-dialog .hljs-name {
+	color: #d73a49;
+}
+
+.rules-dialog .hljs-variable,
+.rules-dialog .hljs-template-variable,
+.rules-dialog .hljs-attribute {
+	color: #005cc5;
+}
+
+.rules-dialog .hljs-string,
+.rules-dialog .hljs-doctag,
+.rules-dialog .hljs-title,
+.rules-dialog .hljs-section,
+.rules-dialog .hljs-type {
+	color: #032f62;
+}
+
+.rules-dialog .hljs-number,
+.rules-dialog .hljs-symbol,
+.rules-dialog .hljs-bullet {
+	color: #005cc5;
+}
+
+.rules-dialog .hljs-built_in,
+.rules-dialog .hljs-builtin-name,
+.rules-dialog .hljs-class .hljs-title {
+	color: #6f42c1;
+}
+
+.rules-dialog .hljs-meta {
+	color: #22863a;
+}
+
+.rules-dialog .hljs-emphasis {
+	font-style: italic;
+}
+
+.rules-dialog .hljs-strong {
+	font-weight: 700;
+}
+
+.shortcut-help-dialog {
+	display: grid;
+	gap: 1rem;
+}
+
+.shortcut-help-dialog .shortcut-help-intro {
+	margin: 0;
+	font-size: 0.95rem;
+	line-height: 1.45;
+	opacity: 0.82;
+}
+
+.shortcut-help-dialog .shortcut-help-grid {
+	display: grid;
+	gap: 1rem;
+}
+
+.shortcut-help-dialog .empty-shortcuts-card {
+	display: grid;
+	gap: 0;
+	background: #fffdf6;
+	border: 2px solid var(--color-border-strong);
+	border-radius: 20px;
+	box-shadow: var(--shadow-brutal-md);
+	overflow: hidden;
+}
+
+.shortcut-help-dialog .shortcut-section {
+	display: grid;
+	gap: 0.75rem;
+	padding: 1rem 1.1rem;
+}
+
+.shortcut-help-dialog .shortcut-section-title {
+	margin: 0;
+	font-size: 0.9rem;
+	font-weight: 900;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	opacity: 0.65;
+	text-align: left;
+}
+
+.shortcut-help-dialog .shortcut-divider {
+	height: 0;
+	border-top: 2px dashed var(--color-border-strong);
+	opacity: 0.35;
+	margin: 0 1rem;
+}
+
+.shortcut-help-dialog .shortcut-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+
+.shortcut-help-dialog .shortcut-text {
+	display: grid;
+	gap: 0.2rem;
+	flex: 1 1 16rem;
+}
+
+.shortcut-help-dialog .shortcut-label {
+	font-size: 1.05rem;
+	font-weight: 900;
+	text-align: left;
+}
+
+.shortcut-help-dialog .shortcut-subtext {
+	font-size: 0.85rem;
+	font-weight: 800;
+	opacity: 0.65;
+	text-align: left;
+}
+
+.shortcut-help-dialog .shortcut-key-group {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.shortcut-help-dialog .shortcut-keys {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-weight: 900;
+}
+
+.shortcut-help-dialog .shortcut-separator {
+	font-size: 0.85rem;
+	font-weight: 900;
+	opacity: 0.55;
+}
+
+.shortcut-help-dialog .keycap {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 2.1rem;
+	padding: 0.2rem 0.5rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	line-height: 1;
+	box-shadow: var(--shadow-brutal-sm);
+}
+
+.shortcut-help-dialog .shortcut-help-footer {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.select-user-dialog {
+	height: 70vh;
+}
+
+.confirm-rematch {
+	display: grid;
+	gap: 1rem;
+	outline: none;
+}
+
+.confirm-rematch .confirm-copy {
+	display: grid;
+	gap: 0.4rem;
+}
+
+.confirm-rematch .confirm-title {
+	font-size: 1.1rem;
+	font-weight: 900;
+}
+
+.confirm-rematch .confirm-text {
+	opacity: 0.8;
+	line-height: 1.4;
+}
+
+.confirm-rematch .rematch-card {
+	display: grid;
+	gap: 0.75rem;
+	padding: 0.9rem 1rem;
+	background: #fffdf6;
+	border: 2px solid var(--color-border-strong);
+	border-radius: 20px;
+	box-shadow: var(--shadow-brutal-md);
+}
+
+.confirm-rematch .rematch-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+
+.confirm-rematch .rematch-label {
+	font-size: 1rem;
+	font-weight: 900;
+}
+
+.confirm-rematch .rematch-keys {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-weight: 900;
+}
+
+.confirm-rematch .keycap {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 2.1rem;
+	padding: 0.2rem 0.5rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	line-height: 1;
+	box-shadow: var(--shadow-brutal-sm);
+}
+
+.confirm-rematch .roster-label {
+	font-size: 0.85rem;
+	font-weight: 800;
+	opacity: 0.65;
+}
+
+.confirm-rematch .player-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.confirm-rematch .player-pill {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.3rem 0.65rem;
+	background: var(--color-surface-info-subtle);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	font-weight: 800;
+	box-shadow: var(--shadow-brutal-sm);
+}
+
+.confirm-rematch .actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+	margin-top: 0.25rem;
+}
+
+.postgame * {
+	width: auto;
+	height: auto;
+	box-sizing: border-box;
+}
+
+.postgame .list {
+	display: grid;
+	gap: 1rem;
+	padding: 0.25rem 0;
+}
+
+.postgame .player-row {
+	display: grid;
+	gap: 0.35rem;
+}
+
+.postgame .divider {
+	border-bottom: 2px dashed var(--color-border-strong);
+	opacity: 0.35;
+	margin-top: 0.5rem;
+}
+
+.postgame .header-row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.postgame .name-line {
+	font-size: 1.15rem;
+	font-weight: 800;
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.postgame .mmr {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-weight: 800;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	padding: 0.15rem 0.6rem;
+	line-height: 1.2;
+}
+
+.postgame .mmr .delta.up { color: #008000; }
+.postgame .mmr .delta.down { color: #cc0000; }
+.postgame .mmr .delta.flat { opacity: 0.65; }
+
+.postgame .placement {
+	background: #e8f0ff;
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-lg);
+	padding: 0.2rem 0.6rem;
+	font-weight: 800;
+}
+
+.postgame .rankline {
+	font-size: 0.95rem;
+	opacity: 0.85;
+}
+
+.postgame .stats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+
+.postgame .pill {
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-lg);
+	padding: 0.35rem 0.55rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-weight: 700;
+}
+
+.postgame .pill .label { opacity: 0.7; }
+
+@media (min-width: 900px) {
+	.postgame .name-line { font-size: 1.25rem; }
+}
+
+.postgame .achievements { margin-top: 0.5rem; }
+.postgame .achievements > summary { list-style: none; }
+.postgame .achievements > summary::-webkit-details-marker { display: none; }
+
+.postgame .ach-summary {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	cursor: pointer;
+	user-select: none;
+}
+
+.postgame .ach-label { font-weight: 800; opacity: 0.75; }
+.postgame .ach-hint { font-weight: 800; opacity: 0.55; font-size: 0.9em; }
+.postgame .achievements[open] .ach-hint { opacity: 0.35; }
+
+.postgame .ach-total {
+	font-weight: 900;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	padding: 0.1rem 0.55rem;
+}
+
+.postgame .ach-badges { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
+
+.postgame .ach-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	padding: 0.15rem 0.45rem;
+	font-weight: 800;
+}
+
+.postgame .ach-icon { width: 18px; height: 18px; }
+.postgame .ach-count { line-height: 1; }
+
+.postgame .ach-list { margin-top: 0.35rem; }
+.postgame .ach-tier-group { margin-top: 0.35rem; }
+.postgame .ach-tier-header {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-weight: 900;
+}
+.postgame .ach-tier-group ul {
+	margin: 0.25rem 0 0 1.1rem;
+	padding: 0;
+}
+.postgame .muted { opacity: 0.7; }
+
+.spotlight-dialog {
+	display: grid;
+	gap: 0.9rem;
+	min-width: 0;
+}
+
+.spotlight-dialog .description {
+	margin: 0;
+	font-size: 0.92rem;
+	line-height: 1.4;
+	opacity: 0.8;
+}
+
+.spotlight-dialog .empty {
+	padding: 1rem;
+	text-align: center;
+	font-weight: 700;
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 4px;
+	border-bottom-width: 4px;
+	border-radius: var(--radius-panel);
+	background: var(--color-surface-plain);
+	box-shadow: var(--shadow-brutal-hover);
+}
+
+.spotlight-dialog .table-wrap {
+	overflow: auto;
+	border: 2px solid var(--color-border-strong);
+	border-right-width: 4px;
+	border-bottom-width: 4px;
+	border-radius: var(--radius-panel);
+	background: var(--color-surface-plain);
+	box-shadow: var(--shadow-brutal-hover);
+}
+
+.spotlight-dialog table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.95rem;
+}
+
+.spotlight-dialog thead th {
+	text-align: left;
+	padding: 0.8rem 0.9rem;
+	font-size: 0.82rem;
+	font-weight: 900;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	background: var(--color-surface-info-subtle);
+	border-bottom: 2px solid var(--color-border-strong);
+	white-space: nowrap;
+}
+
+.spotlight-dialog tbody td {
+	padding: 0.8rem 0.9rem;
+	vertical-align: middle;
+}
+
+.spotlight-dialog tbody tr:nth-child(even) {
+	background: rgba(0, 0, 0, 0.05);
+}
+
+.spotlight-dialog tbody tr + tr td {
+	border-top: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.spotlight-dialog .col-pos {
+	width: 70px;
+	font-weight: 900;
+	white-space: nowrap;
+}
+
+.spotlight-dialog .col-name {
+	font-weight: 800;
+	overflow-wrap: anywhere;
+}
+
+.spotlight-dialog .col-value {
+	text-align: right;
+	font-weight: 900;
+	white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+	.spotlight-dialog table {
+		font-size: 0.9rem;
+	}
+
+	.spotlight-dialog thead th,
+	.spotlight-dialog tbody td {
+		padding: 0.7rem 0.65rem;
+	}
+
+	.spotlight-dialog .col-pos {
+		width: 54px;
+	}
+}

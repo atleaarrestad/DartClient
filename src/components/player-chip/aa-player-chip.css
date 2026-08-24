@@ -1,0 +1,39 @@
+:host {
+	display: inline-flex;
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	padding: 0.3rem 0.65rem;
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	background: var(--aa-player-chip-background, var(--color-surface-info-subtle));
+	color: var(--color-text-primary);
+	font-family: var(--font-family-ui);
+	font-size: var(--font-size-sm);
+	font-weight: 800;
+	line-height: 1.2;
+	box-shadow: var(--shadow-brutal-sm);
+}
+
+.chip::before {
+	content: '•';
+	font-size: 0.9em;
+}
+
+:host([compact]) .chip {
+	padding: 0.18rem var(--space-2);
+	font-size: var(--font-size-sm);
+	box-shadow: 1px 1px 0 var(--color-border-strong);
+}
+
+:host([empty]) .chip {
+	--aa-player-chip-background: var(--color-surface-raised);
+	opacity: 0.7;
+}
+
+:host([empty]) .chip::before {
+	display: none;
+}

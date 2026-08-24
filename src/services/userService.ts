@@ -11,7 +11,6 @@ export interface GetAllUsersOptions {
 
 @injectable()
 export class UserService {
-	private usersCache = new Map<string, User[]>();
 	private usersPromiseCache = new Map<string, Promise<User[]>>();
 	private dataService: DataService;
 
@@ -27,11 +26,6 @@ export class UserService {
 		const cacheKey = this.getUsersCacheKey(query);
 
 		if (!forceRefresh) {
-			const cachedUsers = this.usersCache.get(cacheKey);
-			if (cachedUsers) {
-				return cachedUsers;
-			}
-
 			const existingPromise = this.usersPromiseCache.get(cacheKey);
 			if (existingPromise) {
 				return existingPromise;
@@ -39,10 +33,7 @@ export class UserService {
 		}
 
 		const promise = (async () => {
-			const users = await this.dataService.getAllUsers(query);
-			this.usersCache.set(cacheKey, users);
-
-			return users;
+			return this.dataService.getAllUsers(query);
 		})().finally(() => {
 			this.usersPromiseCache.delete(cacheKey);
 		});
@@ -65,7 +56,6 @@ export class UserService {
 	}
 
 	private clearUsersCache(): void {
-		this.usersCache.clear();
 		this.usersPromiseCache.clear();
 	}
 

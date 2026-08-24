@@ -1,7 +1,22 @@
 import { html, type TemplateResult } from "lit";
 import { AchievementDefinitionsResponse, PlayerResult } from "../models/schemas.js";
-import { AchievementTier } from "../models/enums.js";
+import { AchievementTier, AchievementType } from "../models/enums.js";
 import { getAbsoluteBase } from '../getAbsoluteBase.js';
+
+const achievementTypeLabels: Record<AchievementType, string> = {
+	[AchievementType.RangeKing]:        'Range king',
+	[AchievementType.Special]:          'Special',
+	[AchievementType.VictoryRelated]:   'Victory',
+	[AchievementType.Classic]:          'Classic',
+	[AchievementType.PointsRelated]:    'Points',
+	[AchievementType.Progression]:      'Progression',
+	[AchievementType.Shanghai]:         'Shanghai',
+	[AchievementType.ThreeOfAKind]:     'Three of',
+};
+
+export function getAchievementTypeLabel(achievementType: number): string {
+	return achievementTypeLabels[achievementType as AchievementType] ?? `Type ${ achievementType }`;
+}
 
 function groupUnlockedByTier(
   pr: PlayerResult,

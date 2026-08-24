@@ -1,14 +1,14 @@
 import { render, TemplateResult } from 'lit';
 import { injectable } from 'tsyringe';
 
-import { AaDialog } from '../components/aa-dialog.js';
+import { AaDialog } from '../components/aa-dialog/aa-dialog.js';
 
 @injectable()
 export class DialogService {
 
 	open<T = void>(
 		content: HTMLElement | string | TemplateResult,
-		options?: { title?: string; },
+		options?: { title?: string; fixedHeight?: boolean; large?: boolean; },
 	): Promise<T | undefined> {
 		return new Promise((resolve, reject) => {
 			if (document.querySelector('aa-dialog')) {
@@ -20,6 +20,10 @@ export class DialogService {
 			const dialog = document.createElement('aa-dialog') as AaDialog;
 			if (options?.title)
 				dialog.title = options.title;
+			if (options?.fixedHeight)
+				dialog.fixedHeight = true;
+			if (options?.large)
+				dialog.large = true;
 
 			if (typeof content === 'string') {
 				dialog.innerHTML += content;

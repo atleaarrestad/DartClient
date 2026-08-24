@@ -1,0 +1,70 @@
+:root {
+	/* Typography */
+	--font-family-body: 'Bitter', serif;
+	--font-family-ui: 'Space Grotesk', sans-serif;
+	--font-size-xs: 0.625rem;
+	--font-size-sm: 0.875rem;
+	--font-size-md: 1rem;
+	--font-size-lg: 1.25rem;
+	--font-size-xl: 1.75rem;
+	--font-size-2xl: 2rem;
+
+	/* Surfaces and text */
+	--color-surface-page: #fff2e8;
+	--color-surface-card: #fffdf8;
+	--color-surface-raised: #fffefb;
+	--color-surface-plain: #fff;
+	--color-surface-warm: #fffaf3;
+	--color-surface-cool: #f5f3ff;
+	--color-surface-info-subtle: #eef6ff;
+	--color-surface-success-subtle: #e5fbe7;
+	--color-surface-warning-subtle: #fff7d6;
+	--color-text-primary: #000;
+	--color-border-strong: #000;
+
+	/* Accents and statuses */
+	--color-accent-primary: #a8dadc;
+	--color-accent-primary-hover: #ff8c00;
+	--color-status-success: #dff362;
+	--color-status-danger: #ed807f;
+	--color-status-info: #7df9ff;
+	--color-status-victory: #62f38d;
+	--color-medal-gold: #f2d14e;
+	--color-medal-gold-light: #fff3a6;
+	--color-medal-silver: #d9d9d9;
+	--color-medal-silver-light: #f3f3f3;
+	--color-medal-bronze: #d59a60;
+	--color-medal-bronze-light: #f1c69b;
+
+	/* Spacing */
+	--space-1: 0.25rem;
+	--space-2: 0.5rem;
+	--space-3: 0.75rem;
+	--space-4: 1rem;
+	--space-5: 1.5rem;
+	--space-6: 2rem;
+	--space-7: 2.5rem;
+
+	/* Shape */
+	--border-width-strong: 2px;
+	--radius-sm: 6px;
+	--radius-control-sm: 8px;
+	--radius-md: 10px;
+	--radius-control: 12px;
+	--radius-lg: 14px;
+	--radius-panel: 16px;
+	--radius-xl: 18px;
+	--radius-pill: 999px;
+
+	/* Effects */
+	--focus-ring: 3px solid var(--color-accent-primary-hover);
+	--shadow-brutal-xs: 1px 1px 0 var(--color-border-strong);
+	--shadow-brutal-sm: 2px 2px 0 var(--color-border-strong);
+	--shadow-brutal-control: 3px 3px 0 var(--color-border-strong);
+	--shadow-brutal-md: 4px 4px 0 var(--color-border-strong);
+	--shadow-brutal-hover: 5px 5px 0 var(--color-border-strong);
+	--shadow-brutal-panel: 6px 6px 0 var(--color-border-strong);
+	--shadow-brutal-deep: 6px 7px 0 var(--color-border-strong);
+	--shadow-brutal-lg: 8px 8px 0 var(--color-border-strong);
+
+}

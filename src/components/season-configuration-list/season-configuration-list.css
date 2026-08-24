@@ -1,0 +1,139 @@
+:host {
+	display: block;
+}
+
+.editor-section {
+	display: grid;
+	gap: 0.8rem;
+	padding: 1rem;
+}
+
+.section-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.section-heading h3 {
+	margin: 0;
+}
+
+.configuration-panel {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	overflow: hidden;
+	background: var(--color-border-strong);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+}
+
+.configuration-item {
+	flex: 1 1 240px;
+	min-width: 0;
+}
+
+.configuration-item::part(card) {
+	display: grid;
+	box-sizing: border-box;
+	height: 100%;
+	align-items: center;
+	padding: 0.7rem;
+	border: 0;
+	border-radius: 0;
+	background: var(--color-surface-plain);
+}
+
+.configuration-item::part(content) {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.65rem;
+	width: 100%;
+}
+
+.configuration-item--with-icon::part(content) {
+	grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.configuration-item__icon {
+	display: grid;
+	width: 56px;
+	height: 38px;
+	place-items: center;
+}
+
+.configuration-item__copy {
+	display: grid;
+	gap: 0.15rem;
+	min-width: 0;
+}
+
+.configuration-item__copy small {
+	font-size: 0.72rem;
+	opacity: 0.68;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.configuration-item__icons {
+	display: grid;
+	grid-template-columns: repeat(3, 17px);
+	grid-template-rows: repeat(2, 17px);
+	width: 56px;
+	height: 38px;
+	place-content: center;
+}
+
+.configuration-item__icons img {
+	position: relative;
+	width: 25px;
+	height: 25px;
+	object-fit: contain;
+}
+
+.configuration-item__icons img:nth-child(4),
+.configuration-item__icons img:nth-child(5) {
+	left: 8px;
+}
+
+.settings-button {
+	align-self: center;
+	justify-self: end;
+	width: 38px;
+	height: 38px;
+}
+
+.settings-button::part(button) {
+	display: grid;
+	width: 100%;
+	height: 100%;
+	place-items: center;
+	padding: 0;
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-plain);
+	box-shadow: var(--shadow-brutal-control);
+	font-size: 1rem;
+}
+
+.settings-button::part(button):hover,
+.settings-button::part(button):active {
+	transform: none;
+	background: var(--color-surface-plain);
+	box-shadow: var(--shadow-brutal-control);
+}
+
+.settings-button svg {
+	width: 19px;
+	height: 19px;
+	fill: currentColor;
+}
+
+@media (max-width: 700px) {
+	.configuration-item {
+		flex-basis: 100%;
+	}
+}

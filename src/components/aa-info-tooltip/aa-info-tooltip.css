@@ -1,0 +1,42 @@
+:host {
+	display: inline-grid;
+	flex: 0 0 auto;
+}
+button {
+	display: inline-grid;
+	place-items: center;
+	width: 19px;
+	height: 19px;
+	padding: 0;
+	border: 2px solid currentColor;
+	border-radius: 50%;
+	background: var(--color-surface-plain);
+	color: var(--color-text-primary);
+	font: 900 12px/1 Georgia, serif;
+	cursor: help;
+}
+button:hover,
+button:focus-visible,
+button[aria-expanded='true'] {
+	background: var(--color-status-info);
+	outline: none;
+}
+[role='tooltip'] {
+	position: fixed;
+	z-index: 3000;
+	width: max-content;
+	max-width: min(260px, calc(100vw - 20px));
+	padding: 0.55rem 0.65rem;
+	border: 2px solid var(--color-border-strong);
+	border-radius: 9px;
+	background: #fff3cf;
+	box-shadow: var(--shadow-brutal-md);
+	color: var(--color-text-primary);
+	font-size: 0.75rem;
+	font-weight: 600;
+	line-height: 1.35;
+	pointer-events: none;
+}
+[hidden] {
+	display: none;
+}

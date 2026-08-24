@@ -1,0 +1,124 @@
+:host {
+	display: block;
+	min-width: 0;
+}
+
+.tabset {
+	display: grid;
+	gap: var(--space-2);
+	min-width: 0;
+}
+
+.parent-tabs,
+.child-tabs {
+	align-items: center;
+	background: transparent;
+}
+
+.parent-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	flex: 0 0 auto;
+	justify-self: start;
+}
+
+.child-tabs {
+	display: flex;
+	flex-wrap: nowrap;
+	width: 100%;
+	min-width: 0;
+	background: var(--color-surface-plain);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	box-shadow: var(--shadow-brutal-control);
+	overflow-x: auto;
+	scrollbar-color: rgba(0, 0, 0, 0.35) transparent;
+	scrollbar-width: thin;
+}
+
+.tabset:not(.tabset--nested) .child-tabs {
+	border-top: var(--border-width-strong) solid var(--color-border-strong);
+}
+
+button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	flex: 0 0 auto;
+	min-height: 40px;
+	padding: 0.4rem 0.55rem;
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	color: var(--color-text-primary);
+	font: inherit;
+	font-size: 0.78rem;
+	font-weight: 900;
+	cursor: pointer;
+	transition: transform 100ms ease, box-shadow 100ms ease, background 100ms ease;
+}
+
+.child-tabs button {
+	flex: 1 0 auto;
+	white-space: nowrap;
+}
+
+.child-tabs button + button {
+	border-left: 1.5px solid var(--color-border-strong);
+}
+
+button[aria-selected='true'] {
+	background: var(--color-status-info);
+}
+
+.parent-tabs button {
+	min-height: 27px;
+	padding: 0.18rem 0.55rem;
+	font-size: 0.72rem;
+}
+
+@media (hover: hover) {
+	button:not([aria-selected='true']):hover {
+		background: var(--color-surface-info-subtle);
+	}
+}
+
+button:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: -3px;
+}
+
+img {
+	width: 20px;
+	height: 20px;
+	object-fit: contain;
+}
+
+strong {
+	padding: 0.08rem 0.38rem;
+	background: var(--color-surface-plain);
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	font-size: 0.68rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	button {
+		transition: none;
+	}
+}
+
+.child-tabs::-webkit-scrollbar {
+	height: 4px;
+}
+
+.child-tabs::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.child-tabs::-webkit-scrollbar-thumb {
+	background: rgba(0, 0, 0, 0.35);
+	border-radius: var(--radius-pill);
+}

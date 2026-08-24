@@ -1,0 +1,59 @@
+:host {
+	display: block;
+}
+
+.field {
+	display: grid;
+	gap: var(--space-2);
+}
+
+.label {
+	font-family: var(--font-family-ui);
+	font-size: var(--font-size-sm);
+	font-weight: 800;
+}
+
+.control {
+	display: contents;
+	min-width: 0;
+}
+
+::slotted(input),
+::slotted(select),
+::slotted(textarea) {
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 0;
+	padding: 0.55rem 0.65rem;
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-plain);
+	font: inherit;
+}
+
+::slotted(input:focus-visible),
+::slotted(select:focus-visible),
+::slotted(textarea:focus-visible) {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.help,
+.error {
+	font-family: var(--font-family-ui);
+	font-size: var(--font-size-xs);
+	line-height: 1.35;
+}
+
+.help {
+	opacity: 0.72;
+}
+
+.error {
+	color: #9f1d2c;
+	font-weight: 800;
+}
+
+[hidden] {
+	display: none;
+}

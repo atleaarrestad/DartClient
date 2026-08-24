@@ -1,0 +1,46 @@
+:host {
+	display: block;
+}
+
+.card {
+	padding: var(--space-5);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-lg);
+	background: var(--color-surface-card);
+	color: var(--color-text-primary);
+}
+
+.card[data-variant='raised'] {
+	box-shadow: var(--shadow-brutal-md);
+}
+
+.card[data-variant='interactive'] {
+	box-shadow: var(--shadow-brutal-sm);
+	transition:
+		transform 0.15s ease-out,
+		box-shadow 0.15s ease-out;
+}
+
+.card[data-variant='interactive']:hover,
+.card[data-variant='interactive']:focus-within {
+	transform: translate(-1px, -1px);
+	box-shadow: var(--shadow-brutal-md);
+}
+
+[hidden] {
+	display: none;
+}
+
+header {
+	margin-block-end: var(--space-4);
+}
+
+footer {
+	margin-block-start: var(--space-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.card[data-variant='interactive'] {
+		transition: none;
+	}
+}

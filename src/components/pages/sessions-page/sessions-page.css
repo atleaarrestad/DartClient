@@ -1,0 +1,48 @@
+:host {
+	display: block;
+	box-sizing: border-box;
+	height: 100%;
+	min-height: 0;
+	padding: 1rem;
+	background: transparent;
+	color: inherit;
+}
+
+aa-loading-state {
+	--aa-loading-height: 100%;
+	--aa-loading-min-height: 0;
+}
+
+.page-shell {
+	display: grid;
+	gap: 1.25rem;
+	max-width: 1400px;
+	margin: 0 auto;
+}
+
+.page-head {
+	display: grid;
+	justify-items: center;
+	padding: 0.9rem 0 0.45rem;
+}
+
+.page-head h2 {
+	margin: 0;
+	font-size: clamp(1.55rem, 3vw, 2.1rem);
+	line-height: 1;
+}
+
+.cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 400px));
+	justify-content: center;
+	gap: 1.25rem;
+	margin: 0;
+	padding: 0 0.45rem 0.45rem 0;
+}
+
+@media (max-width: 720px) {
+	:host {
+		padding: 0.75rem;
+	}
+}
