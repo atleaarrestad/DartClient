@@ -31,6 +31,9 @@ export enum SessionAchievement {
 	TrippleForty = 1,
 	// 2-3 were removed duplicate Shanghai achievements.
 	ThreeOfAKind20 = 4,
+	Rimmer = 5,
+	RimReaper = 6,
+	PerfectlyBalanced = 7,
 
 	// 100–199: Score thresholds (Adjusted + Raw)
 	ScoreAtLeast50InOneRound = 100,
@@ -112,6 +115,9 @@ export enum SessionAchievement {
 	FinishWithDouble = 406,
 	FinishWithTripple = 407,
 	BigFish = 408,
+	TaskFailedSuccessfully = 409,
+	NoMultipliersNeeded = 410,
+	CleanGame = 411,
 
 	// 600–699: Shanghai
 
