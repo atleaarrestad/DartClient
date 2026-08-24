@@ -5,6 +5,7 @@
 .badge {
 	display: inline-flex;
 	align-items: center;
+	gap: var(--space-1);
 	width: fit-content;
 	padding: var(--space-1) var(--space-2);
 	border: var(--border-width-strong) solid var(--color-border-strong);
@@ -18,7 +19,7 @@
 }
 
 :host([pill]) .badge {
-	padding-inline: var(--space-3);
+	padding-inline: var(--space-2);
 	border-radius: var(--radius-pill);
 }
 

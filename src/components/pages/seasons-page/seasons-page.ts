@@ -1116,11 +1116,11 @@ rule.executionOrder = Number(
 				summary:       `${ this.draft.rankThresholds.length } rank thresholds`,
 				activateLabel: 'Configure rank thresholds',
 				previewImages: [
-					Rank.Bronze,
-					Rank.Silver,
-					Rank.Gold,
 					Rank.Platinum,
 					Rank.Diamond,
+					Rank.Wizard,
+					Rank.Mythic,
+					Rank.Grandmaster,
 				].map(rank => ({ src: getRankIcon(rank) })),
 			},
 			{

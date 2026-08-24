@@ -207,10 +207,10 @@ export enum AchievementType {
 	VictoryRelated = 2,
 	Classic = 3,
 	PointsRelated = 4,
-	PointsRelatedRaw = 5,
+	// 5 was the merged Raw points category.
 	Progression = 6,
 	// 7 was the removed Meme category.
 	Shanghai = 8,
-	ShanghaiBudget = 9,
+	// 9 was the merged Shanghai budget category.
 	ThreeOfAKind = 10,
 }

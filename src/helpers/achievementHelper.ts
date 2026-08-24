@@ -9,10 +9,8 @@ const achievementTypeLabels: Record<AchievementType, string> = {
 	[AchievementType.VictoryRelated]:   'Victory',
 	[AchievementType.Classic]:          'Classic',
 	[AchievementType.PointsRelated]:    'Points',
-	[AchievementType.PointsRelatedRaw]: 'Raw points',
 	[AchievementType.Progression]:      'Progression',
 	[AchievementType.Shanghai]:         'Shanghai',
-	[AchievementType.ShanghaiBudget]:   'Shanghai budget',
 	[AchievementType.ThreeOfAKind]:     'Three of',
 };
 
