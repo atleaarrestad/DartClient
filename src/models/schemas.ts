@@ -38,9 +38,13 @@ export const PlayerResultSchema = z.object({
 });
 
 export const GameTrackerSchema = z.object({
-	id:            z.string().uuid(),
-	started:       z.string().transform(str => new Date(str)),
-	playersRounds: z.array(PlayerRoundsSchema),
+	id:                                   z.string().uuid(),
+	started:                              z.string().transform(str => new Date(str)),
+	playersRounds:                        z.array(PlayerRoundsSchema),
+	projectedSessionAchievementsByPlayer: z.record(
+		z.string().uuid(),
+		z.array(z.nativeEnum(SessionAchievement)),
+	).default({}),
 });
 
 export const MatchSnapshotSchema = z.object({

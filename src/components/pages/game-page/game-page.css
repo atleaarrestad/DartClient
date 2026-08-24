@@ -113,6 +113,34 @@ aa-loading-state {
 	font-size: 1.5rem;
 }
 
+.projected-achievements {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+	padding: 0.25rem 0.4rem;
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-lg);
+	background: var(--color-surface-warning-subtle);
+	box-shadow: var(--shadow-brutal-sm);
+}
+
+.projected-achievement {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.15rem;
+	font-size: 0.78rem;
+	font-weight: 900;
+	line-height: 1;
+}
+
+.projected-achievement__icon {
+	width: 1.55rem;
+	height: 1.55rem;
+	object-fit: contain;
+}
+
 .overshoot {
 	background-color: #ed817f89 !important;
 }
@@ -133,6 +161,7 @@ aa-loading-state {
 
 .rank-inner-container {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	justify-content: center;
 	gap: 0.5rem;

@@ -7,9 +7,10 @@ import { classMap } from 'lit/directives/class-map.js';
 import { map } from 'lit/directives/map.js';
 import { container } from 'tsyringe';
 
+import { getAchievementTierIcon } from '../../../helpers/achievementHelper.js';
 import { sum } from '../../../helpers/sum.js';
-import { RoundStatus, SessionAchievement } from '../../../models/enums.js';
-import { GameTracker, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../../models/schemas.js';
+import { AchievementTier, RoundStatus, SessionAchievement } from '../../../models/enums.js';
+import { AchievementDefinitionsResponse, GameTracker, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../../models/schemas.js';
 import { DataService } from '../../../services/dataService.js';
 import { DialogService } from '../../../services/dialogService.js';
 import { GameService } from '../../../services/gameService.js';
@@ -36,6 +37,7 @@ export class GamePage extends LitElement {
 	@state() protected syncStatus: SignalRConnectionStatus = 'disconnected';
 	@state() protected syncStatusMessage = 'Live sync offline';
 	@state() protected browserOnline = navigator.onLine;
+	@state() protected achievementDefinitions?: AchievementDefinitionsResponse;
 
 	protected dataService: DataService;
 	protected seasonService: SeasonService;
@@ -50,6 +52,7 @@ export class GamePage extends LitElement {
 	protected selectedId?: string;
 	protected selectedCellElement?: aaDartThrow = undefined;
 	protected isActiveGame: boolean = false;
+	protected projectedSessionAchievementsByPlayer: Record<string, SessionAchievement[]> = {};
 	protected scrollLeader: HTMLElement | null = null;
 	protected signalRService: signalRService;
 	private removeSignalRStatusListener?: () => void;
@@ -97,7 +100,10 @@ export class GamePage extends LitElement {
 
 		await this.healthCheckServer();
 		await this.GetLatestSeason();
-		await this.loadUsers({query: {includeSeasonStatistics: true, limitToSeasonId: this.season!.id}});
+		await Promise.all([
+			this.loadUsers({query: {includeSeasonStatistics: true, limitToSeasonId: this.season!.id}}),
+			this.loadAchievementDefinitions(),
+		]);
 
 		const locallyCachedGameSessionId = this.gameService.getCachedGameId();
 		if (locallyCachedGameSessionId !== undefined) {
@@ -187,6 +193,15 @@ export class GamePage extends LitElement {
 			.catch((error) => {
 				this.reportError(error, 'Unable to load users.');
 			});
+	}
+
+	protected async loadAchievementDefinitions(): Promise<void> {
+		try {
+			this.achievementDefinitions = await this.achievementService.getAchievementDefinitions();
+		}
+		catch (error) {
+			this.reportError(error, 'Unable to load achievement details.');
+		}
 	}
 
 	protected async registerSignalRSubscriptions(): Promise<void> {
@@ -336,6 +351,9 @@ export class GamePage extends LitElement {
 		const roundCountChanged = oldRoundCount !== newRoundCount;
 
 		this.players = [ ...gameTracker.playersRounds ];
+		this.projectedSessionAchievementsByPlayer = {
+			...gameTracker.projectedSessionAchievementsByPlayer,
+		};
 		this.reorderPlayersByMMR();
 
 		if (roundCountChanged)
@@ -444,6 +462,53 @@ export class GamePage extends LitElement {
 		return false;
 	}
 
+	protected renderProjectedAchievements(playerId: string): unknown {
+		if (!this.achievementDefinitions)
+			return null;
+
+		const achievements = this.projectedSessionAchievementsByPlayer[playerId] ?? [];
+		if (achievements.length === 0)
+			return null;
+
+		const countsByTier = new Map<AchievementTier, number>();
+		for (const achievement of achievements) {
+			const definition = this.achievementDefinitions.sessionAchievementDefinitions.get(achievement);
+			if (!definition)
+				continue;
+
+			const tier = definition.achievementTier as AchievementTier;
+			countsByTier.set(tier, (countsByTier.get(tier) ?? 0) + 1);
+		}
+
+		const tierOrder = [
+			AchievementTier.diamond,
+			AchievementTier.platinum,
+			AchievementTier.gold,
+			AchievementTier.silver,
+			AchievementTier.bronze,
+		];
+
+		return html`
+			<span class="projected-achievements" aria-label="Achievements unlocked when this game is submitted">
+				${tierOrder
+					.filter(tier => countsByTier.has(tier))
+					.map(tier => html`
+						<span
+							class="projected-achievement"
+							title="${ countsByTier.get(tier) } ${ AchievementTier[tier] } achievement(s) when submitted"
+						>
+							<span class="projected-achievement__count">${ countsByTier.get(tier) }x</span>
+							<img
+								class="projected-achievement__icon"
+								src=${ getAchievementTierIcon(tier) }
+								alt="${ AchievementTier[tier] } achievement"
+							/>
+						</span>
+					`)}
+			</span>
+		`;
+	}
+
 	override render(): unknown {
 		const isLoading = this.loading || !this.season;
 
@@ -491,7 +556,7 @@ export class GamePage extends LitElement {
 										'player-name': true,
 										'active-player-name': this.isPlayerActive(playerIndex),
 									})}>
-										${user.alias}
+										<span>${user.alias}</span>
 									</span>
 
 									<span class="total-sum">
@@ -568,6 +633,7 @@ export class GamePage extends LitElement {
 											<aa-rank-display .rank=${rank}>
 												<span class="mmr">${mmr}</span>
 											</aa-rank-display>
+											${this.renderProjectedAchievements(player.playerId)}
 										</div>
 									</div>
 								</article>
