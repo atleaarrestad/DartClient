@@ -105,6 +105,13 @@ const defaultAchievementRewards: Record<AchievementTier, number> = {
 	[AchievementTier.platinum]: 20,
 	[AchievementTier.diamond]:  30,
 };
+const defaultAchievementCapIncreases: Record<AchievementTier, number> = {
+	[AchievementTier.bronze]:   1,
+	[AchievementTier.silver]:   1,
+	[AchievementTier.gold]:     1,
+	[AchievementTier.platinum]: 2,
+	[AchievementTier.diamond]:  2,
+};
 
 @customElement('seasons-page')
 export class SeasonsPage extends LitElement {
@@ -284,6 +291,8 @@ export class SeasonsPage extends LitElement {
 			achievementTier,
 			mmrReward: byTier.get(achievementTier)?.mmrReward
 				?? defaultAchievementRewards[achievementTier],
+			mmrCapIncrease: byTier.get(achievementTier)?.mmrCapIncrease
+				?? defaultAchievementCapIncreases[achievementTier],
 		}));
 	}
 
@@ -692,6 +701,11 @@ rule.executionOrder = Number(
 
 		if (rewards.some(reward => !Number.isInteger(reward.mmrReward) || reward.mmrReward < 0))
 			errors.push('Achievement MMR rewards must be non-negative whole numbers.');
+		if (rewards.some(reward =>
+			!Number.isInteger(reward.mmrCapIncrease)
+			|| reward.mmrCapIncrease < 0
+			|| reward.mmrCapIncrease > 100))
+			errors.push('Achievement MMR cap increases must be whole numbers from 0 to 100.');
 
 		return errors;
 	}
@@ -741,34 +755,54 @@ rule.executionOrder = Number(
 							);
 						} }
 					>
-						Apply rewards
+						Apply settings
 					</aa-button>
 					<div class="achievement-reward-dialog">
-						<p>Set the MMR granted when an achievement of each tier is unlocked.</p>
+						<p>
+							Set the immediate MMR reward and permanent gain-cap increase
+							for each achievement tier.
+						</p>
 						${ rewards.map(reward => html`
-							<label class="achievement-reward-dialog__row">
+							<div class="achievement-reward-dialog__row">
 								<img
 									src=${ getAchievementTierIcon(reward.achievementTier) }
 									alt=""
 								/>
 								<strong>${ AchievementTier[reward.achievementTier] }</strong>
-								<span>MMR reward</span>
-								<input
-									type="number"
-									min="0"
-									step="1"
-									.value=${ String(reward.mmrReward) }
-									@input=${ (event: InputEvent) => {
-										reward.mmrReward = Number(
-											(event.currentTarget as HTMLInputElement).value,
-										);
-									} }
-								/>
-							</label>
+								<label class="achievement-reward-dialog__field">
+									<span>MMR reward</span>
+									<input
+										type="number"
+										min="0"
+										step="1"
+										.value=${ String(reward.mmrReward) }
+										@input=${ (event: InputEvent) => {
+											reward.mmrReward = Number(
+												(event.currentTarget as HTMLInputElement).value,
+											);
+										} }
+									/>
+								</label>
+								<label class="achievement-reward-dialog__field">
+									<span>MMR cap increase</span>
+									<input
+										type="number"
+										min="0"
+										max="100"
+										step="1"
+										.value=${ String(reward.mmrCapIncrease) }
+										@input=${ (event: InputEvent) => {
+											reward.mmrCapIncrease = Number(
+												(event.currentTarget as HTMLInputElement).value,
+											);
+										} }
+									/>
+								</label>
+							</div>
 						`) }
 					</div>
 				`,
-				{ title: 'Achievement MMR rewards' },
+				{ title: 'Achievement MMR settings' },
 			);
 		}
 		catch (error) {
@@ -1125,9 +1159,9 @@ rule.executionOrder = Number(
 			},
 			{
 				id:            'achievement-rewards',
-				title:         'Achievement MMR rewards',
+				title:         'Achievement MMR settings',
 				summary:       `${ this.draft.achievementTierRewards.length } achievement tiers`,
-				activateLabel: 'Configure achievement MMR rewards',
+				activateLabel: 'Configure achievement MMR settings',
 				previewImages: achievementTiers.map(tier => ({
 					src: getAchievementTierIcon(tier),
 				})),

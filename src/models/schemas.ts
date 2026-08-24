@@ -146,6 +146,7 @@ export const RankThresholdSchema = z.object({
 export const AchievementTierRewardSchema = z.object({
 	achievementTier: z.nativeEnum(AchievementTier),
 	mmrReward:       z.number().int().nonnegative(),
+	mmrCapIncrease:  z.number().int().min(0).max(100),
 });
 
 export const MmrConfigurationSchema = z.object({
@@ -162,7 +163,6 @@ export const MmrConfigurationSchema = z.object({
 	roundPenalty:                z.number().int(),
 	minimumOpponentFactor:       z.number(),
 	maximumOpponentFactor:       z.number(),
-	existingAchievementCapBonus: z.number().int(),
 });
 
 export const SeasonSchema = z.object({

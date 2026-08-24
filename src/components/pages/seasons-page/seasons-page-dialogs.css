@@ -158,7 +158,7 @@
 }
 .achievement-reward-dialog .achievement-reward-dialog__row {
 	display: grid;
-	grid-template-columns: 42px minmax(120px, 1fr) auto minmax(90px, 0.55fr);
+	grid-template-columns: 42px minmax(110px, 0.8fr) repeat(2, minmax(180px, 1fr));
 	align-items: center;
 	gap: 0.6rem;
 	padding: 0.65rem 0.75rem;
@@ -171,12 +171,19 @@
 	height: 38px;
 	object-fit: contain;
 }
-.achievement-reward-dialog .achievement-reward-dialog__row span {
+.achievement-reward-dialog .achievement-reward-dialog__field {
+	display: grid;
+	grid-template-columns: auto minmax(80px, 1fr);
+	align-items: center;
+	gap: 0.55rem;
+}
+.achievement-reward-dialog .achievement-reward-dialog__field span {
 	font-size: 0.75rem;
 	font-weight: 800;
 	opacity: 0.65;
+	white-space: nowrap;
 }
-.achievement-reward-dialog .achievement-reward-dialog__row input {
+.achievement-reward-dialog .achievement-reward-dialog__field input {
 	min-width: 0;
 	padding: 0.5rem 0.6rem;
 	background: var(--color-surface-plain);
@@ -188,8 +195,7 @@
 	.achievement-reward-dialog .achievement-reward-dialog__row {
 		grid-template-columns: 38px 1fr;
 	}
-	.achievement-reward-dialog .achievement-reward-dialog__row span,
-	.achievement-reward-dialog .achievement-reward-dialog__row input {
+	.achievement-reward-dialog .achievement-reward-dialog__field {
 		grid-column: 2;
 	}
 }

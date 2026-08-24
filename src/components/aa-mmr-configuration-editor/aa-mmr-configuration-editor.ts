@@ -47,11 +47,6 @@ const fieldGroups: { title: string; fields: MmrField[]; }[] = [
 				description: 'Maximum MMR that can be lost in one game.',
 				min: 0, max: 2000, step: 5,
 			},
-			{
-				key: 'existingAchievementCapBonus', label: 'Existing achievement cap bonus',
-				description: 'Extra gain cap per achievement already owned before the game.',
-				min: 0, max: 100, step: 1,
-			},
 		],
 	},
 	{

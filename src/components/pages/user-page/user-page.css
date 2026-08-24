@@ -93,10 +93,23 @@ aa-user-statistics-charts::part(stats-grid) {
 	gap: 0.75rem;
 }
 
+.achievement-summary__totals {
+	display: grid;
+	gap: 0.15rem;
+	text-align: right;
+}
+
 .achievement-count {
 	font-size: 0.82rem;
 	font-weight: 900;
 	white-space: nowrap;
+}
+
+.achievement-cap {
+	font-size: 0.72rem;
+	font-weight: 800;
+	white-space: nowrap;
+	opacity: 0.65;
 }
 
 .achievement-summary aa-button {
@@ -144,6 +157,11 @@ aa-user-statistics-charts::part(stats-grid) {
 
 	.achievement-summary__actions {
 		grid-column: auto;
+		flex-wrap: wrap;
+	}
+
+	.achievement-summary__totals {
+		text-align: left;
 	}
 }
 

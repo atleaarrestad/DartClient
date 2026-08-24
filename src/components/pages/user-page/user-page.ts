@@ -32,6 +32,13 @@ import '../../aa-achievement-browser/aa-achievement-browser.js';
 import '../../aa-loading-state/aa-loading-state.js';
 import '../../../ui/button/aa-button.js';
 
+interface AchievementProgress {
+	earned:            number;
+	total:             number;
+	earnedCapIncrease: number;
+	totalCapIncrease:  number;
+}
+
 @customElement('user-page')
 export class UserPage extends LitElement {
 
@@ -156,9 +163,18 @@ export class UserPage extends LitElement {
 		this.hitDistributionView = event.detail;
 	}
 
-	private getAchievementProgress(stats: SeasonStatistics): { earned: number; total: number } {
-		if (!this.achievementDefinitions)
-			return { earned: 0, total: 0 };
+	private getAchievementProgress(
+		stats: SeasonStatistics,
+		season: Season,
+	): AchievementProgress {
+		if (!this.achievementDefinitions) {
+			return {
+				earned:            0,
+				total:             0,
+				earnedCapIncrease: 0,
+				totalCapIncrease:  0,
+			};
+		}
 
 		const unlockedSession = new Set(
 			stats.unlockedSessionAchievements.filter(achievement => achievement !== 'unknown'),
@@ -168,16 +184,30 @@ export class UserPage extends LitElement {
 		);
 		const sessionDefinitions = this.achievementDefinitions.sessionAchievementDefinitions;
 		const progressionDefinitions = this.achievementDefinitions.progressionAchievementDefinitions;
-		const earnedSession = [...sessionDefinitions.keys()]
-			.filter(achievement => unlockedSession.has(achievement))
-			.length;
-		const earnedProgress = [...progressionDefinitions.keys()]
-			.filter(achievement => unlockedProgress.has(achievement))
-			.length;
+		const capIncreaseByTier = new Map(
+			season.achievementTierRewards.map(reward => [
+				reward.achievementTier,
+				reward.mmrCapIncrease,
+			]),
+		);
+		const sessionEntries = [ ...sessionDefinitions.entries() ];
+		const progressionEntries = [ ...progressionDefinitions.entries() ];
+		const earnedSession = sessionEntries.filter(([ achievement ]) =>
+			unlockedSession.has(achievement));
+		const earnedProgress = progressionEntries.filter(([ achievement ]) =>
+			unlockedProgress.has(achievement));
+		const getCapIncrease = (achievementTier: number): number =>
+			capIncreaseByTier.get(achievementTier) ?? 0;
 
 		return {
-			earned: earnedSession + earnedProgress,
-			total: sessionDefinitions.size + progressionDefinitions.size,
+			earned:            earnedSession.length + earnedProgress.length,
+			total:             sessionEntries.length + progressionEntries.length,
+			earnedCapIncrease: [ ...earnedSession, ...earnedProgress ]
+				.reduce((sum, [ , definition ]) =>
+					sum + getCapIncrease(definition.achievementTier), 0),
+			totalCapIncrease:  [ ...sessionEntries, ...progressionEntries ]
+				.reduce((sum, [ , definition ]) =>
+					sum + getCapIncrease(definition.achievementTier), 0),
 		};
 	}
 
@@ -246,7 +276,12 @@ export class UserPage extends LitElement {
 	}
 
 	private renderAchievementSummary(stats: SeasonStatistics): TemplateResult {
-		const { earned, total } = this.getAchievementProgress(stats);
+		const {
+			earned,
+			total,
+			earnedCapIncrease,
+			totalCapIncrease,
+		} = this.getAchievementProgress(stats, this.selectedSeason!);
 		const percentage = total > 0 ? Math.round((earned / total) * 100) : 0;
 
 		return html`
@@ -272,7 +307,12 @@ export class UserPage extends LitElement {
 				</div>
 
 				<div class="achievement-summary__actions">
-					<span class="achievement-count">${earned}/${total} unlocked</span>
+					<div class="achievement-summary__totals">
+						<span class="achievement-count">${ earned }/${ total } unlocked</span>
+						<span class="achievement-cap">
+							MMR cap increase ${ earnedCapIncrease }/${ totalCapIncrease }
+						</span>
+					</div>
 					<aa-button
 						type="button"
 						variant="primary"

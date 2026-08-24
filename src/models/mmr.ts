@@ -14,7 +14,6 @@ export const defaultMmrConfiguration: MmrConfiguration = {
 	roundPenalty:                 6,
 	minimumOpponentFactor:        0.75,
 	maximumOpponentFactor:        1.4,
-	existingAchievementCapBonus:  1,
 };
 
 export interface MmrScenario {
@@ -24,7 +23,6 @@ export interface MmrScenario {
 	overshoots: number;
 	placement: number;
 	roundsPlayed: number;
-	existingAchievements?: number;
 }
 
 export function calculateMmrChange(
@@ -69,19 +67,15 @@ export function calculateMmrChange(
 	change *= change < 0 ? Math.fround(2 - opponentFactor) : opponentFactor;
 	change += ratingPull;
 
-	const maximumGain = configuration.maximumGain
-		+ (scenario.existingAchievements ?? 0)
-		* configuration.existingAchievementCapBonus;
-
 	return Math.min(
-		maximumGain,
+		configuration.maximumGain,
 		Math.max(-configuration.maximumLoss, Math.trunc(change)),
 	);
 }
 
 export function validateMmrConfiguration(configuration: MmrConfiguration): string[] {
 	const errors: string[] = [];
-	const integerFields: Array<keyof MmrConfiguration> = [
+	const integerFields: (keyof MmrConfiguration)[] = [
 		'startingMmr',
 		'maximumGain',
 		'maximumLoss',
@@ -91,7 +85,6 @@ export function validateMmrConfiguration(configuration: MmrConfiguration): strin
 		'placementBonus',
 		'finishBonus',
 		'roundPenalty',
-		'existingAchievementCapBonus',
 	];
 
 	if (integerFields.some(field => !Number.isInteger(configuration[field])))
@@ -112,8 +105,6 @@ export function validateMmrConfiguration(configuration: MmrConfiguration): strin
 		|| configuration.placementBonus < 0 || configuration.placementBonus > 1000
 		|| configuration.finishBonus < 0 || configuration.finishBonus > 2000
 		|| configuration.roundPenalty < 0 || configuration.roundPenalty > 200
-		|| configuration.existingAchievementCapBonus < 0
-		|| configuration.existingAchievementCapBonus > 100
 	)
 		errors.push('MMR score and bonus values are outside the supported range.');
 	if (
