@@ -12,6 +12,7 @@ const achievementTypeLabels: Record<AchievementType, string> = {
 	[AchievementType.Progression]:      'Progression',
 	[AchievementType.Shanghai]:         'Shanghai',
 	[AchievementType.ThreeOfAKind]:     'Three of',
+	[AchievementType.Ladder]:           'Ladder',
 };
 
 export function getAchievementTypeLabel(achievementType: number): string {
