@@ -9,9 +9,11 @@ import { container } from 'tsyringe';
 
 import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
 import { GameTracker, User } from '../../../models/schemas.js';
+import { ActiveGamesLiveService } from '../../../services/activeGamesLiveService.js';
 import { GameService } from '../../../services/gameService.js';
 import { NotificationService } from '../../../services/notificationService.js';
 import { SeasonService } from '../../../services/seasonService.js';
+import { SignalRSubscription } from '../../../services/signalRService.js';
 import { UserService } from '../../../services/userService.js';
 import { sharedStyles } from '../../../styles/shared-styles.js';
 import sessionsPageStyles from './sessions-page.css?inline';
@@ -22,9 +24,14 @@ const base = getAbsoluteBase();
 export class SessionsPage extends LitElement {
 
 	private notificationService: NotificationService;
+	private activeGamesLiveService: ActiveGamesLiveService;
 	private gameService:         GameService;
 	private seasonService:       SeasonService;
 	private userService:         UserService;
+	private activeGamesSubscription?: SignalRSubscription;
+	private activeGamesRefresh?: Promise<void>;
+	private activeGamesRefreshQueued = false;
+	private readonly onActiveGamesChanged = () => this.handleActiveGamesChanged();
 
 	@property({ type: Array }) gameTrackers: GameTracker[] = [];
 	@property({ type: Array }) users:        User[] = [];
@@ -33,6 +40,7 @@ export class SessionsPage extends LitElement {
 	constructor() {
 		super();
 		this.notificationService = container.resolve(NotificationService);
+		this.activeGamesLiveService = container.resolve(ActiveGamesLiveService);
 		this.gameService = container.resolve(GameService);
 		this.seasonService = container.resolve(SeasonService);
 		this.userService = container.resolve(UserService);
@@ -43,6 +51,17 @@ export class SessionsPage extends LitElement {
 	override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
 		await this.loadGames();
+
+		if (this.isConnected)
+			await this.subscribeToActiveGames();
+	}
+
+	override async disconnectedCallback(): Promise<void> {
+		super.disconnectedCallback();
+
+		const subscription = this.activeGamesSubscription;
+		this.activeGamesSubscription = undefined;
+		await subscription?.dispose();
 	}
 
 	private async loadGames(): Promise<void> {
@@ -69,6 +88,63 @@ export class SessionsPage extends LitElement {
 		}
 		finally {
 			this.loading = false;
+		}
+	}
+
+	private async subscribeToActiveGames(): Promise<void> {
+		const subscription = this.activeGamesLiveService.subscribe(
+			this.onActiveGamesChanged,
+			() => this.refreshActiveGames(),
+		);
+		this.activeGamesSubscription = subscription;
+
+		try {
+			await subscription.ready;
+		}
+		catch (error) {
+			console.error(error);
+			this.notificationService.addNotification({
+				message: 'Live active-game updates are unavailable. Retrying automatically...',
+				type:    'danger',
+			});
+		}
+	}
+
+	private handleActiveGamesChanged(): void {
+		const refreshPromise = this.refreshActiveGames();
+		this.notificationService.addNotification({
+			message: 'Active games changed. Refreshing...',
+			type:    'info',
+			promise: refreshPromise,
+		});
+
+		void refreshPromise.catch(error => {
+			console.error(error);
+			this.notificationService.addNotification({
+				message: "Couldn't refresh active games",
+				type:    'danger',
+			});
+		});
+	}
+
+	private refreshActiveGames(): Promise<void> {
+		this.activeGamesRefreshQueued = true;
+
+		if (!this.activeGamesRefresh) {
+			this.activeGamesRefresh = this.runActiveGamesRefreshLoop()
+				.finally(() => {
+					this.activeGamesRefresh = undefined;
+				});
+		}
+
+		return this.activeGamesRefresh;
+	}
+
+	private async runActiveGamesRefreshLoop(): Promise<void> {
+		while (this.activeGamesRefreshQueued) {
+			this.activeGamesRefreshQueued = false;
+			const gameTrackers = await this.gameService.getActiveGames();
+			this.gameTrackers = gameTrackers ?? [];
 		}
 	}
 

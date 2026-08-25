@@ -1,7 +1,9 @@
 import { html } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 
+import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
 import { GameResult, GameTracker } from '../../../models/schemas.js';
+import { SignalRSubscription } from '../../../services/signalRService.js';
 import { postGameTemplate } from '../../../templates/dialogTemplates.js';
 import { GamePage } from '../game-page/game-page.js';
 
@@ -9,22 +11,16 @@ import { GamePage } from '../game-page/game-page.js';
 export class SpectateGamePage extends GamePage {
 
 	@state() private gameId!: string;
-	private readonly spectateSubscriptionKey = 'spectate-game';
+	private spectateSubscription?: SignalRSubscription;
 	private readonly onGameUpdated = (gameId: string, gameTracker: GameTracker) => this.HandleOnGameUpdated(gameId, gameTracker);
 	private readonly onGameFinished = (gameId: string, gameResult: GameResult) => this.HandleOnGameFinished(gameId, gameResult);
 	constructor() {
 		super();
 	}
 
-	override async initialize(): Promise<void> {
+	override async initialize(generation: number): Promise<void> {
 		this.gameId = this.gameService.getCachedGameId() ?? '';
-		await super.initialize();
-	}
-
-	override async disconnectedCallback(): Promise<void> {
-		this.signalRService.off('OnGameUpdated', this.onGameUpdated);
-		this.signalRService.off('OnGameFinished', this.onGameFinished);
-		await super.disconnectedCallback();
+		await super.initialize(generation);
 	}
 
 	protected override renderTopContent(): unknown {
@@ -39,27 +35,53 @@ export class SpectateGamePage extends GamePage {
 	}
 
 	protected override async registerSignalRSubscriptions(): Promise<void> {
-		await super.registerSignalRSubscriptions();
+		const baseSubscriptionsReady = super.registerSignalRSubscriptions();
 
-		if (!this.gameId)
+		if (!this.gameId) {
+			await baseSubscriptionsReady;
 			return;
+		}
 
-		this.signalRService.off('OnGameUpdated', this.onGameUpdated);
-		this.signalRService.off('OnGameFinished', this.onGameFinished);
-		this.signalRService.on<GameTracker>('OnGameUpdated', this.onGameUpdated);
-		this.signalRService.on<GameResult>('OnGameFinished', this.onGameFinished);
-		await this.signalRService.subscribe(
-			this.spectateSubscriptionKey,
-			'SubscribeSpectate',
-			[ this.gameId ],
-			'UnsubscribeSpectate',
+		this.spectateSubscription = this.gameLiveService.subscribeToGame(
+			this.gameId,
+			{
+				onUpdated:  this.onGameUpdated,
+				onFinished: this.onGameFinished,
+			},
+			() => this.synchronizeGameState(),
 		);
+
+		await Promise.all([
+			baseSubscriptionsReady,
+			this.spectateSubscription.ready,
+		]);
 	}
 
-	protected override async beforeSignalRStop(): Promise<void> {
-		await this.signalRService.unsubscribe(this.spectateSubscriptionKey);
+	protected override async cleanupSignalRSubscriptions(): Promise<void> {
+		const subscription = this.spectateSubscription;
+		this.spectateSubscription = undefined;
+		await subscription?.dispose();
 
-		await super.beforeSignalRStop();
+		await super.cleanupSignalRSubscriptions();
+	}
+
+	private async synchronizeGameState(): Promise<void> {
+		const gameTracker = await this.gameService.getActiveGame(this.gameId);
+		if (gameTracker) {
+			this.updateGameState(gameTracker);
+			return;
+		}
+
+		if (!this.isConnected)
+			return;
+
+		this.notificationService.addNotification({
+			type:    'info',
+			message: 'This game is no longer active. Returning to active games.',
+		});
+		this.gameService.removeCachedGameId();
+		history.pushState({}, '', `${ getAbsoluteBase() }sessions`);
+		window.dispatchEvent(new PopStateEvent('popstate'));
 	}
 
 	private HandleOnGameUpdated(gameId: string, gameTracker: GameTracker): void {

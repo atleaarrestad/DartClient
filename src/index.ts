@@ -44,11 +44,13 @@ import { achievementService } from './services/achievementService.js';
 import { CacheService } from './services/cacheService.js';
 import { DataService } from './services/dataService.js';
 import { DialogService } from './services/dialogService.js';
+import { ActiveGamesLiveService } from './services/activeGamesLiveService.js';
 import { GameService } from './services/gameService.js';
+import { GameLiveService } from './services/gameLiveService.js';
 import { NotificationService } from './services/notificationService.js';
 import { RuleService } from './services/ruleService.js';
 import { SeasonService } from './services/seasonService.js';
-import { signalRService } from './services/signalRService.js';
+import { SignalRService } from './services/signalRService.js';
 import { UserService } from './services/userService.js';
 
 container.register(DataService,         { useClass: DataService });
@@ -59,7 +61,9 @@ container.register(UserService,         { useClass: UserService });
 container.register(CacheService,        { useClass: CacheService });
 container.register(GameService,         { useClass: GameService });
 container.register(RuleService,         { useClass: RuleService });
-container.register(signalRService,      { useClass: signalRService });
+container.registerSingleton(SignalRService, SignalRService);
+container.register(ActiveGamesLiveService, { useClass: ActiveGamesLiveService });
+container.register(GameLiveService,        { useClass: GameLiveService });
 container.register(achievementService,      { useClass: achievementService });
 
 

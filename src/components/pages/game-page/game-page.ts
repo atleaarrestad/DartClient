@@ -15,6 +15,7 @@ import { AchievementDefinitionsResponse, GameTracker, PlayerRounds, Round, Seaso
 import { DataService } from '../../../services/dataService.js';
 import { DialogService } from '../../../services/dialogService.js';
 import { GameService } from '../../../services/gameService.js';
+import { GameLiveService } from '../../../services/gameLiveService.js';
 import { NotificationService } from '../../../services/notificationService.js';
 import { SeasonService } from '../../../services/seasonService.js';
 import { UserService, GetAllUsersOptions } from '../../../services/userService.js';
@@ -23,7 +24,11 @@ import gamePageStyles from './game-page.css?inline';
 import { aaDartThrow } from '../../aa-dart-throw-cmp/aa-dart-throw-cmp.js';
 import '../../rank-display/aa-rank-display.js';
 import { achievementService } from '../../../services/achievementService.js';
-import { SignalRConnectionStatus, signalRService } from '../../../services/signalRService.js';
+import {
+	SignalRConnectionStatus,
+	SignalRService,
+	SignalRSubscription,
+} from '../../../services/signalRService.js';
 import { CacheService } from '../../../services/cacheService.js';
 import { getErrorMessage } from '../../../helpers/getErrorMessage.js';
 
@@ -59,15 +64,17 @@ export class GamePage extends LitElement {
 	protected isActiveGame: boolean = false;
 	protected projectedSessionAchievementsByPlayer: Record<string, SessionAchievement[]> = {};
 	protected scrollLeader: HTMLElement | null = null;
-	protected signalRService: signalRService;
+	protected signalRService: SignalRService;
+	protected gameLiveService: GameLiveService;
 	private removeSignalRStatusListener?: () => void;
+	private achievementSubscription?: SignalRSubscription;
+	private lifecycleGeneration = 0;
 	private observedPlayerContainer?: HTMLElement;
 	private readonly playerContainerResizeObserver = new ResizeObserver(() =>
 		this.schedulePlayerGridLayout());
 	private playerGridAnimationFrame?: number;
 
 	private hasShownInitialSyncFailure = false;
-	private readonly achievementSubscriptionKey = 'session-achievement';
 	private readonly onSessionAchievementUnlocked = (
 		gameId: string,
 		playerId: string,
@@ -84,7 +91,8 @@ export class GamePage extends LitElement {
 		this.dataService = container.resolve(DataService);
 		this.userService = container.resolve(UserService);
 		this.gameService = container.resolve(GameService);
-		this.signalRService = container.resolve(signalRService);
+		this.gameLiveService = container.resolve(GameLiveService);
+		this.signalRService = container.resolve(SignalRService);
 		this.cacheService = container.resolve(CacheService);
 	}
 
@@ -92,11 +100,13 @@ export class GamePage extends LitElement {
 		super.connectedCallback();
 		window.addEventListener('offline', this.handleBrowserOffline);
 		window.addEventListener('online', this.handleBrowserOnline);
-		void this.initialize();
+		const generation = ++this.lifecycleGeneration;
+		void this.initialize(generation);
 	}
 
 	override async disconnectedCallback(): Promise<void> {
 		super.disconnectedCallback();
+		this.lifecycleGeneration++;
 
 		window.removeEventListener('offline', this.handleBrowserOffline);
 		window.removeEventListener('online', this.handleBrowserOnline);
@@ -104,9 +114,11 @@ export class GamePage extends LitElement {
 		this.observedPlayerContainer = undefined;
 		if (this.playerGridAnimationFrame !== undefined)
 			cancelAnimationFrame(this.playerGridAnimationFrame);
-		this.removeSignalRStatusListener?.();
-		await this.beforeSignalRStop();
-		await this.signalRService.stop();
+		const removeStatusListener = this.removeSignalRStatusListener;
+		this.removeSignalRStatusListener = undefined;
+		removeStatusListener?.();
+
+		await this.cleanupSignalRSubscriptions();
 	}
 
 	override updated(changedProperties: PropertyValues): void {
@@ -114,7 +126,7 @@ export class GamePage extends LitElement {
 		this.observePlayerContainer();
 	}
 
-	protected async initialize(): Promise<void> {
+	protected async initialize(generation: number): Promise<void> {
 		this.loading = true;
 
 		await this.healthCheckServer();
@@ -142,11 +154,12 @@ export class GamePage extends LitElement {
 
 		void this.scrollToEndInPlayerRounds();
 
-		await this.signalRService.buildHubConnection('hubs/main');
+		if (!this.isConnected || generation !== this.lifecycleGeneration)
+			return;
+
 		this.bindSignalRState();
 
 		try {
-			await this.signalRService.start();
 			await this.registerSignalRSubscriptions();
 		}
 		catch (error) {
@@ -154,20 +167,21 @@ export class GamePage extends LitElement {
 		}
 	}
 
-	public async subscribeToAchievementEvents(gameId: string) {
-		this.signalRService.off('OnSessionAchievementUnlocked');
-		this.signalRService.on('OnSessionAchievementUnlocked', this.onSessionAchievementUnlocked);
-		await this.signalRService.subscribe(
-			this.achievementSubscriptionKey,
-			'SubscribeAchievement',
-			[ gameId ],
-			'UnsubscribeAchievement',
+	public async subscribeToAchievementEvents(gameId: string): Promise<void> {
+		await this.unsubscribeFromAchievementEvents();
+
+		const subscription = this.gameLiveService.subscribeToAchievements(
+			gameId,
+			this.onSessionAchievementUnlocked,
 		);
+		this.achievementSubscription = subscription;
+		await subscription.ready;
 	}
 
-	public async unSubscribeToAchievementEvents(gameId: string) {
-		this.signalRService.off('OnSessionAchievementUnlocked');
-		await this.signalRService.unsubscribe(this.achievementSubscriptionKey);
+	public async unsubscribeFromAchievementEvents(): Promise<void> {
+		const subscription = this.achievementSubscription;
+		this.achievementSubscription = undefined;
+		await subscription?.dispose();
 	}
 
 	private async HandleSessionAchievementUnlocked(
@@ -226,11 +240,12 @@ export class GamePage extends LitElement {
 	protected async registerSignalRSubscriptions(): Promise<void> {
 		if (this.gameIdFromLocalStorage)
 			await this.subscribeToAchievementEvents(this.gameIdFromLocalStorage);
+		else
+			await this.signalRService.ensureConnected();
 	}
 
-	protected async beforeSignalRStop(): Promise<void> {
-		if (this.gameIdFromLocalStorage)
-			await this.unSubscribeToAchievementEvents(this.gameIdFromLocalStorage);
+	protected async cleanupSignalRSubscriptions(): Promise<void> {
+		await this.unsubscribeFromAchievementEvents();
 	}
 
 	protected reportError(error: unknown, fallback: string): void {
@@ -321,7 +336,7 @@ export class GamePage extends LitElement {
 			});
 		}
 
-		void this.signalRService.start().catch(() => {});
+		void this.signalRService.ensureConnected().catch(() => {});
 	};
 
 	private getSignalRStatusMessage(status: SignalRConnectionStatus, error?: Error): string {
