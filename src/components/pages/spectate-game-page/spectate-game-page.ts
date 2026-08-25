@@ -1,11 +1,13 @@
-import { html } from 'lit';
+import { html, unsafeCSS } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 
+import { faIcons } from '../../../faIcons.js';
 import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
 import { GameResult, GameTracker } from '../../../models/schemas.js';
 import { SignalRSubscription } from '../../../services/signalRService.js';
 import { postGameTemplate } from '../../../templates/dialogTemplates.js';
 import { GamePage } from '../game-page/game-page.js';
+import spectateGamePageStyles from './spectate-game-page.css?inline';
 
 @customElement('spectate-game-page')
 export class SpectateGamePage extends GamePage {
@@ -19,17 +21,30 @@ export class SpectateGamePage extends GamePage {
 	}
 
 	override async initialize(generation: number): Promise<void> {
-		this.gameId = this.gameService.getCachedGameId() ?? '';
+		this.gameId = this.getGameIdFromRoute() ?? this.gameService.getCachedGameId() ?? '';
+		if (this.gameId)
+			this.gameService.setCachedGameId(this.gameId);
+
 		await super.initialize(generation);
 	}
 
-	protected override renderTopContent(): unknown {
+	private getGameIdFromRoute(): string | undefined {
+		const routePrefix = `${ getAbsoluteBase() }spectate/`;
+		const gameId = window.location.pathname
+			.slice(routePrefix.length)
+			.split('/')[0];
+
+		return gameId ? decodeURIComponent(gameId) : undefined;
+	}
+
+	protected override renderPlayerHeaderContent(): unknown {
 		return html`
-			<div class="sync-status sync-status--connected" role="note" aria-label="You are spectating this game">
-				<span class="sync-status__dot" aria-hidden="true"></span>
-				<div class="sync-status__copy">
-					<span class="sync-status__title">Spectating</span>
-				</div>
+			<div class="spectator-game-header" role="status">
+				<span class="spectator-game-header__label">
+					<i class="fa-solid fa-eye" aria-hidden="true"></i>
+					Spectator mode
+				</span>
+				<a class="spectator-game-header__join" href=${ getAbsoluteBase() }>Join game</a>
 			</div>
 		`;
 	}
@@ -98,5 +113,7 @@ export class SpectateGamePage extends GamePage {
 		const achievementDefinitions = await this.achievementService.getAchievementDefinitions();
 		this.dialogService.open(postGameTemplate(gameResult, this.users, achievementDefinitions), { title: 'Game Summary' });
 	}
+
+	static override styles = [ ...GamePage.styles, faIcons, unsafeCSS(spectateGamePageStyles) ];
 
 }

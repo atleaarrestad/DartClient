@@ -14,6 +14,15 @@ interface ChangelogEntry {
 
 const changelogEntries: ChangelogEntry[] = [
 	{
+		date:  '2026-08-25',
+		title: 'Live games and spectating',
+		tag:   'improvement',
+		changes: [
+			'The Active games page now updates automatically when new games start',
+			'Improved spectator mode visibility and added an option to join the game',
+		],
+	},
+	{
 		date: '2026-08-24',
 		title: 'Game constraints',
 		tag: 'feature',

@@ -663,6 +663,10 @@ export class GamePage extends LitElement {
 		return null;
 	}
 
+	protected renderPlayerHeaderContent(): unknown {
+		return null;
+	}
+
 	protected renderBottomContent(): unknown {
 		return null;
 	}
@@ -767,6 +771,10 @@ export class GamePage extends LitElement {
 				</div>
 
 				<div class="page-content">
+					<div class="player-header">
+						${this.renderPlayerHeaderContent()}
+					</div>
+
 					<div class="player-container">
 						${this.players.map((player, playerIndex) => {
 							const user = this.getUserFromPlayerIndex(playerIndex);
