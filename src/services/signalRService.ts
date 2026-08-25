@@ -89,6 +89,7 @@ export class SignalRService {
 	private status: SignalRConnectionStatus = 'disconnected';
 	private statusListeners: Set<(status: SignalRConnectionStatus, error?: Error) => void> = new Set();
 	private groups: Map<string, ManagedGroup> = new Map();
+	private eventHandlers: Map<SignalREventName, Set<(...args: any[]) => void>> = new Map();
 	private allowReconnect = true;
 
 	async ensureConnected(hubUrl = 'hubs/main'): Promise<void> {
@@ -135,6 +136,12 @@ export class SignalRService {
 	): SignalRSubscription {
 		const connection = this.getOrCreateConnection('hubs/main');
 		const handler = options.handler as (...args: any[]) => void;
+		const eventHandlers = this.eventHandlers.get(options.event) ?? new Set();
+		if (eventHandlers.has(handler))
+			throw new Error(`SignalR handler is already registered for "${ options.event }".`);
+
+		eventHandlers.add(handler);
+		this.eventHandlers.set(options.event, eventHandlers);
 		connection.on(options.event, handler);
 
 		const onGroupJoined = options.onGroupJoined
@@ -152,6 +159,10 @@ export class SignalRService {
 
 			disposed = true;
 			connection.off(options.event, handler);
+			eventHandlers.delete(handler);
+			if (eventHandlers.size === 0)
+				this.eventHandlers.delete(options.event);
+
 			if (group)
 				await this.releaseGroup(group, onGroupJoined);
 		};

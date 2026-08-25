@@ -147,6 +147,31 @@ describe('SignalRService', () => {
 		expect(countInvocations(connection, 'UnsubscribeActiveGames')).toBe(1);
 	});
 
+	it('rejects duplicate callback registration for the same event', async () => {
+		const connection = new FakeHubConnection();
+		const service = new TestSignalRService(connection);
+		const handler = vi.fn();
+		const first = service.registerSubscription({
+			event: 'OnActiveGamesChanged',
+			handler,
+		});
+
+		expect(() => service.registerSubscription({
+			event: 'OnActiveGamesChanged',
+			handler,
+		})).toThrow('SignalR handler is already registered');
+
+		await first.ready;
+		await first.dispose();
+
+		const replacement = service.registerSubscription({
+			event: 'OnActiveGamesChanged',
+			handler,
+		});
+		await replacement.ready;
+		await replacement.dispose();
+	});
+
 	it('reference-counts consumers that share a group', async () => {
 		const connection = new FakeHubConnection();
 		const service = new TestSignalRService(connection);

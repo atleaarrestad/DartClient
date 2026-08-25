@@ -15,7 +15,9 @@ aa-loading-state {
 
 .page-shell {
 	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
 	gap: 1.25rem;
+	min-height: 100%;
 	max-width: 1400px;
 	margin: 0 auto;
 }
@@ -32,13 +34,104 @@ aa-loading-state {
 	line-height: 1;
 }
 
+.listening-status {
+	display: grid;
+	grid-row: 3;
+	grid-template-rows: 1rem auto;
+	width: min(100%, 32rem);
+	justify-self: center;
+	align-self: end;
+	gap: var(--space-1);
+	padding-bottom: var(--space-1);
+	font-family: var(--font-family-ui);
+	text-align: center;
+}
+
+.listening-track {
+	position: relative;
+	display: block;
+	height: 1rem;
+}
+
+.listening-track::before {
+	content: '';
+	position: absolute;
+	inset-inline: 0;
+	top: 50%;
+	border-top: 2px solid var(--color-border-strong);
+	opacity: 0.18;
+}
+
+.listening-scanner {
+	position: absolute;
+	top: 50%;
+	left: 0;
+	width: 0.8rem;
+	height: 0.8rem;
+	transform: translateY(-50%);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	background: var(--color-status-success);
+	box-shadow: var(--shadow-brutal-xs);
+	animation: listening-scan 3.2s ease-in-out infinite alternate;
+}
+
+.listening-copy {
+	color: var(--color-text-primary);
+	font-size: var(--font-size-sm);
+	font-weight: 700;
+	opacity: 0.55;
+}
+
+@keyframes listening-scan {
+	to {
+		left: calc(100% - 0.8rem);
+	}
+}
+
 .cards {
 	display: grid;
+	grid-row: 2;
 	grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 400px));
+	align-self: start;
 	justify-content: center;
 	gap: 1.25rem;
 	margin: 0;
 	padding: 0 0.45rem 0.45rem 0;
+}
+
+.new-game {
+	border-radius: var(--radius-xl);
+	animation: new-game-arrival 1.35s ease-out;
+}
+
+@keyframes new-game-arrival {
+	0%,
+	100% {
+		transform: translateY(0);
+		box-shadow: 0 0 0 0 var(--color-status-success);
+	}
+
+	20% {
+		transform: translateY(-0.35rem);
+		box-shadow: 0 0 0 0.35rem var(--color-status-success);
+	}
+
+	42% {
+		transform: translateY(0);
+		box-shadow: 0 0 0 0.15rem var(--color-status-success);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.listening-scanner {
+		animation: none;
+		left: calc(100% - 0.8rem);
+	}
+
+	.new-game {
+		animation-duration: 1ms;
+	}
 }
 
 @media (max-width: 720px) {

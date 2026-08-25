@@ -1,6 +1,10 @@
 import { container, injectable } from 'tsyringe';
 
-import { SignalRService, SignalRSubscription } from './signalRService.js';
+import {
+	combineSignalRSubscriptions,
+	SignalRService,
+	SignalRSubscription,
+} from './signalRService.js';
 
 @injectable()
 export class ActiveGamesLiveService {
@@ -13,16 +17,33 @@ export class ActiveGamesLiveService {
 	subscribe(
 		onGamesChanged: () => void,
 		onSynchronized: () => void | Promise<void>,
+		onListeningChanged: (listening: boolean) => void,
 	): SignalRSubscription {
-		return this.signalRService.registerSubscription({
+		const gamesSubscription = this.signalRService.registerSubscription({
 			event:         'OnActiveGamesChanged',
 			handler:       onGamesChanged,
-			onGroupJoined: onSynchronized,
+			onGroupJoined: async () => {
+				onListeningChanged(true);
+				await onSynchronized();
+			},
 			group:         {
 				join:  'SubscribeActiveGames',
 				leave: 'UnsubscribeActiveGames',
 				args:  [],
 			},
 		});
+		const removeStatusListener = this.signalRService.addStatusListener(status => {
+			if (status !== 'connected')
+				onListeningChanged(false);
+		});
+		const statusSubscription: SignalRSubscription = {
+			ready: Promise.resolve(),
+			async dispose(): Promise<void> {
+				removeStatusListener();
+				onListeningChanged(false);
+			},
+		};
+
+		return combineSignalRSubscriptions([ gamesSubscription, statusSubscription ]);
 	}
 }

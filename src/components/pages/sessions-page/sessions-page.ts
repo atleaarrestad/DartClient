@@ -31,6 +31,11 @@ export class SessionsPage extends LitElement {
 	private activeGamesSubscription?: SignalRSubscription;
 	private activeGamesRefresh?: Promise<void>;
 	private activeGamesRefreshQueued = false;
+	private newGameHighlightTimeout?: number;
+	private lifecycleGeneration = 0;
+	private knownGameIds: ReadonlySet<string> = new Set();
+	@state() private listening = false;
+	@state() private newGameIds: ReadonlySet<string> = new Set();
 	private readonly onActiveGamesChanged = () => this.handleActiveGamesChanged();
 
 	@property({ type: Array }) gameTrackers: GameTracker[] = [];
@@ -50,18 +55,27 @@ export class SessionsPage extends LitElement {
 
 	override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
+		const generation = ++this.lifecycleGeneration;
 		await this.loadGames();
 
-		if (this.isConnected)
-			await this.subscribeToActiveGames();
+		if (this.isConnected && generation === this.lifecycleGeneration) {
+			this.updateKnownGameIds();
+			await this.subscribeToActiveGames(generation);
+		}
 	}
 
 	override async disconnectedCallback(): Promise<void> {
 		super.disconnectedCallback();
+		this.lifecycleGeneration++;
 
 		const subscription = this.activeGamesSubscription;
 		this.activeGamesSubscription = undefined;
 		await subscription?.dispose();
+
+		if (this.newGameHighlightTimeout !== undefined)
+			window.clearTimeout(this.newGameHighlightTimeout);
+		this.newGameHighlightTimeout = undefined;
+		this.newGameIds = new Set();
 	}
 
 	private async loadGames(): Promise<void> {
@@ -91,10 +105,20 @@ export class SessionsPage extends LitElement {
 		}
 	}
 
-	private async subscribeToActiveGames(): Promise<void> {
+	private async subscribeToActiveGames(generation: number): Promise<void> {
+		const previousSubscription = this.activeGamesSubscription;
+		this.activeGamesSubscription = undefined;
+		await previousSubscription?.dispose();
+
+		if (!this.isConnected || generation !== this.lifecycleGeneration)
+			return;
+
 		const subscription = this.activeGamesLiveService.subscribe(
 			this.onActiveGamesChanged,
-			() => this.refreshActiveGames(),
+			() => this.synchronizeActiveGames(),
+			listening => {
+				this.listening = listening;
+			},
 		);
 		this.activeGamesSubscription = subscription;
 
@@ -112,11 +136,23 @@ export class SessionsPage extends LitElement {
 
 	private handleActiveGamesChanged(): void {
 		const refreshPromise = this.refreshActiveGames();
-		this.notificationService.addNotification({
-			message: 'Active games changed. Refreshing...',
-			type:    'info',
-			promise: refreshPromise,
-		});
+
+		void refreshPromise.then(() => {
+			const newGameIds = this.gameTrackers
+				.filter(gameTracker => !this.knownGameIds.has(gameTracker.id))
+				.map(gameTracker => gameTracker.id);
+			this.updateKnownGameIds();
+
+			if (newGameIds.length > 0) {
+				this.highlightNewGames(newGameIds);
+				this.notificationService.addNotification({
+					message: newGameIds.length === 1
+						? 'A new game is active.'
+						: `${ newGameIds.length } new games are active.`,
+					type: 'info',
+				});
+			}
+		}).catch(() => {});
 
 		void refreshPromise.catch(error => {
 			console.error(error);
@@ -125,6 +161,26 @@ export class SessionsPage extends LitElement {
 				type:    'danger',
 			});
 		});
+	}
+
+	private async synchronizeActiveGames(): Promise<void> {
+		await this.refreshActiveGames();
+		this.updateKnownGameIds();
+	}
+
+	private updateKnownGameIds(): void {
+		this.knownGameIds = new Set(this.gameTrackers.map(gameTracker => gameTracker.id));
+	}
+
+	private highlightNewGames(gameIds: string[]): void {
+		if (this.newGameHighlightTimeout !== undefined)
+			window.clearTimeout(this.newGameHighlightTimeout);
+
+		this.newGameIds = new Set(gameIds);
+		this.newGameHighlightTimeout = window.setTimeout(() => {
+			this.newGameIds = new Set();
+			this.newGameHighlightTimeout = undefined;
+		}, 1400);
 	}
 
 	private refreshActiveGames(): Promise<void> {
@@ -181,7 +237,7 @@ export class SessionsPage extends LitElement {
 							@game-selected=${ this.handleOnGameSelected }
 						>
 							${ this.gameTrackers.map((tracker, index) => html`
-								<li>
+								<li class=${ this.newGameIds.has(tracker.id) ? 'new-game' : '' }>
 									<aa-active-game-card
 										.gameTracker=${ tracker }
 										.users=${ this.users }
@@ -190,6 +246,17 @@ export class SessionsPage extends LitElement {
 								</li>
 							`) }
 						</ul>
+					`
+					: null }
+
+				${ this.listening
+					? html`
+						<div class="listening-status" role="status" aria-live="polite">
+							<span class="listening-track" aria-hidden="true">
+								<span class="listening-scanner"></span>
+							</span>
+							<span class="listening-copy">Listening for new games...</span>
+						</div>
 					`
 					: null }
 			</section>
