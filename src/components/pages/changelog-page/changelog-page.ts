@@ -20,6 +20,7 @@ const changelogEntries: ChangelogEntry[] = [
 		changes: [
 			'The Active games page now updates automatically when new games start',
 			'Improved spectator mode visibility and added an option to join the game',
+			'Reduced throw updates to changed game data instead of resending the full game',
 		],
 	},
 	{

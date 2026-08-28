@@ -1,4 +1,5 @@
 import '../../aa-loading-state/aa-loading-state.js';
+import '../../achievement-builder/achievement-builder.js';
 import '../../rank-display/aa-rank-display.js';
 import '../../season-basics-editor/season-basics-editor.js';
 import '../../season-configuration-list/season-configuration-list.js';
@@ -11,6 +12,10 @@ import { customElement, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
 import { getAchievementTierIcon } from '../../../helpers/achievementHelper.js';
+import {
+	compileAchievementTemplate,
+	restoreAchievementTemplateDraft,
+} from '../../../helpers/compileAchievementTemplate.js';
 import {
 	AchievementTier,
 	GameConstraint,
@@ -34,6 +39,9 @@ import {
 	ScoreModifierRule,
 	Season,
 } from '../../../models/schemas.js';
+import type { AchievementTemplateDraft } from '../../../models/achievementBuilder.js';
+import type { AchievementTemplateResponse } from '../../../models/achievementBuilderApi.js';
+import { AchievementBuilderService } from '../../../services/achievementBuilderService.js';
 import { DialogService } from '../../../services/dialogService.js';
 import { NotificationService } from '../../../services/notificationService.js';
 import { RuleService } from '../../../services/ruleService.js';
@@ -44,6 +52,7 @@ import {
 import { sharedStyles } from '../../../styles/shared-styles.js';
 import type { AaButton } from '../../../ui/button/aa-button.js';
 import type { AaMmrConfigurationEditor } from '../../aa-mmr-configuration-editor/aa-mmr-configuration-editor.js';
+import type { AaAchievementBuilder } from '../../achievement-builder/achievement-builder.js';
 import type {
 	SeasonBasicsChangeEvent,
 	SeasonBasicsValue,
@@ -124,6 +133,7 @@ export class SeasonsPage extends LitElement {
 
 	private seasonService = container.resolve(SeasonService);
 	private ruleService = container.resolve(RuleService);
+	private achievementBuilderService = container.resolve(AchievementBuilderService);
 	private dialogService = container.resolve(DialogService);
 	private notificationService = container.resolve(NotificationService);
 
@@ -137,6 +147,7 @@ export class SeasonsPage extends LitElement {
 	@state() private saving = false;
 	@state() private loadError = '';
 	@state() private validationErrors: string[] = [];
+	@state() private achievementTemplatesBySeason: Record<string, AchievementTemplateResponse[]> = {};
 
 	override connectedCallback(): void {
 		super.connectedCallback();
@@ -1109,6 +1120,238 @@ rule.executionOrder = Number(
 		}
 	}
 
+	private getAchievementBuilderV2Summary(): string {
+		const seasonId = this.draft?.id;
+		const count = seasonId
+			? (this.achievementTemplatesBySeason[seasonId]?.length ?? 0)
+			: 0;
+		return count === 0
+			? 'Create visual, executable achievement templates'
+			: `${ count } achievement template${ count === 1 ? '' : 's' }`;
+	}
+
+	private async openAchievementBuilderV2(): Promise<void> {
+		if (!this.draft?.id) {
+			this.notificationService.addNotification({
+				type:    'info',
+				message: 'Save the season before creating its achievement templates.',
+			});
+
+			return;
+		}
+
+		if (!this.accessGranted) {
+			const unlocked = await this.openUnlockSavingDialog();
+			if (!unlocked)
+				return;
+		}
+
+		try {
+			const [ templates, catalog ] = await Promise.all([
+				this.achievementBuilderService.getTemplates(this.draft.id),
+				this.achievementBuilderService.getCatalog(),
+			]);
+			this.achievementTemplatesBySeason = {
+				...this.achievementTemplatesBySeason,
+				[this.draft.id]: templates,
+			};
+			let publishAfterSave = false;
+			let saveInProgress = false;
+			const setSubmitButtonsBusy = (dialog: Element | null, busy: boolean): void => {
+				dialog?.querySelectorAll<AaButton>('[data-achievement-submit]')
+					.forEach(button => {
+						button.loading = busy;
+						button.disabled = busy;
+					});
+			};
+
+			await this.dialogService.open(
+				html`
+					<select
+						slot="actions"
+						aria-label="Select achievement template"
+						@change=${ (event: Event) => {
+							const select = event.currentTarget as HTMLSelectElement;
+							const template = templates.find(item => item.id === select.value);
+							const dialog = select.closest('aa-dialog');
+							const builder = dialog?.querySelector(
+								'aa-achievement-builder',
+							) as AaAchievementBuilder | null;
+							builder?.loadDraft(
+								template
+									? restoreAchievementTemplateDraft(template)
+									: undefined,
+							);
+						} }
+					>
+						<option value="">New achievement</option>
+						${ templates.map(template => {
+							const version = template.versions.find(item => item.status === 'Draft')
+								?? template.versions[0];
+							return html`
+								<option value=${ template.id }>
+									${ version?.nameTemplate ?? 'Unnamed achievement' }
+									${ version?.status === 'Published' ? '(published)' : '(draft)' }
+								</option>
+							`;
+						}) }
+					</select>
+					<aa-button
+						slot="footer-secondary"
+						type="button"
+						variant="secondary"
+						@click=${ this.closeDialog }
+					>
+						Close
+					</aa-button>
+					<aa-button
+						slot="footer-tertiary"
+						data-achievement-submit
+						type="button"
+						variant="secondary"
+						@click=${ (event: Event) => {
+							if (saveInProgress)
+								return;
+							publishAfterSave = false;
+							const dialog = (event.currentTarget as HTMLElement).closest('aa-dialog');
+							const builder = dialog?.querySelector(
+								'aa-achievement-builder',
+							) as AaAchievementBuilder | null;
+							saveInProgress = true;
+							setSubmitButtonsBusy(dialog, true);
+							if (!builder?.submit()) {
+								saveInProgress = false;
+								setSubmitButtonsBusy(dialog, false);
+							}
+						} }
+					>
+						Save draft
+					</aa-button>
+					<aa-button
+						slot="footer-primary"
+						data-achievement-submit
+						type="button"
+						variant="primary"
+						@click=${ (event: Event) => {
+							if (saveInProgress)
+								return;
+							publishAfterSave = true;
+							const dialog = (event.currentTarget as HTMLElement).closest('aa-dialog');
+							const builder = dialog?.querySelector(
+								'aa-achievement-builder',
+							) as AaAchievementBuilder | null;
+							saveInProgress = true;
+							setSubmitButtonsBusy(dialog, true);
+							if (!builder?.submit()) {
+								saveInProgress = false;
+								setSubmitButtonsBusy(dialog, false);
+							}
+						} }
+					>
+						Publish achievement
+					</aa-button>
+					<aa-achievement-builder
+						seasonId=${ this.draft.id }
+						.maximumGeneratedInstances=${ catalog.limits.maximumGeneratedInstances }
+						@achievement-builder-save=${ async (
+							event: CustomEvent<AchievementTemplateDraft>,
+						) => {
+							const builder = event.currentTarget as AaAchievementBuilder;
+							const shouldPublish = publishAfterSave;
+							try {
+								const request = compileAchievementTemplate(event.detail);
+								const saved = event.detail.id
+									? await this.achievementBuilderService.updateTemplate(
+										event.detail.id,
+										request,
+										this.adminKey,
+									)
+									: await this.achievementBuilderService.createTemplate(
+										request,
+										this.adminKey,
+									);
+								builder.loadDraft({ ...event.detail, id: saved.id });
+								const seasonTemplates = this.achievementTemplatesBySeason[
+									event.detail.seasonId
+								] ?? [];
+								const savedIndex = seasonTemplates.findIndex(
+									template => template.id === saved.id,
+								);
+								this.achievementTemplatesBySeason = {
+									...this.achievementTemplatesBySeason,
+									[event.detail.seasonId]: savedIndex >= 0
+										? seasonTemplates.map((template, index) =>
+											index === savedIndex ? saved : template)
+										: [ ...seasonTemplates, saved ],
+								};
+								const validation = await this.achievementBuilderService
+									.validateTemplate(saved.id);
+								if (!validation.isValid) {
+									this.notificationService.addNotification({
+										type:    'danger',
+										message: validation.errors[0] ?? 'Achievement template is invalid.',
+									});
+
+									return;
+								}
+
+								const result = shouldPublish
+									? await this.achievementBuilderService.publishTemplate(
+										saved.id,
+										this.adminKey,
+									)
+									: saved;
+								const currentTemplates = this.achievementTemplatesBySeason[
+									event.detail.seasonId
+								] ?? [];
+								const existingIndex = currentTemplates.findIndex(
+									template => template.id === result.id,
+								);
+								this.achievementTemplatesBySeason = {
+									...this.achievementTemplatesBySeason,
+									[event.detail.seasonId]: existingIndex >= 0
+										? currentTemplates.map((template, index) =>
+											index === existingIndex ? result : template)
+										: [ ...currentTemplates, result ],
+								};
+								this.notificationService.addNotification({
+									type: 'success',
+									message: shouldPublish
+										? `Published ${ event.detail.nameTemplate }.`
+										: `Saved ${ event.detail.nameTemplate } as a draft.`,
+								});
+								this.closeDialog(event);
+							}
+							catch (error) {
+								this.notificationService.addNotification({
+									type:    'danger',
+									message: error instanceof Error
+										? error.message
+										: 'Unable to save achievement template.',
+								});
+							}
+							finally {
+								saveInProgress = false;
+								setSubmitButtonsBusy(builder.closest('aa-dialog'), false);
+							}
+						} }
+					></aa-achievement-builder>
+				`,
+				{
+					title:       'Achievement builder',
+					large:       true,
+					fixedHeight: true,
+				},
+			);
+		}
+		catch (error) {
+			this.notificationService.addNotification({
+				type:    'danger',
+				message: error instanceof Error ? error.message : 'Unable to open achievement builder.',
+			});
+		}
+	}
+
 	private validateDraft(): string[] {
 		if (!this.draft)
 			return [ 'No season is selected.' ];
@@ -1406,6 +1649,12 @@ rule.executionOrder = Number(
 				summary:       '',
 				activateLabel: 'Configure MMR calculation',
 			},
+			{
+				id:            'achievement-builder',
+				title:         'Achievement builder',
+				summary:       this.getAchievementBuilderV2Summary(),
+				activateLabel: 'Create achievement templates',
+			},
 		];
 	}
 
@@ -1430,6 +1679,9 @@ rule.executionOrder = Number(
 			break;
 		case 'mmr-calculation':
 			void this.openMmrConfiguration();
+			break;
+		case 'achievement-builder':
+			void this.openAchievementBuilderV2();
 			break;
 		}
 	}

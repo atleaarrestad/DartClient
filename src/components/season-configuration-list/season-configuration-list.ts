@@ -13,7 +13,8 @@ export type SeasonConfigurationItemId =
 	| 'game-constraints'
 	| 'rank-thresholds'
 	| 'achievement-rewards'
-	| 'mmr-calculation';
+	| 'mmr-calculation'
+	| 'achievement-builder';
 
 export interface SeasonConfigurationPreviewImage {
 	src:  string;
@@ -54,7 +55,7 @@ export class SeasonConfigurationList extends LitElement {
 			this.renderRoot.querySelector<HTMLElement>('.configuration-panel');
 		if (configurationPanel !== this.configurationPanel) {
 			this.configurationPanelResizeObserver.disconnect();
-			this.configurationPanel = configurationPanel;
+			this.configurationPanel = configurationPanel ?? undefined;
 
 			if (configurationPanel)
 				this.configurationPanelResizeObserver.observe(configurationPanel);

@@ -3,7 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 
 import { faIcons } from '../../../faIcons.js';
 import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
-import { GameResult, GameTracker } from '../../../models/schemas.js';
+import { GameResult, GameTracker, GameTrackerDelta } from '../../../models/schemas.js';
 import { SignalRSubscription } from '../../../services/signalRService.js';
 import { postGameTemplate } from '../../../templates/dialogTemplates.js';
 import { GamePage } from '../game-page/game-page.js';
@@ -15,7 +15,9 @@ export class SpectateGamePage extends GamePage {
 	@state() private gameId!: string;
 	private spectateSubscription?: SignalRSubscription;
 	private readonly onGameUpdated = (gameId: string, gameTracker: GameTracker) => this.HandleOnGameUpdated(gameId, gameTracker);
+	private readonly onGameDelta = (gameId: string, delta: GameTrackerDelta) => void this.HandleOnGameDelta(gameId, delta);
 	private readonly onGameFinished = (gameId: string, gameResult: GameResult) => this.HandleOnGameFinished(gameId, gameResult);
+	private synchronizationPromise?: Promise<void>;
 	constructor() {
 		super();
 	}
@@ -61,6 +63,7 @@ export class SpectateGamePage extends GamePage {
 			this.gameId,
 			{
 				onUpdated:  this.onGameUpdated,
+				onDelta:    this.onGameDelta,
 				onFinished: this.onGameFinished,
 			},
 			() => this.synchronizeGameState(),
@@ -81,6 +84,15 @@ export class SpectateGamePage extends GamePage {
 	}
 
 	private async synchronizeGameState(): Promise<void> {
+		this.synchronizationPromise ??= this.fetchAndApplyGameState()
+			.finally(() => {
+				this.synchronizationPromise = undefined;
+			});
+
+		await this.synchronizationPromise;
+	}
+
+	private async fetchAndApplyGameState(): Promise<void> {
 		const gameTracker = await this.gameService.getActiveGame(this.gameId);
 		if (gameTracker) {
 			this.updateGameState(gameTracker);
@@ -104,6 +116,20 @@ export class SpectateGamePage extends GamePage {
 			return;
 
 		this.updateGameState(gameTracker);
+	}
+
+	private async HandleOnGameDelta(gameId: string, delta: GameTrackerDelta): Promise<void> {
+		if (gameId !== this.gameId)
+			return;
+
+		let status = this.applyGameDelta(delta);
+		if (status !== 'gap' && status !== 'invalid')
+			return;
+
+		await this.synchronizeGameState();
+		status = this.applyGameDelta(delta);
+		if (status === 'gap' || status === 'invalid')
+			await this.synchronizeGameState();
 	}
 
 	private async HandleOnGameFinished(gameId: string, gameResult: GameResult): Promise<void> {

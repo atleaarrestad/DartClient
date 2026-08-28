@@ -1,7 +1,7 @@
 import { container, injectable } from 'tsyringe';
 
 import { DartThrow } from '../models/dartThrowSchema.js';
-import { GameTracker } from '../models/schemas.js';
+import { GameTracker, GameTrackerDelta } from '../models/schemas.js';
 import { CacheService } from './cacheService.js';
 import { DataService } from './dataService.js';
 
@@ -32,7 +32,12 @@ export class GameService {
 		return await this.dataService.AddPlayerToGameSession(gameId, playerId);
 	}
 
-	async addDartThrowToGame(gameId: string, playerId: string, roundNumber: number, dartThrow: DartThrow): Promise<GameTracker> {
+	async addDartThrowToGame(
+		gameId: string,
+		playerId: string,
+		roundNumber: number,
+		dartThrow: DartThrow,
+	): Promise<GameTracker | GameTrackerDelta> {
 		return this.dataService.AddDartThrowToGameSession(gameId, playerId, roundNumber, dartThrow);
 	}
 

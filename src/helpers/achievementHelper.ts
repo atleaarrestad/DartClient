@@ -40,6 +40,11 @@ function groupUnlockedByTier(
   pr.unlockedProgressAchievements.forEach(a =>
     add(defs.progressionAchievementDefinitions.get(a))
   );
+  pr.unlockedV2Achievements.forEach(achievement => add({
+    name: achievement.renderedName,
+    description: achievement.renderedDescription,
+    achievementTier: achievement.achievementTier,
+  }));
 
   const order: AchievementTier[] = [
 	  AchievementTier.diamond,

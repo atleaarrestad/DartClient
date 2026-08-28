@@ -1,7 +1,8 @@
 import { container, injectable } from 'tsyringe';
 
 import type { SessionAchievement } from '../models/enums.js';
-import type { GameResult, GameTracker } from '../models/schemas.js';
+import type { AchievementInstanceResponse } from '../models/achievementBuilderApi.js';
+import type { GameResult, GameTracker, GameTrackerDelta } from '../models/schemas.js';
 import {
 	combineSignalRSubscriptions,
 	SignalRService,
@@ -35,10 +36,30 @@ export class GameLiveService {
 		});
 	}
 
+	subscribeToV2Achievements(
+		gameId: string,
+		handler: (
+			gameId: string,
+			playerId: string,
+			achievements: AchievementInstanceResponse[],
+		) => void,
+	): SignalRSubscription {
+		return this.signalRService.registerSubscription({
+			event: 'OnV2AchievementProjectionAdded',
+			handler,
+			group: {
+				join:  'SubscribeAchievement',
+				leave: 'UnsubscribeAchievement',
+				args:  [ gameId ],
+			},
+		});
+	}
+
 	subscribeToGame(
 		gameId: string,
 		handlers: {
 			onUpdated: (gameId: string, gameTracker: GameTracker) => void;
+			onDelta: (gameId: string, delta: GameTrackerDelta) => void;
 			onFinished: (gameId: string, gameResult: GameResult) => void;
 		},
 		onSynchronized: () => void | Promise<void>,
@@ -49,6 +70,15 @@ export class GameLiveService {
 				handler:       handlers.onUpdated,
 				onGroupJoined: onSynchronized,
 				group:         {
+					join:  'SubscribeSpectate',
+					leave: 'UnsubscribeSpectate',
+					args:  [ gameId ],
+				},
+			}),
+			this.signalRService.registerSubscription({
+				event:   'OnGameDelta',
+				handler: handlers.onDelta,
+				group:   {
 					join:  'SubscribeSpectate',
 					leave: 'UnsubscribeSpectate',
 					args:  [ gameId ],

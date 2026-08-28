@@ -1,15 +1,17 @@
 import { z } from 'zod';
 
+import { AchievementInstanceResponseSchema } from './achievementBuilderApi.js';
 import { DartThrowSchema } from './dartThrowSchema.js';
 import { AchievementTier, GameConstraint, ProgressAchievement, RoundStatus, ScoreModifier, SessionAchievement, ThrowType, WinCondition } from './enums.js';
 import { Rank } from './rank.js';
 
 
 export const RoundSchema = z.object({
-	roundIndex:       z.number().int().min(0),
-	dartThrows:       z.array(DartThrowSchema).min(1).max(3),
-	cumulativePoints: z.number().min(0),
-	roundStatus:      z.nativeEnum(RoundStatus),
+	roundIndex:          z.number().int().min(0),
+	dartThrows:          z.array(DartThrowSchema).min(1).max(3),
+	cumulativePoints:    z.number().min(0),
+	roundStatus:         z.nativeEnum(RoundStatus),
+	indexOfVictoryThrow: z.number().int().min(0).max(2).nullable().default(null),
 });
 
 export const PlayerRoundsSchema = z.object({
@@ -35,11 +37,13 @@ export const PlayerResultSchema = z.object({
 	newRank:                      z.nativeEnum(Rank),
 	unlockedProgressAchievements: z.array(z.nativeEnum(ProgressAchievement)),
 	unlockedSessionAchievements:  z.array(z.nativeEnum(SessionAchievement)),
+	unlockedV2Achievements:       z.array(AchievementInstanceResponseSchema).default([]),
 });
 
 export const GameTrackerSchema = z.object({
 	id:                                   z.string().uuid(),
 	started:                              z.string().transform(str => new Date(str)),
+	revision:                             z.number().int().nonnegative().default(0),
 	maximumRounds:                        z.number().int().nullable().default(null),
 	configuredMaximumRounds:              z.number().int().nullable().default(null),
 	playersRounds:                        z.array(PlayerRoundsSchema),
@@ -47,6 +51,74 @@ export const GameTrackerSchema = z.object({
 		z.string().uuid(),
 		z.array(z.nativeEnum(SessionAchievement)),
 	).default({}),
+	projectedV2AchievementsByPlayer: z.record(
+		z.string().uuid(),
+		z.array(AchievementInstanceResponseSchema),
+	).default({}),
+});
+
+export const PlayerRoundDeltaSchema = z.object({
+	playerId:        z.string().uuid(),
+	startRoundIndex: z.number().int().nonnegative(),
+	roundCount:      z.number().int().nonnegative(),
+	rounds:          z.array(RoundSchema),
+}).superRefine((delta, context) => {
+	if (delta.startRoundIndex > delta.roundCount) {
+		context.addIssue({
+			code:    'custom',
+			message: 'startRoundIndex cannot exceed roundCount',
+		});
+	}
+
+	if (delta.rounds.length !== delta.roundCount - delta.startRoundIndex) {
+		context.addIssue({
+			code:    'custom',
+			message: 'rounds must contain the complete authoritative tail',
+		});
+	}
+
+	delta.rounds.forEach((round, index) => {
+		if (round.roundIndex !== delta.startRoundIndex + index) {
+			context.addIssue({
+				code:    'custom',
+				message: 'round indexes must be contiguous from startRoundIndex',
+				path:    [ 'rounds', index, 'roundIndex' ],
+			});
+		}
+	});
+});
+
+export const GameTrackerDeltaSchema = z.object({
+	gameId:                               z.string().uuid(),
+	baseRevision:                         z.number().int().nonnegative(),
+	revision:                             z.number().int().positive(),
+	maximumRounds:                        z.number().int().nullable(),
+	configuredMaximumRounds:              z.number().int().nullable(),
+	playerRoundDeltas:                    z.array(PlayerRoundDeltaSchema),
+	projectedSessionAchievementsByPlayer: z.record(
+		z.string().uuid(),
+		z.array(z.nativeEnum(SessionAchievement)),
+	),
+}).superRefine((delta, context) => {
+	if (delta.revision !== delta.baseRevision + 1) {
+		context.addIssue({
+			code:    'custom',
+			message: 'revision must immediately follow baseRevision',
+		});
+	}
+
+	const playerIds = new Set<string>();
+	delta.playerRoundDeltas.forEach((playerDelta, index) => {
+		if (playerIds.has(playerDelta.playerId)) {
+			context.addIssue({
+				code:    'custom',
+				message: 'playerRoundDeltas cannot contain duplicate players',
+				path:    [ 'playerRoundDeltas', index, 'playerId' ],
+			});
+		}
+
+		playerIds.add(playerDelta.playerId);
+	});
 });
 
 export const MatchSnapshotSchema = z.object({
@@ -125,6 +197,7 @@ export const SeasonStatisticsSchema = z.object({
 	finishCount:                  	 z.array(FinishCountSchema),
 	unlockedProgressAchievements: 	 z.array(ProgressionAchievementSafeSchema),
 	unlockedSessionAchievements:  	 z.array(SessionAchievementSafeSchema),
+	unlockedV2Achievements:          z.array(AchievementInstanceResponseSchema).default([]),
 	progressAchievementProgress:    z.array(ProgressionAchievementProgressSchema).default([]),
 });
 
@@ -281,6 +354,8 @@ export type FinishCount = z.infer<typeof FinishCountSchema>;
 export type ProgressionAchievementTarget = z.infer<typeof ProgressionAchievementTargetSchema>;
 export type ProgressionAchievementProgress = z.infer<typeof ProgressionAchievementProgressSchema>;
 export type GameTracker = z.infer<typeof GameTrackerSchema>;
+export type PlayerRoundDelta = z.infer<typeof PlayerRoundDeltaSchema>;
+export type GameTrackerDelta = z.infer<typeof GameTrackerDeltaSchema>;
 
 export type User = z.infer<typeof UserSchema>;
 

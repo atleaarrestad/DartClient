@@ -8,11 +8,27 @@ import {
 } from '../api/users.requests.js';
 import { DartThrow } from '../models/dartThrowSchema.js';
 import {
+	AchievementBuilderCatalog,
+	AchievementBuilderCatalogSchema,
+	AchievementInstanceResponse,
+	AchievementInstanceResponseSchema,
+	AchievementTemplateResponse,
+	AchievementTemplateResponseSchema,
+	AchievementValidationResponse,
+	AchievementValidationResponseSchema,
+	PredictAchievementThrowsRequest,
+	PredictAchievementThrowsResponse,
+	PredictAchievementThrowsResponseSchema,
+	UpsertAchievementTemplateRequest,
+} from '../models/achievementBuilderApi.js';
+import {
 	AchievementDefinitionsResponse,
 	AchievementDefinitionsResponseSchema,
 	GameResult,
 	GameResultSchema,
 	GameTracker,
+	GameTrackerDelta,
+	GameTrackerDeltaSchema,
 	GameTrackerSchema,
 	type RuleDefinitionsResponse,
 	RuleDefinitionsResponseSchema,
@@ -32,6 +48,7 @@ export class DataService {
 	private backendURL = import.meta.env.VITE_SERVER_URL;
 	private abortTimeout = 500000;
 	private addThrowQueue: Promise<unknown> = Promise.resolve();
+	private addThrowFailure?: unknown;
 
 	async Ping(): Promise<string> {
 		const result = await this.get<string>('ping');
@@ -166,7 +183,12 @@ export class DataService {
 
 	private enqueueAddThrow<T>(task: () => Promise<T>): Promise<T> {
 		const result = this.addThrowQueue.then(task, task);
-		this.addThrowQueue = result.catch(() => {});
+		this.addThrowQueue = result.then(
+			() => undefined,
+			error => {
+				this.addThrowFailure ??= error;
+			},
+		);
 
 		return result;
 	}
@@ -176,14 +198,14 @@ export class DataService {
 		playerId: string,
 		roundNumber: number,
 		dartThrow: DartThrow,
-	): Promise<GameTracker> {
+	): Promise<GameTracker | GameTrackerDelta> {
 		return this.enqueueAddThrow(async () => {
 			const request = {
 				HitLocation: dartThrow.hitLocation,
 				ThrowType: dartThrow.throwType,
 			};
 
-			const result = await this.post<object, GameTracker>(
+			const result = await this.post<object, GameTracker | GameTrackerDelta>(
 				`games/sessions/${gameId}/player/${playerId}/round/${roundNumber}/throw/${dartThrow.throwIndex}`,
 				request,
 			);
@@ -192,12 +214,14 @@ export class DataService {
 				throw this.createApiError('Failed to save dart throw', result);
 			}
 
-			try {
-				return GameTrackerSchema.parse(result.data);
-			}
-			catch {
-				throw new Error('Invalid game tracker data received from the API');
-			}
+			const delta = GameTrackerDeltaSchema.safeParse(result.data);
+			if (delta.success)
+				return delta.data;
+			const tracker = GameTrackerSchema.safeParse(result.data);
+			if (tracker.success)
+				return tracker.data;
+
+			throw new Error('Invalid game state received from the API');
 		});
 	}
 
@@ -285,7 +309,150 @@ export class DataService {
 		);
 	}
 
+	async getAchievementBuilderCatalog(): Promise<AchievementBuilderCatalog> {
+		const response = await this.get<unknown>('achievement-builder/catalog');
+		if (!response.ok)
+			throw this.createApiError('Failed to load achievement builder catalog', response);
+
+		return this.parseApiData(
+			AchievementBuilderCatalogSchema,
+			response.data,
+			'Invalid achievement builder catalog received from the API',
+		);
+	}
+
+	async getAchievementBuilderTemplates(
+		seasonId: string,
+	): Promise<AchievementTemplateResponse[]> {
+		const response = await this.get<unknown>(
+			`achievement-builder/templates?seasonId=${ encodeURIComponent(seasonId) }`,
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to load achievement templates', response);
+
+		return this.parseApiData(
+			z.array(AchievementTemplateResponseSchema),
+			response.data,
+			'Invalid achievement templates received from the API',
+		);
+	}
+
+	async getAchievementBuilderInstances(
+		seasonId: string,
+	): Promise<AchievementInstanceResponse[]> {
+		const response = await this.get<unknown>(
+			`achievement-builder/instances?seasonId=${ encodeURIComponent(seasonId) }`,
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to load achievement instances', response);
+
+		return this.parseApiData(
+			z.array(AchievementInstanceResponseSchema),
+			response.data,
+			'Invalid achievement instances received from the API',
+		);
+	}
+
+	async createAchievementBuilderTemplate(
+		request: UpsertAchievementTemplateRequest,
+		adminKey: string,
+	): Promise<AchievementTemplateResponse> {
+		const response = await this.post<UpsertAchievementTemplateRequest, unknown>(
+			'achievement-builder/templates',
+			request,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to create achievement template', response);
+
+		return this.parseApiData(
+			AchievementTemplateResponseSchema,
+			response.data,
+			'Invalid achievement template received after creation',
+		);
+	}
+
+	async updateAchievementBuilderTemplate(
+		templateId: string,
+		request: UpsertAchievementTemplateRequest,
+		adminKey: string,
+	): Promise<AchievementTemplateResponse> {
+		const response = await this.put<UpsertAchievementTemplateRequest, unknown>(
+			`achievement-builder/templates/${ encodeURIComponent(templateId) }`,
+			request,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to update achievement template', response);
+
+		return this.parseApiData(
+			AchievementTemplateResponseSchema,
+			response.data,
+			'Invalid achievement template received after update',
+		);
+	}
+
+	async validateAchievementBuilderTemplate(
+		templateId: string,
+	): Promise<AchievementValidationResponse> {
+		const response = await this.post<undefined, unknown>(
+			`achievement-builder/templates/${ encodeURIComponent(templateId) }/validate`,
+			undefined,
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to validate achievement template', response);
+
+		return this.parseApiData(
+			AchievementValidationResponseSchema,
+			response.data,
+			'Invalid achievement validation response received from the API',
+		);
+	}
+
+	async publishAchievementBuilderTemplate(
+		templateId: string,
+		adminKey: string,
+	): Promise<AchievementTemplateResponse> {
+		const response = await this.post<undefined, unknown>(
+			`achievement-builder/templates/${ encodeURIComponent(templateId) }/publish`,
+			undefined,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to publish achievement template', response);
+
+		return this.parseApiData(
+			AchievementTemplateResponseSchema,
+			response.data,
+			'Invalid achievement template received after publishing',
+		);
+	}
+
+	async predictAchievementThrows(
+		request: PredictAchievementThrowsRequest,
+	): Promise<PredictAchievementThrowsResponse> {
+		const response = await this.post<PredictAchievementThrowsRequest, unknown>(
+			'achievement-builder/predict-next-throw',
+			request,
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to predict achievement throws', response);
+
+		return this.parseApiData(
+			PredictAchievementThrowsResponseSchema,
+			response.data,
+			'Invalid achievement prediction received from the API',
+		);
+	}
+
 	async SubmitGame(gameId: string): Promise<GameResult> {
+		await this.addThrowQueue;
+		if (this.addThrowFailure !== undefined) {
+			const failure = this.addThrowFailure;
+			this.addThrowFailure = undefined;
+			throw failure;
+		}
+
 		const response = await this.post<undefined, GameResult>(
 			`games/sessions/${gameId}`,
 			undefined,

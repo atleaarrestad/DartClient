@@ -448,7 +448,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      4,
 			newRank:      5,
 			unlockedSessionAchievements: [SessionAchievement.ThreeOfAKind20],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 		{
 			id:           26,
@@ -463,7 +464,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      5,
 			newRank:      5,
 			unlockedSessionAchievements: [SessionAchievement.ClassicAnyDouble, SessionAchievement.ClassicAnyTripple, SessionAchievement.Classic1, SessionAchievement.Classic3, SessionAchievement.Classic2],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 		{
 			id:           26,
@@ -478,7 +480,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      5,
 			newRank:      5,
 			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 		{
 			id:           26,
@@ -493,7 +496,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      5,
 			newRank:      5,
 			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 		{
 			id:           26,
@@ -508,7 +512,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      5,
 			newRank:      5,
 			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 		{
 			id:           26,
@@ -523,7 +528,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      5,
 			newRank:      5,
 			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 		{
 			id:           26,
@@ -538,7 +544,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      5,
 			newRank:      5,
 			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 		{
 			id:           26,
@@ -553,7 +560,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      5,
 			newRank:      5,
 			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 		{
 			id:           26,
@@ -568,7 +576,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      5,
 			newRank:      5,
 			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 		{
 			id:           26,
@@ -583,7 +592,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      5,
 			newRank:      5,
 			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 		{
 			id:           26,
@@ -598,7 +608,8 @@ export const gameResultDummyData: GameResult = {
 			oldRank:      5,
 			newRank:      5,
 			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: []
+			unlockedProgressAchievements: [],
+			unlockedV2Achievements: [],
 		},
 	],
 	season: {
@@ -620,6 +631,7 @@ export const gameResultDummyData: GameResult = {
 				winCondition: 1,
 			},
 		],
+		gameConstraintRules: [],
 		rankThresholds: [],
 		achievementTierRewards: [],
 		mmrConfiguration: { ...defaultMmrConfiguration },

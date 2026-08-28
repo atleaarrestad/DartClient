@@ -5,6 +5,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
 import { UserQueryOptions } from '../../../api/users.requests.js';
+import type { AchievementInstanceResponse } from '../../../models/achievementBuilderApi.js';
 import {
 	AchievementDefinitionsResponse,
 	Season,
@@ -17,6 +18,7 @@ import { UserService } from '../../../services/userService.js';
 import { sharedStyles } from '../../../styles/shared-styles.js';
 import userPageStyles from './user-page.css?inline';
 import { achievementService } from '../../../services/achievementService.js';
+import { AchievementBuilderService } from '../../../services/achievementBuilderService.js';
 import type {
 	AaAchievementBrowser,
 	AchievementGrouping,
@@ -49,6 +51,7 @@ export class UserPage extends LitElement {
 	@state() private seasons?: Season[];
 	@state() private selectedSeason?: Season;
 	@state() private achievementDefinitions?: AchievementDefinitionsResponse;
+	@state() private v2AchievementInstances: AchievementInstanceResponse[] = [];
 	@state() private isLoadingSeasonStats = false;
 	@state() private hitDistributionView: HitDistributionView = 'bars';
 
@@ -56,6 +59,7 @@ export class UserPage extends LitElement {
 	private userService: UserService;
 	private user?: User;
 	private achievementService: achievementService;
+	private achievementBuilderService: AchievementBuilderService;
 	private dialogService: DialogService;
 	private seasonStatsRequestId = 0;
 
@@ -64,6 +68,7 @@ export class UserPage extends LitElement {
 		this.userService = container.resolve(UserService);
 		this.seasonService = container.resolve(SeasonService);
 		this.achievementService = container.resolve(achievementService);
+		this.achievementBuilderService = container.resolve(AchievementBuilderService);
 		this.dialogService = container.resolve(DialogService);
 	}
 
@@ -115,13 +120,17 @@ export class UserPage extends LitElement {
 
 		try {
 			const options = this.getSeasonScopedUserQueryOptions(seasonId);
-			const user = await this.userService.getUserById(this.userId, options) ?? undefined;
+			const [ user, v2AchievementInstances ] = await Promise.all([
+				this.userService.getUserById(this.userId, options),
+				this.achievementBuilderService.getInstances(seasonId),
+			]);
 
 			if (requestId !== this.seasonStatsRequestId) {
 				return;
 			}
 
-			this.user = user;
+			this.user = user ?? undefined;
+			this.v2AchievementInstances = v2AchievementInstances;
 		}
 		finally {
 			if (requestId === this.seasonStatsRequestId) {
@@ -146,6 +155,7 @@ export class UserPage extends LitElement {
 			finishCount: [],
 			unlockedProgressAchievements: [],
 			unlockedSessionAchievements: [],
+			unlockedV2Achievements: [],
 			progressAchievementProgress: [],
 		};
 
@@ -196,18 +206,46 @@ export class UserPage extends LitElement {
 			unlockedSession.has(achievement));
 		const earnedProgress = progressionEntries.filter(([ achievement ]) =>
 			unlockedProgress.has(achievement));
+		const latestVersionByTemplate = new Map<string, number>();
+		this.v2AchievementInstances.forEach(instance => latestVersionByTemplate.set(
+			instance.templateId,
+			Math.max(
+				latestVersionByTemplate.get(instance.templateId) ?? 0,
+				instance.versionNumber,
+			),
+		));
+		const v2Achievements = new Map(
+			this.v2AchievementInstances
+				.filter(instance =>
+					instance.versionNumber === latestVersionByTemplate.get(instance.templateId))
+				.map(instance => [ instance.id, instance ]),
+		);
+		stats.unlockedV2Achievements.forEach(instance =>
+			v2Achievements.set(instance.id, instance));
+		const unlockedV2Ids = new Set(
+			stats.unlockedV2Achievements.map(instance => instance.id),
+		);
+		const earnedV2 = [ ...v2Achievements.values() ].filter(instance =>
+			unlockedV2Ids.has(instance.id));
 		const getCapIncrease = (achievementTier: number): number =>
 			capIncreaseByTier.get(achievementTier) ?? 0;
 
 		return {
-			earned:            earnedSession.length + earnedProgress.length,
-			total:             sessionEntries.length + progressionEntries.length,
-			earnedCapIncrease: [ ...earnedSession, ...earnedProgress ]
-				.reduce((sum, [ , definition ]) =>
-					sum + getCapIncrease(definition.achievementTier), 0),
-			totalCapIncrease:  [ ...sessionEntries, ...progressionEntries ]
-				.reduce((sum, [ , definition ]) =>
-					sum + getCapIncrease(definition.achievementTier), 0),
+			earned:            earnedSession.length + earnedProgress.length + earnedV2.length,
+			total:             sessionEntries.length + progressionEntries.length
+				+ v2Achievements.size,
+			earnedCapIncrease: [
+				...earnedSession.map(([ , definition ]) => definition),
+				...earnedProgress.map(([ , definition ]) => definition),
+				...earnedV2,
+			].reduce((sum, definition) =>
+				sum + getCapIncrease(definition.achievementTier), 0),
+			totalCapIncrease:  [
+				...sessionEntries.map(([ , definition ]) => definition),
+				...progressionEntries.map(([ , definition ]) => definition),
+				...v2Achievements.values(),
+			].reduce((sum, definition) =>
+				sum + getCapIncrease(definition.achievementTier), 0),
 		};
 	}
 
@@ -243,6 +281,7 @@ export class UserPage extends LitElement {
 					<aa-achievement-browser
 						.stats=${stats}
 						.definitions=${this.achievementDefinitions}
+						.v2Instances=${this.v2AchievementInstances}
 					></aa-achievement-browser>
 				`,
 				{

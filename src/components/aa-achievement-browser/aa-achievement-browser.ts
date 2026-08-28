@@ -9,6 +9,7 @@ import {
 	getAchievementTierIcon,
 	getAchievementTypeLabel,
 } from '../../helpers/achievementHelper.js';
+import type { AchievementInstanceResponse } from '../../models/achievementBuilderApi.js';
 import {
 	AchievementTier,
 	ProgressAchievement,
@@ -27,13 +28,16 @@ import { sharedStyles } from '../../styles/shared-styles.js';
 import type { AaTabItem } from '../aa-tabs/aa-tabs.js';
 import achievementBrowserStyles from './aa-achievement-browser.css?inline';
 
-type AchievementDefinition =
-	| SessionsAchievementDefinition
-	| ProgressionAchievementDefinition;
+type AchievementDefinition = Pick<
+	SessionsAchievementDefinition | ProgressionAchievementDefinition,
+	'name' | 'description' | 'achievementTier'
+>;
 
 interface AchievementEntry {
 	definition: AchievementDefinition;
 	unlocked:   boolean;
+	typeKey:    string;
+	typeLabel:  string;
 	progress?:  ProgressionAchievementProgress;
 }
 
@@ -51,6 +55,7 @@ export class AaAchievementBrowser extends LitElement {
 
 	@property({ attribute: false }) stats?:       SeasonStatistics;
 	@property({ attribute: false }) definitions?: AchievementDefinitionsResponse;
+	@property({ attribute: false }) v2Instances:  AchievementInstanceResponse[] = [];
 
 	@state() private grouping: AchievementGrouping = 'type';
 	@state() private selectedTab = '';
@@ -137,7 +142,7 @@ export class AaAchievementBrowser extends LitElement {
 					${ badge === 'type'
 						? html`
 							<aa-badge pill>
-								${ getAchievementTypeLabel(item.achievementType) }
+								${ achievement.typeLabel }
 							</aa-badge>
 						`
 						: html`
@@ -273,6 +278,8 @@ export class AaAchievementBrowser extends LitElement {
 			achievements.push({
 				definition,
 				unlocked: unlockedSession.has(id),
+				typeKey: `legacy:${ definition.achievementType }`,
+				typeLabel: getAchievementTypeLabel(definition.achievementType),
 			});
 		}
 
@@ -280,12 +287,53 @@ export class AaAchievementBrowser extends LitElement {
 			achievements.push({
 				definition,
 				unlocked: unlockedProgress.has(id),
+				typeKey: `legacy:${ definition.achievementType }`,
+				typeLabel: getAchievementTypeLabel(definition.achievementType),
 				progress: progressByAchievement.get(id),
 			});
 		}
 
-		const byType: Map<number, Map<AchievementTier, TierProgress>> = new Map();
-		const ensureTier = (type: number, tier: AchievementTier): TierProgress => {
+		const latestVersionByTemplate = new Map<string, number>();
+		for (const instance of this.v2Instances) {
+			latestVersionByTemplate.set(
+				instance.templateId,
+				Math.max(
+					latestVersionByTemplate.get(instance.templateId) ?? 0,
+					instance.versionNumber,
+				),
+			);
+		}
+		const visibleV2 = new Map(
+			this.v2Instances
+				.filter(instance =>
+					instance.versionNumber === latestVersionByTemplate.get(instance.templateId))
+				.map(instance => [ instance.id, instance ]),
+		);
+		this.stats.unlockedV2Achievements.forEach(instance =>
+			visibleV2.set(instance.id, instance));
+		const unlockedV2Ids = new Set(
+			this.stats.unlockedV2Achievements.map(instance => instance.id),
+		);
+		for (const instance of visibleV2.values()) {
+			achievements.push({
+				definition: {
+					name: instance.renderedName,
+					description: instance.renderedDescription,
+					achievementTier: instance.achievementTier,
+				},
+				unlocked: unlockedV2Ids.has(instance.id),
+				typeKey: `v2:${ instance.category || 'Custom' }`,
+				typeLabel: instance.category || 'Custom',
+			});
+		}
+
+		const byType: Map<string, Map<AchievementTier, TierProgress>> = new Map();
+		const typeLabels = new Map<string, string>();
+		const ensureTier = (
+			type: string,
+			typeLabel: string,
+			tier: AchievementTier,
+		): TierProgress => {
 			const tiers = byType.get(type) ?? new Map<AchievementTier, TierProgress>();
 			const progress = tiers.get(tier) ?? {
 				earned:       0,
@@ -296,13 +344,15 @@ export class AaAchievementBrowser extends LitElement {
 
 			tiers.set(tier, progress);
 			byType.set(type, tiers);
+			typeLabels.set(type, typeLabel);
 
 			return progress;
 		};
 
 		for (const achievement of achievements) {
 			const progress = ensureTier(
-				achievement.definition.achievementType,
+				achievement.typeKey,
+				achievement.typeLabel,
 				achievement.definition.achievementTier as AchievementTier,
 			);
 
@@ -323,7 +373,8 @@ export class AaAchievementBrowser extends LitElement {
 			AchievementTier.platinum,
 			AchievementTier.diamond,
 		];
-		const typeEntries = [ ...byType.entries() ].sort(([ left ], [ right ]) => left - right);
+		const typeEntries = [ ...byType.entries() ].sort(([ left ], [ right ]) =>
+			(typeLabels.get(left) ?? left).localeCompare(typeLabels.get(right) ?? right));
 		const typeTabs: AaTabItem[] = typeEntries.map(([ type, tiers ]) => {
 			const total = tierOrder.reduce(
 				(sum, tier) => sum + (tiers.get(tier)?.total ?? 0),
@@ -335,8 +386,8 @@ export class AaAchievementBrowser extends LitElement {
 			);
 
 			return {
-				id:    `type:${ type }`,
-				label: getAchievementTypeLabel(type),
+				id:    `type:${ encodeURIComponent(type) }`,
+				label: typeLabels.get(type) ?? type,
 				count: `${ earned }/${ total }`,
 			};
 		});
@@ -368,14 +419,15 @@ export class AaAchievementBrowser extends LitElement {
 			? this.selectedTab
 			: tabs[0]?.id ?? '';
 		const activeTab = tabs.find(tab => tab.id === activeTabId);
-		const activeValue = Number(activeTabId.split(':')[1]);
+		const activeType = decodeURIComponent(activeTabId.slice('type:'.length));
+		const activeTier = Number(activeTabId.slice('tier:'.length));
 		const hasUnknown =
 			this.stats.unlockedSessionAchievements.includes('unknown') ||
 			this.stats.unlockedProgressAchievements.includes('unknown');
 		const activeAchievements = this.grouping === 'type'
-			? this.getTypeAchievements(byType.get(activeValue), tierOrder)
+			? this.getTypeAchievements(byType.get(activeType), tierOrder)
 			: achievements.filter(
-				achievement => achievement.definition.achievementTier === activeValue,
+				achievement => achievement.definition.achievementTier === activeTier,
 			);
 
 		return html`

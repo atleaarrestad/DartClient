@@ -1,4 +1,4 @@
-import { html, LitElement, type PropertyValues, unsafeCSS } from 'lit';
+import { html, LitElement, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
 
@@ -21,6 +21,7 @@ export class AaDialog extends LitElement {
 		super.connectedCallback();
 
 		window.addEventListener('keydown', this.onKeyDown);
+		this.addEventListener('pointerdown', this.onBackdropPointerDown);
 		this._prevOverflow = document.body.style.overflow;
 		document.body.style.overflow = 'hidden';
 		queueMicrotask(() => this.shadowRoot?.getElementById('dialog')?.focus());
@@ -30,13 +31,8 @@ export class AaDialog extends LitElement {
 		super.disconnectedCallback();
 
 		window.removeEventListener('keydown', this.onKeyDown);
+		this.removeEventListener('pointerdown', this.onBackdropPointerDown);
 		document.body.style.overflow = this._prevOverflow ?? '';
-	}
-
-	override firstUpdated(changedProperties: PropertyValues): void {
-		super.firstUpdated(changedProperties);
-
-		this.addEventListener('click', this.onBackdropClick);
 	}
 
 	private onKeyDown = (e: KeyboardEvent) => {
@@ -46,7 +42,7 @@ export class AaDialog extends LitElement {
 		}
 	};
 
-	private onBackdropClick = () => {
+	private onBackdropPointerDown = () => {
 		if (this.closeOnBackdrop)
 			this.close();
 	};
@@ -90,6 +86,7 @@ export class AaDialog extends LitElement {
         role="dialog"
         aria-modal="true"
         tabindex="-1"
+        @pointerdown=${ (e: Event) => e.stopPropagation() }
         @click=${ (e: Event) => e.stopPropagation() }
       >
         <slot name="header" @slotchange=${ this.requestUpdate }></slot>

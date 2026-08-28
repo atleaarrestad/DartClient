@@ -5,13 +5,18 @@ import type { PropertyValues } from 'lit';
 import { LitElement } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { guard } from 'lit/directives/guard.js';
 import { map } from 'lit/directives/map.js';
 import { container } from 'tsyringe';
 
 import { getAchievementTierIcon } from '../../../helpers/achievementHelper.js';
+import {
+	applyGameTrackerDelta,
+	ApplyGameTrackerDeltaResult,
+} from '../../../helpers/applyGameTrackerDelta.js';
 import { sum } from '../../../helpers/sum.js';
 import { AchievementTier, RoundStatus, SessionAchievement } from '../../../models/enums.js';
-import { AchievementDefinitionsResponse, GameTracker, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../../models/schemas.js';
+import { AchievementDefinitionsResponse, GameTracker, GameTrackerDelta, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../../models/schemas.js';
 import { DataService } from '../../../services/dataService.js';
 import { DialogService } from '../../../services/dialogService.js';
 import { GameService } from '../../../services/gameService.js';
@@ -31,6 +36,7 @@ import {
 } from '../../../services/signalRService.js';
 import { CacheService } from '../../../services/cacheService.js';
 import { getErrorMessage } from '../../../helpers/getErrorMessage.js';
+import type { AchievementInstanceResponse } from '../../../models/achievementBuilderApi.js';
 
 export class GamePage extends LitElement {
 
@@ -58,16 +64,20 @@ export class GamePage extends LitElement {
 	protected gameService: GameService;
 	protected cacheService: CacheService;
 	protected gameIdFromLocalStorage: string | undefined = undefined;
+	protected gameRevision = 0;
+	protected gameRevisionId?: string;
 	protected creatingGame: boolean = false;
 	protected selectedId?: string;
 	protected selectedCellElement?: aaDartThrow = undefined;
 	protected isActiveGame: boolean = false;
 	protected projectedSessionAchievementsByPlayer: Record<string, SessionAchievement[]> = {};
+	protected projectedV2AchievementsByPlayer: Record<string, AchievementInstanceResponse[]> = {};
 	protected scrollLeader: HTMLElement | null = null;
 	protected signalRService: SignalRService;
 	protected gameLiveService: GameLiveService;
 	private removeSignalRStatusListener?: () => void;
 	private achievementSubscription?: SignalRSubscription;
+	private v2AchievementSubscription?: SignalRSubscription;
 	private lifecycleGeneration = 0;
 	private observedPlayerContainer?: HTMLElement;
 	private readonly playerContainerResizeObserver = new ResizeObserver(() =>
@@ -80,6 +90,11 @@ export class GamePage extends LitElement {
 		playerId: string,
 		sessionAchievements: SessionAchievement[],
 	) => this.HandleSessionAchievementUnlocked(gameId, playerId, sessionAchievements);
+	private readonly onV2AchievementProjected = (
+		gameId: string,
+		playerId: string,
+		achievements: AchievementInstanceResponse[],
+	) => this.HandleV2AchievementProjected(gameId, playerId, achievements);
 
 	constructor() {
 		super();
@@ -170,18 +185,28 @@ export class GamePage extends LitElement {
 	public async subscribeToAchievementEvents(gameId: string): Promise<void> {
 		await this.unsubscribeFromAchievementEvents();
 
-		const subscription = this.gameLiveService.subscribeToAchievements(
+		const legacySubscription = this.gameLiveService.subscribeToAchievements(
 			gameId,
 			this.onSessionAchievementUnlocked,
 		);
-		this.achievementSubscription = subscription;
-		await subscription.ready;
+		const v2Subscription = this.gameLiveService.subscribeToV2Achievements(
+			gameId,
+			this.onV2AchievementProjected,
+		);
+		this.achievementSubscription = legacySubscription;
+		this.v2AchievementSubscription = v2Subscription;
+		await Promise.all([ legacySubscription.ready, v2Subscription.ready ]);
 	}
 
 	public async unsubscribeFromAchievementEvents(): Promise<void> {
-		const subscription = this.achievementSubscription;
+		const legacySubscription = this.achievementSubscription;
+		const v2Subscription = this.v2AchievementSubscription;
 		this.achievementSubscription = undefined;
-		await subscription?.dispose();
+		this.v2AchievementSubscription = undefined;
+		await Promise.all([
+			legacySubscription?.dispose(),
+			v2Subscription?.dispose(),
+		]);
 	}
 
 	private async HandleSessionAchievementUnlocked(
@@ -197,6 +222,28 @@ export class GamePage extends LitElement {
 		this.notificationService.addNotification({
 			type: 'achievement',
 			achievementNames,
+			timeout: 6000,
+		});
+	}
+
+	private async HandleV2AchievementProjected(
+		gameId: string,
+		playerId: string,
+		achievements: AchievementInstanceResponse[],
+	) {
+		if (gameId !== this.gameIdFromLocalStorage || achievements.length === 0)
+			return;
+
+		const existing = this.projectedV2AchievementsByPlayer[playerId] ?? [];
+		const byId = new Map(existing.map(achievement => [ achievement.id, achievement ]));
+		achievements.forEach(achievement => byId.set(achievement.id, achievement));
+		this.projectedV2AchievementsByPlayer = {
+			...this.projectedV2AchievementsByPlayer,
+			[playerId]: [ ...byId.values() ],
+		};
+		this.notificationService.addNotification({
+			type: 'achievement',
+			achievementNames: achievements.map(achievement => achievement.renderedName),
 			timeout: 6000,
 		});
 	}
@@ -379,21 +426,69 @@ export class GamePage extends LitElement {
 
 	protected handleDartThrowFocused?(event: FocusEvent): void;
 
-	protected updateGameState(gameTracker: GameTracker): void {
+	protected updateGameState(gameTracker: GameTracker): boolean {
+		if (this.gameRevisionId !== gameTracker.id) {
+			this.gameRevisionId = gameTracker.id;
+			this.gameRevision = 0;
+			this.projectedSessionAchievementsByPlayer = {};
+			this.projectedV2AchievementsByPlayer = {};
+		}
+		else if (gameTracker.revision < this.gameRevision) {
+			return false;
+		}
+
 		const oldRoundCount = Math.max(...this.players.map(p => p.rounds.length), 0);
 		const newRoundCount = Math.max(...gameTracker.playersRounds.map(p => p.rounds.length), 0);
 		const roundCountChanged = oldRoundCount !== newRoundCount;
 
 		this.maximumRounds = gameTracker.maximumRounds;
 		this.configuredMaximumRounds = gameTracker.configuredMaximumRounds;
+		this.gameRevision = gameTracker.revision;
 		this.players = [ ...gameTracker.playersRounds ];
 		this.projectedSessionAchievementsByPlayer = {
 			...gameTracker.projectedSessionAchievementsByPlayer,
+		};
+		this.projectedV2AchievementsByPlayer = {
+			...gameTracker.projectedV2AchievementsByPlayer,
 		};
 		this.reorderPlayersByMMR();
 
 		if (roundCountChanged)
 			void this.scrollToEndInPlayerRounds();
+
+		return true;
+	}
+
+	protected applyGameDelta(delta: GameTrackerDelta): ApplyGameTrackerDeltaResult['status'] {
+		const gameId = this.gameIdFromLocalStorage;
+		if (!gameId)
+			return 'invalid';
+
+		const oldRoundCount = Math.max(...this.players.map(player => player.rounds.length), 0);
+		const result = applyGameTrackerDelta({
+			gameId,
+			revision:                this.gameRevision,
+			maximumRounds:           this.maximumRounds,
+			configuredMaximumRounds: this.configuredMaximumRounds,
+			playersRounds:           this.players,
+			projectedSessionAchievementsByPlayer: this.projectedSessionAchievementsByPlayer,
+		}, delta);
+
+		if (result.status !== 'applied')
+			return result.status;
+
+		this.gameRevision = result.state.revision;
+		this.maximumRounds = result.state.maximumRounds;
+		this.configuredMaximumRounds = result.state.configuredMaximumRounds;
+		this.players = result.state.playersRounds;
+		this.projectedSessionAchievementsByPlayer =
+			result.state.projectedSessionAchievementsByPlayer;
+
+		const newRoundCount = Math.max(...this.players.map(player => player.rounds.length), 0);
+		if (oldRoundCount !== newRoundCount)
+			void this.scrollToEndInPlayerRounds();
+
+		return result.status;
 	}
 
 	protected getCumulativePoints(player: PlayerRounds): number {
@@ -491,7 +586,7 @@ export class GamePage extends LitElement {
 		}
 
 		this.playerContainerResizeObserver.disconnect();
-		this.observedPlayerContainer = playerContainer;
+		this.observedPlayerContainer = playerContainer ?? undefined;
 
 		if (!playerContainer)
 			return;
@@ -515,8 +610,8 @@ export class GamePage extends LitElement {
 		if (!playerContainer || playerContainer.clientHeight === 0)
 			return;
 
-		const playerCards: HTMLElement[] = [
-			...playerContainer.querySelectorAll('.player'),
+		const playerCards = [
+			...playerContainer.querySelectorAll<HTMLElement>('.player'),
 		];
 		if (playerCards.length === 0)
 			return;
@@ -597,7 +692,7 @@ export class GamePage extends LitElement {
 				rankInner?.querySelector<HTMLElement>('aa-rank-display');
 			const detailedAchievements =
 				rankInner?.querySelector<HTMLElement>('.projected-achievements--detailed');
-			const playerId = rankInner?.dataset.playerId;
+			const playerId = rankInner?.dataset['playerId'];
 
 			if (!rankInner || !rankDisplay || !detailedAchievements || !playerId)
 				continue;
@@ -676,22 +771,36 @@ export class GamePage extends LitElement {
 	}
 
 	protected renderProjectedAchievements(playerId: string): unknown {
-		if (!this.achievementDefinitions)
-			return null;
-
-		const achievements = this.projectedSessionAchievementsByPlayer[playerId] ?? [];
-		if (achievements.length === 0)
+		const legacyAchievements = this.projectedSessionAchievementsByPlayer[playerId] ?? [];
+		const v2Achievements = this.projectedV2AchievementsByPlayer[playerId] ?? [];
+		if (legacyAchievements.length === 0 && v2Achievements.length === 0)
 			return null;
 
 		const countsByTier = new Map<AchievementTier, number>();
-		for (const achievement of achievements) {
-			const definition = this.achievementDefinitions.sessionAchievementDefinitions.get(achievement);
+		const namesByTier = new Map<AchievementTier, string[]>();
+		for (const achievement of legacyAchievements) {
+			const definition =
+				this.achievementDefinitions?.sessionAchievementDefinitions.get(achievement);
 			if (!definition)
 				continue;
 
 			const tier = definition.achievementTier as AchievementTier;
 			countsByTier.set(tier, (countsByTier.get(tier) ?? 0) + 1);
+			namesByTier.set(tier, [
+				...(namesByTier.get(tier) ?? []),
+				definition.name,
+			]);
 		}
+		for (const achievement of v2Achievements) {
+			const tier = achievement.achievementTier as AchievementTier;
+			countsByTier.set(tier, (countsByTier.get(tier) ?? 0) + 1);
+			namesByTier.set(tier, [
+				...(namesByTier.get(tier) ?? []),
+				achievement.renderedName,
+			]);
+		}
+		if (countsByTier.size === 0)
+			return null;
 
 		const tierOrder = [
 			AchievementTier.diamond,
@@ -718,7 +827,7 @@ export class GamePage extends LitElement {
 				${groupedTiers.map(tier => html`
 						<span
 							class="projected-achievement"
-							title="${ countsByTier.get(tier) } ${ AchievementTier[tier] } achievement(s) when submitted"
+							title="${ (namesByTier.get(tier) ?? []).join(', ') }"
 						>
 							<span class="projected-achievement__count">${ countsByTier.get(tier) }x</span>
 							<img
@@ -788,8 +897,29 @@ export class GamePage extends LitElement {
 							const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
 							const placeholderRoundCount = this.getPlaceholderRoundCount(player);
 							const roundLimitBarrierCount = this.getRoundLimitBarrierCount(player);
+							const projectedAchievements =
+								this.projectedSessionAchievementsByPlayer[player.playerId];
+							const projectedV2Achievements =
+								this.projectedV2AchievementsByPlayer[player.playerId];
+							const isAchievementCompact =
+								this.compactAchievementPlayers.has(player.playerId);
+							const isActive = this.isPlayerActive(playerIndex);
 
-							return html`
+							return guard([
+								player,
+								playerIndex,
+								user,
+								mmr,
+								rank,
+								this.maximumRounds,
+								this.configuredMaximumRounds,
+								this.visibleRoundCapacity,
+								projectedAchievements,
+								projectedV2Achievements,
+								isAchievementCompact,
+								isActive,
+								this.isReadOnly,
+							], () => html`
 								<article
 									class="player"
 									@focusin=${this.onPlayerInteract}
@@ -797,7 +927,7 @@ export class GamePage extends LitElement {
 								>
 									<span class=${classMap({
 										'player-name': true,
-										'active-player-name': this.isPlayerActive(playerIndex),
+										'active-player-name': isActive,
 									})}>
 										<span>${user.alias}</span>
 									</span>
@@ -837,8 +967,11 @@ export class GamePage extends LitElement {
 																			);
 																		}
 																		catch (error) {
-																			if (previousThrow) {
-																				cmp.dartThrow = { ...previousThrow };
+																			const authoritativeThrow =
+																				this.players[playerIndex]?.rounds[roundIndex]?.dartThrows[throwIndex]
+																				?? previousThrow;
+																			if (authoritativeThrow) {
+																				cmp.dartThrow = { ...authoritativeThrow };
 																				cmp.requestUpdate();
 																			}
 																			this.reportError(error, 'Unable to save dart throw.');
@@ -931,8 +1064,7 @@ export class GamePage extends LitElement {
 										<div
 											class=${classMap({
 												'rank-inner-container': true,
-												'is-achievement-compact':
-													this.compactAchievementPlayers.has(player.playerId),
+												'is-achievement-compact': isAchievementCompact,
 											})}
 											data-player-id=${ player.playerId }
 										>
@@ -943,7 +1075,7 @@ export class GamePage extends LitElement {
 										</div>
 									</div>
 								</article>
-							`;
+							`);
 						})}
 					</div>
 

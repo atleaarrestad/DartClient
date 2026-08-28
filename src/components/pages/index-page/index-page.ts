@@ -30,6 +30,11 @@ export class IndexPage extends GamePage {
 	protected override isReadOnly: boolean = false;
 	protected blockThrowUpdates: boolean = false;
 	protected lastPlayedUserIds: string[] = [];
+	private readonly pendingDartThrowUpdates = new Map<
+		string,
+		{ token: symbol; dartThrow: DartThrow; }
+	>();
+	private gameSynchronizationPromise?: Promise<void>;
 
 	override connectedCallback(): void {
 		super.connectedCallback();
@@ -52,38 +57,204 @@ export class IndexPage extends GamePage {
 		if (!this.players[playerIndex])
 			return;
 
-		const playerId = this.getUserFromPlayerIndex(playerIndex)?.id;
+		const gameId = this.gameIdFromLocalStorage!;
+		const playerId = this.players[playerIndex]!.playerId;
+		const updateKey = this.getDartThrowUpdateKey(
+			gameId,
+			playerId,
+			roundNumber,
+			updatedThrow.throwIndex,
+		);
+		const token = Symbol(updateKey);
 
-		const gameTracker = await this.gameService
-			.addDartThrowToGame(this.gameIdFromLocalStorage!, playerId!, roundNumber, updatedThrow);
+		this.pendingDartThrowUpdates.set(updateKey, {
+			token,
+			dartThrow: { ...updatedThrow },
+		});
 
-		const selectedCellElement: aaDartThrow | undefined = this.selectedCellElement;
-		const selectedDartThrow: DartThrow | undefined = selectedCellElement?.dartThrow;
-		const selectedDartThrowDetails = this.getSelectedElementDetails();
-		const hasValidOldSelection = selectedCellElement && selectedDartThrow && selectedDartThrowDetails;
-		let storedOldValue: DartThrow | undefined = undefined;
+		try {
+			const gameUpdate = await this.gameService.addDartThrowToGame(
+				gameId,
+				playerId,
+				roundNumber,
+				updatedThrow,
+			);
 
-		if (hasValidOldSelection && selectedDartThrowDetails.throwIndex !== updatedThrow.throwIndex) {
-			const existingThrow =
-				this.players[selectedDartThrowDetails.playerIndex!]?.rounds[selectedDartThrowDetails.rowIndex!]?.dartThrows[selectedDartThrowDetails.throwIndex!];
+			this.removePendingDartThrowUpdate(updateKey, token);
 
-			if (existingThrow) {
-				storedOldValue = { ...selectedCellElement.dartThrow };
+			const focusedDraft = this.getFocusedDartThrowDraft();
+			if ('playersRounds' in gameUpdate) {
+				this.updateGameState(gameUpdate);
 			}
+			else {
+				let status = this.applyGameDelta(gameUpdate);
+				if (status === 'gap' || status === 'invalid') {
+					await this.synchronizeGameState();
+					status = this.applyGameDelta(gameUpdate);
+					if (status === 'gap' || status === 'invalid')
+						await this.synchronizeGameState();
+				}
+			}
+
+			this.applyPendingDartThrowUpdates();
+			this.applyFocusedDartThrowDraft(focusedDraft);
+			this.focusNextValidPlayerAfterRoundFailure(playerIndex, roundNumber);
 		}
+		catch (error) {
+			this.removePendingDartThrowUpdate(updateKey, token);
+			await this.synchronizeGameState();
+			this.applyPendingDartThrowUpdates();
+
+			throw error;
+		}
+	}
+
+	private getDartThrowUpdateKey(
+		gameId: string,
+		playerId: string,
+		roundIndex: number,
+		throwIndex: number,
+	): string {
+		return `${ gameId }:${ playerId }:${ roundIndex }:${ throwIndex }`;
+	}
+
+	private removePendingDartThrowUpdate(key: string, token: symbol): boolean {
+		const pendingUpdate = this.pendingDartThrowUpdates.get(key);
+		if (pendingUpdate?.token !== token)
+			return false;
+
+		this.pendingDartThrowUpdates.delete(key);
+		return true;
+	}
+
+	private applyPendingDartThrowUpdates(): void {
+		if (this.pendingDartThrowUpdates.size === 0)
+			return;
+
+		const pendingByPlayerId = new Map<string, Map<number, Map<number, DartThrow>>>();
+		for (const [ key, pending ] of this.pendingDartThrowUpdates) {
+			const [ gameId, playerId, roundIndexText, throwIndexText ] = key.split(':');
+			if (gameId !== this.gameIdFromLocalStorage)
+				continue;
+
+			const roundIndex = Number(roundIndexText);
+			const throwIndex = Number(throwIndexText);
+			const byRound = pendingByPlayerId.get(playerId!)
+				?? new Map<number, Map<number, DartThrow>>();
+			const byThrow = byRound.get(roundIndex) ?? new Map<number, DartThrow>();
+
+			byThrow.set(throwIndex, pending.dartThrow);
+			byRound.set(roundIndex, byThrow);
+			pendingByPlayerId.set(playerId!, byRound);
+		}
+
+		this.players = this.players.map(player => {
+			const pendingRounds = pendingByPlayerId.get(player.playerId);
+			if (!pendingRounds)
+				return player;
+
+			return {
+				...player,
+				rounds: player.rounds.map((round, roundIndex) => {
+					const pendingThrows = pendingRounds.get(roundIndex);
+					if (!pendingThrows)
+						return round;
+
+					return {
+						...round,
+						dartThrows: round.dartThrows.map((dartThrow, throwIndex) => {
+							const pendingThrow = pendingThrows.get(throwIndex);
+							return pendingThrow
+								? {
+									...dartThrow,
+									hitLocation: pendingThrow.hitLocation,
+									throwType:   pendingThrow.throwType,
+								}
+								: dartThrow;
+						}),
+					};
+				}),
+			};
+		});
+	}
+
+	private getFocusedDartThrowDraft(): {
+		playerId: string;
+		roundIndex: number;
+		throwIndex: number;
+		hitLocation: number;
+		throwType: DartThrow['throwType'];
+	} | undefined {
+		const details = this.getSelectedElementDetails();
+		const dartThrow = this.selectedCellElement?.dartThrow;
+		if (details.type !== 'throw' || !dartThrow)
+			return undefined;
+
+		const playerId = this.players[details.playerIndex!]?.playerId;
+		if (!playerId)
+			return undefined;
+
+		return {
+			playerId,
+			roundIndex:  details.rowIndex!,
+			throwIndex:  details.throwIndex!,
+			hitLocation: dartThrow.hitLocation,
+			throwType:   dartThrow.throwType,
+		};
+	}
+
+	private applyFocusedDartThrowDraft(
+		draft: ReturnType<IndexPage['getFocusedDartThrowDraft']>,
+	): void {
+		if (!draft)
+			return;
+
+		this.players = this.players.map(player => {
+			if (player.playerId !== draft.playerId)
+				return player;
+
+			return {
+				...player,
+				rounds: player.rounds.map((round, roundIndex) => {
+					if (roundIndex !== draft.roundIndex)
+						return round;
+
+					return {
+						...round,
+						dartThrows: round.dartThrows.map((dartThrow, throwIndex) =>
+							throwIndex === draft.throwIndex
+								? {
+									...dartThrow,
+									hitLocation: draft.hitLocation,
+									throwType:   draft.throwType,
+								}
+								: dartThrow),
+					};
+				}),
+			};
+		});
+	}
+
+	private async synchronizeGameState(): Promise<void> {
+		this.gameSynchronizationPromise ??= this.fetchAndApplyGameState()
+			.finally(() => {
+				this.gameSynchronizationPromise = undefined;
+			});
+
+		await this.gameSynchronizationPromise;
+	}
+
+	private async fetchAndApplyGameState(): Promise<void> {
+		const gameId = this.gameIdFromLocalStorage;
+		if (!gameId)
+			return;
+
+		const gameTracker = await this.gameService.getActiveGame(gameId);
+		if (!gameTracker)
+			throw new Error('The active game could not be synchronized.');
 
 		this.updateGameState(gameTracker);
-
-		if (storedOldValue) {
-			const player = this.players[selectedDartThrowDetails.playerIndex!];
-			const round = player?.rounds[selectedDartThrowDetails.rowIndex!];
-
-			if (round) {
-				round.dartThrows[selectedDartThrowDetails.throwIndex!] = storedOldValue;
-			}
-		}
-
-		this.focusNextValidPlayerAfterRoundFailure(playerIndex, roundNumber);
+		this.applyPendingDartThrowUpdates();
 	}
 
 	protected onKeyDown = this.handleKeyDown.bind(this);
@@ -270,9 +441,14 @@ export class IndexPage extends GamePage {
 			await this.unsubscribeFromAchievementEvents();
 		}
 
+		this.pendingDartThrowUpdates.clear();
 		const newGameID = await this.gameService.requestNewGame();
 		if (newGameID) {
 			this.gameIdFromLocalStorage = newGameID;
+			this.gameRevisionId = newGameID;
+			this.gameRevision = 0;
+			this.projectedSessionAchievementsByPlayer = {};
+			this.projectedV2AchievementsByPlayer = {};
 			await this.subscribeToAchievementEvents(newGameID);
 		}
 
@@ -500,11 +676,14 @@ export class IndexPage extends GamePage {
 
 			await this.unsubscribeFromAchievementEvents();
 			this.gameService.removeCachedGameId();
+			this.pendingDartThrowUpdates.clear();
 
 			this.lastPlayedUserIds = lastPlayedUserIds;
 			this.cacheService.setLastPlayedUserIds(lastPlayedUserIds);
 
 			this.gameIdFromLocalStorage = undefined;
+			this.gameRevisionId = undefined;
+			this.gameRevision = 0;
 			this.isActiveGame = false;
 
 			await this.loadUsers({forceRefresh: true, query: {includeSeasonStatistics: true, limitToSeasonId: this.season!.id}});
