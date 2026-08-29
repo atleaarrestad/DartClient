@@ -63,6 +63,13 @@ const valueSources: { value: AchievementValueSource; label: string; }[] = [
 
 type BuilderScope = 'root' | 'round';
 type ValueEditorRole = 'comparison-left' | 'comparison-right' | 'hit-location';
+interface CanvasDragState {
+	pointerId: number;
+	startX: number;
+	startY: number;
+	originX: number;
+	originY: number;
+}
 
 @customElement('aa-achievement-builder')
 export class AaAchievementBuilder extends LitElement {
@@ -74,6 +81,13 @@ export class AaAchievementBuilder extends LitElement {
 	@state() private selectedTab = 'details';
 	@state() private draft: AchievementTemplateDraft = createEmptyAchievementTemplate('');
 	@state() private errors: string[] = [];
+	@state() private logicCanvasScale = 1;
+	@state() private logicCanvasX = 24;
+	@state() private logicCanvasY = 24;
+	@state() private logicCanvasDragging = false;
+	@state() private dismissedAddControlId = '';
+
+	private logicCanvasDrag?: CanvasDragState;
 
 	override firstUpdated(): void {
 		this.resetDraft();
@@ -85,6 +99,7 @@ export class AaAchievementBuilder extends LitElement {
 		);
 		this.selectedTab = 'details';
 		this.errors = [];
+		this.resetLogicCanvas();
 	}
 
 	public loadDraft(draft?: AchievementTemplateDraft): void {
@@ -99,6 +114,106 @@ export class AaAchievementBuilder extends LitElement {
 
 	private handleTabChange(event: CustomEvent<{ id: string; }>): void {
 		this.selectedTab = event.detail.id;
+		if (this.selectedTab === 'logic')
+			void this.fitLogicCanvas();
+	}
+
+	private resetLogicCanvas(): void {
+		this.logicCanvasScale = 1;
+		this.logicCanvasX = 24;
+		this.logicCanvasY = 24;
+	}
+
+	private setLogicCanvasZoom(
+		scale: number,
+		focusX?: number,
+		focusY?: number,
+	): void {
+		const nextScale = Math.min(1.5, Math.max(0.35, scale));
+		const viewport = this.shadowRoot?.querySelector<HTMLElement>('.logic-canvas__viewport');
+		const x = focusX ?? (viewport?.clientWidth ?? 0) / 2;
+		const y = focusY ?? (viewport?.clientHeight ?? 0) / 2;
+		const worldX = (x - this.logicCanvasX) / this.logicCanvasScale;
+		const worldY = (y - this.logicCanvasY) / this.logicCanvasScale;
+
+		this.logicCanvasX = x - worldX * nextScale;
+		this.logicCanvasY = y - worldY * nextScale;
+		this.logicCanvasScale = nextScale;
+	}
+
+	private handleLogicCanvasWheel(event: WheelEvent): void {
+		if (!event.ctrlKey)
+			return;
+
+		event.preventDefault();
+		const viewport = event.currentTarget as HTMLElement;
+		const bounds = viewport.getBoundingClientRect();
+		const factor = event.deltaY < 0 ? 1.12 : 0.88;
+		this.setLogicCanvasZoom(
+			this.logicCanvasScale * factor,
+			event.clientX - bounds.left,
+			event.clientY - bounds.top,
+		);
+	}
+
+	private handleLogicCanvasPointerDown(event: PointerEvent): void {
+		if (event.button !== 0)
+			return;
+
+		const isInteractive = event.composedPath().some(item =>
+			item instanceof Element
+			&& item.matches('button, input, select, textarea, .logic-node'));
+		if (isInteractive)
+			return;
+
+		const viewport = event.currentTarget as HTMLElement;
+		viewport.setPointerCapture(event.pointerId);
+		this.logicCanvasDrag = {
+			pointerId: event.pointerId,
+			startX: event.clientX,
+			startY: event.clientY,
+			originX: this.logicCanvasX,
+			originY: this.logicCanvasY,
+		};
+		this.logicCanvasDragging = true;
+	}
+
+	private handleLogicCanvasPointerMove(event: PointerEvent): void {
+		if (!this.logicCanvasDrag || this.logicCanvasDrag.pointerId !== event.pointerId)
+			return;
+
+		this.logicCanvasX = this.logicCanvasDrag.originX + event.clientX - this.logicCanvasDrag.startX;
+		this.logicCanvasY = this.logicCanvasDrag.originY + event.clientY - this.logicCanvasDrag.startY;
+	}
+
+	private handleLogicCanvasPointerUp(event: PointerEvent): void {
+		if (!this.logicCanvasDrag || this.logicCanvasDrag.pointerId !== event.pointerId)
+			return;
+
+		const viewport = event.currentTarget as HTMLElement;
+		if (viewport.hasPointerCapture(event.pointerId))
+			viewport.releasePointerCapture(event.pointerId);
+
+		this.logicCanvasDrag = undefined;
+		this.logicCanvasDragging = false;
+	}
+
+	private async fitLogicCanvas(): Promise<void> {
+		await this.updateComplete;
+		const viewport = this.shadowRoot?.querySelector<HTMLElement>('.logic-canvas__viewport');
+		const graph = this.shadowRoot?.querySelector<HTMLElement>('.logic-canvas__graph');
+		if (!viewport || !graph)
+			return;
+
+		const padding = 48;
+		const scale = Math.min(
+			1,
+			(viewport.clientWidth - padding) / graph.offsetWidth,
+			(viewport.clientHeight - padding) / graph.offsetHeight,
+		);
+		this.logicCanvasScale = Math.max(0.35, scale);
+		this.logicCanvasX = Math.max(24, (viewport.clientWidth - graph.offsetWidth * this.logicCanvasScale) / 2);
+		this.logicCanvasY = Math.max(24, (viewport.clientHeight - graph.offsetHeight * this.logicCanvasScale) / 2);
 	}
 
 	private validate(): string[] {
@@ -472,14 +587,6 @@ export class AaAchievementBuilder extends LitElement {
 		this.selectedTab = 'details';
 	}
 
-	private addRootRule(type: AchievementRuleDraft['type']): void {
-		const root = this.draft.rule.type === 'all' || this.draft.rule.type === 'any'
-			? structuredClone(this.draft.rule)
-			: { ...createDefaultAchievementRule(), children: [ structuredClone(this.draft.rule) ] };
-		root.children.push(this.createRule(type, 'root'));
-		this.updateDraft({ rule: root });
-	}
-
 	private replaceRule(
 		current: AchievementRuleDraft,
 		id: string,
@@ -750,10 +857,81 @@ export class AaAchievementBuilder extends LitElement {
 		scope: BuilderScope = 'root',
 	): TemplateResult {
 		const canRemove = depth > 0;
+		if (rule.type === 'not') {
+			return html`
+				<article class="logic-node logic-node--not logic-node--compact">
+					<strong>NOT</strong>
+					${ canRemove
+						? html`
+							<button
+								type="button"
+								class="logic-node__compact-remove"
+								aria-label="Remove NOT block"
+								@click=${ () => this.removeRule(rule.id) }
+							>&times;</button>
+						`
+						: nothing }
+				</article>
+			`;
+		}
+
+		if (rule.type === 'all' || rule.type === 'any') {
+			return html`
+				<article class="logic-node logic-node--group">
+					<div class="logic-node--group__header">
+						${ depth === 0
+							? html`<span class="logic-node__scope">Start</span>`
+							: scope === 'round'
+								? html`<span class="logic-node__scope">Round</span>`
+								: nothing }
+						${ canRemove
+							? html`
+								<button
+									type="button"
+									class="logic-node__compact-remove"
+									aria-label="Remove condition group"
+									@click=${ () => this.removeRule(rule.id) }
+								>&times;</button>
+							`
+							: nothing }
+					</div>
+					<div class="logic-group-mode" role="group" aria-label="Condition match mode">
+						<button
+							type="button"
+							class=${ rule.type === 'all' ? 'logic-group-mode__active' : '' }
+							aria-pressed=${ rule.type === 'all' }
+							@click=${ () => this.updateRule(rule.id, { type: 'all' }) }
+						>ALL</button>
+						<button
+							type="button"
+							class=${ rule.type === 'any' ? 'logic-group-mode__active' : '' }
+							aria-pressed=${ rule.type === 'any' }
+							@click=${ () => this.updateRule(rule.id, { type: 'any' }) }
+						>ANY</button>
+					</div>
+					<small>
+						${ rule.children.length } condition${ rule.children.length === 1 ? '' : 's' }
+					</small>
+				</article>
+			`;
+		}
+
 		return html`
-			<article class="logic-block logic-block--${ rule.type }">
+			<article class="logic-node logic-node--${ rule.type }">
 				<header>
-					<strong>${ ruleTypes.find(item => item.value === rule.type)?.label }</strong>
+					<div class="logic-node__heading">
+						${ depth === 0
+							? html`<span class="logic-node__scope">Start</span>`
+							: scope === 'round'
+								? html`<span class="logic-node__scope">Round</span>`
+								: nothing }
+						<strong class="logic-node__type">
+							${ ruleTypes.find(item => item.value === rule.type)?.label }
+						</strong>
+						${ rule.type === 'round' || rule.type === 'compare'
+							? nothing
+							: html`<small>${ this.getRuleDescription(rule) }</small>` }
+					</div>
 					${ canRemove
 						? html`
 							<button
@@ -765,10 +943,108 @@ export class AaAchievementBuilder extends LitElement {
 						`
 						: nothing }
 				</header>
-				<div class="logic-block__body">
-					${ this.renderRuleBody(rule, depth, scope) }
+				<div class="logic-node__body">
+					${ this.renderRuleBody(rule, scope) }
 				</div>
 			</article>
+		`;
+	}
+
+	private getRuleDescription(rule: AchievementRuleDraft): string {
+		switch (rule.type) {
+		case 'all':
+			return `${ rule.children.length } connected condition${ rule.children.length === 1 ? '' : 's' } must match`;
+		case 'any':
+			return `${ rule.children.length } connected condition${ rule.children.length === 1 ? '' : 's' }; one must match`;
+		case 'not':
+			return 'Inverts the connected condition';
+		case 'round':
+			return 'Finds matching rounds, then checks their condition';
+		case 'throw':
+			return 'Checks throws inside the connected round';
+		case 'compare':
+			return 'Compares two values';
+		case 'sequence':
+			return 'Matches an ordered three-throw pattern';
+		}
+	}
+
+	private getRuleChildren(
+		rule: AchievementRuleDraft,
+		scope: BuilderScope,
+	): { rule: AchievementRuleDraft; scope: BuilderScope; }[] {
+		switch (rule.type) {
+		case 'all':
+		case 'any':
+			return rule.children.map(child => ({ rule: child, scope }));
+		case 'not':
+			return [ { rule: rule.child, scope } ];
+		case 'round':
+			return [ { rule: rule.condition, scope: 'round' } ];
+		default:
+			return [];
+		}
+	}
+
+	private renderRuleBranch(
+		rule: AchievementRuleDraft,
+		depth = 0,
+		scope: BuilderScope = 'root',
+	): TemplateResult {
+		const children = this.getRuleChildren(rule, scope);
+		const canAddChildren = rule.type === 'all' || rule.type === 'any' || rule.type === 'round';
+		return html`
+			<div class="logic-branch ${ children.length > 0 || canAddChildren
+				? 'logic-branch--has-children'
+				: '' }">
+				<div class="logic-branch__node">
+					${ this.renderRule(rule, depth, scope) }
+				</div>
+				${ children.length > 0 || canAddChildren
+					? html`
+						<div class="logic-branch__children">
+							${ children.map(child =>
+								this.renderRuleBranch(child.rule, depth + 1, child.scope)) }
+							${ canAddChildren
+								? html`
+									<div
+										class="logic-add-control ${ this.dismissedAddControlId === rule.id
+											? 'logic-add-control--dismissed'
+											: '' }"
+										@pointerenter=${ () => {
+											if (this.dismissedAddControlId === rule.id)
+												this.dismissedAddControlId = '';
+										} }
+									>
+										<button
+											type="button"
+											class="logic-add-control__trigger"
+											aria-label="Add connected condition"
+											aria-haspopup="true"
+											@focus=${ () => {
+												if (this.dismissedAddControlId === rule.id)
+													this.dismissedAddControlId = '';
+											} }
+										>+</button>
+										<div class="logic-add-control__popover">
+											<strong>Add connected condition</strong>
+											<span>
+												${ rule.type === 'round'
+													? 'This condition runs inside each matching round.'
+													: 'Choose the next condition type.' }
+											</span>
+											${ this.renderAddBlock(
+												rule.id,
+												rule.type === 'round' ? 'round' : scope,
+											) }
+										</div>
+									</div>
+								`
+								: nothing }
+						</div>
+					`
+					: nothing }
+			</div>
 		`;
 	}
 
@@ -785,7 +1061,11 @@ export class AaAchievementBuilder extends LitElement {
 				${ this.getRuleTypes(scope).map(ruleType => html`
 					<button
 						type="button"
-						@click=${ () => this.addChildRule(parentId, ruleType.value, scope) }
+						@click=${ (event: MouseEvent) => {
+							this.dismissedAddControlId = parentId;
+							this.addChildRule(parentId, ruleType.value, scope);
+							(event.currentTarget as HTMLButtonElement).blur();
+						} }
 					>
 						+ ${ ruleType.label }
 					</button>
@@ -796,7 +1076,6 @@ export class AaAchievementBuilder extends LitElement {
 
 	private renderRuleBody(
 		rule: AchievementRuleDraft,
-		depth: number,
 		scope: BuilderScope,
 	): TemplateResult {
 		switch (rule.type) {
@@ -815,49 +1094,58 @@ export class AaAchievementBuilder extends LitElement {
 						<option value="any">At least one child block must match</option>
 					</select>
 				</label>
-				<div class="nested-blocks">
-					${ rule.children.map(child => this.renderRule(child, depth + 1, scope)) }
-					${ this.renderAddBlock(rule.id, scope) }
-				</div>
 			`;
 		case 'not':
-			return this.renderRule(rule.child, depth + 1, scope);
+			return html`
+				<p class="logic-node__summary">
+					The connected condition must <strong>not</strong> match.
+				</p>
+			`;
 		case 'round':
 			return html`
-				<div class="inline-fields">
-					<label>
-						<span>Rounds</span>
-						<select
-							.value=${ rule.quantifier }
-							@change=${ (event: Event) => this.updateRule(rule.id, {
-								quantifier: (event.currentTarget as HTMLSelectElement).value as 'any' | 'all',
+				<div class="round-editor">
+					<div>
+						<span class="logic-field-label">Match rounds</span>
+						<div class="logic-round-mode" role="group" aria-label="Round match mode">
+							<button
+								type="button"
+								class=${ rule.quantifier === 'any' ? 'logic-round-mode__active' : '' }
+								aria-pressed=${ rule.quantifier === 'any' }
+								@click=${ () => this.updateRule(rule.id, { quantifier: 'any' }) }
+							>ANY</button>
+							<button
+								type="button"
+								class=${ rule.quantifier === 'all' ? 'logic-round-mode__active' : '' }
+								aria-pressed=${ rule.quantifier === 'all' }
+								@click=${ () => this.updateRule(rule.id, { quantifier: 'all' }) }
+							>EVERY</button>
+						</div>
+					</div>
+					<div>
+						<span class="logic-field-label">Allowed status</span>
+						<div class="round-statuses">
+							${ [
+								[ 'valid', 'Valid' ],
+								[ 'victory', 'Victory' ],
+								[ 'overshoot', 'Overshoot' ],
+								[ 'failedWinCondition', 'Failed win' ],
+							].map(([ status, label ]) => {
+								const selected = rule.statuses.includes(status as never);
+								return html`
+									<button
+										type="button"
+										class=${ selected ? 'round-statuses__active' : '' }
+										aria-pressed=${ selected }
+										@click=${ () => this.updateRule(rule.id, {
+											statuses: selected
+												? rule.statuses.filter(item => item !== status)
+												: [ ...rule.statuses, status ] as typeof rule.statuses,
+										}) }
+									>${ label }</button>
+								`;
 							}) }
-						>
-							<option value="any">Any round</option>
-							<option value="all">Every round</option>
-						</select>
-					</label>
-					<label>
-						<span>Allowed status</span>
-						<select
-							multiple
-							@change=${ (event: Event) => this.updateRule(rule.id, {
-								statuses: Array.from(
-									(event.currentTarget as HTMLSelectElement).selectedOptions,
-								).map(option => option.value) as typeof rule.statuses,
-							}) }
-						>
-							${ [ 'valid', 'victory', 'overshoot', 'failedWinCondition' ].map(status => html`
-								<option value=${ status } ?selected=${ rule.statuses.includes(status as never) }>
-									${ status }
-								</option>
-							`) }
-						</select>
-					</label>
-				</div>
-				<div class="nested-blocks">
-					${ this.renderRule(rule.condition, depth + 1, 'round') }
-					${ this.renderAddBlock(rule.id, 'round') }
+						</div>
+					</div>
 				</div>
 			`;
 		case 'throw':
@@ -907,12 +1195,15 @@ export class AaAchievementBuilder extends LitElement {
 		case 'compare':
 			return html`
 				<div class="comparison-editor">
-					${ this.renderValueEditor(
-						rule.left,
-						value => this.updateRule(rule.id, { left: value }),
-						scope,
-						'comparison-left',
-					) }
+					<label>
+						<span>Left value</span>
+						${ this.renderValueEditor(
+							rule.left,
+							value => this.updateRule(rule.id, { left: value }),
+							scope,
+							'comparison-left',
+						) }
+					</label>
 					<select
 						aria-label="Comparison operator"
 						.value=${ rule.operator }
@@ -927,12 +1218,15 @@ export class AaAchievementBuilder extends LitElement {
 						<option value="lessThan">&lt;</option>
 						<option value="lessThanOrEqual">&lt;=</option>
 					</select>
-					${ this.renderValueEditor(
-						rule.right,
-						value => this.updateRule(rule.id, { right: value }),
-						scope,
-						'comparison-right',
-					) }
+					<label>
+						<span>Right value</span>
+						${ this.renderValueEditor(
+							rule.right,
+							value => this.updateRule(rule.id, { right: value }),
+							scope,
+							'comparison-right',
+						) }
+					</label>
 				</div>
 			`;
 		case 'sequence':
@@ -1253,22 +1547,51 @@ export class AaAchievementBuilder extends LitElement {
 
 		return html`
 			<section class="builder-panel logic-builder">
-				<div class="panel-intro">
-					<h3>Achievement logic</h3>
-					<p>
-						Compose typed blocks. Nested round and throw blocks define scope; comparison
-						and sequence blocks define the exact condition.
-					</p>
+				<div class="logic-builder__header">
+					<div class="panel-intro">
+						<h3>Achievement logic</h3>
+						<p>
+							Follow the connectors from left to right. Drag empty canvas space to move;
+							hold Ctrl while scrolling to zoom.
+						</p>
+					</div>
+					<div class="logic-canvas__controls" aria-label="Canvas controls">
+						<button
+							type="button"
+							aria-label="Zoom out"
+							@click=${ () => this.setLogicCanvasZoom(this.logicCanvasScale - 0.1) }
+						>&minus;</button>
+						<output>${ Math.round(this.logicCanvasScale * 100) }%</output>
+						<button
+							type="button"
+							aria-label="Zoom in"
+							@click=${ () => this.setLogicCanvasZoom(this.logicCanvasScale + 0.1) }
+						>+</button>
+						<button type="button" @click=${ () => void this.fitLogicCanvas() }>Fit</button>
+					</div>
 				</div>
-				<div class="root-add-blocks">
-					${ this.getRuleTypes('root').map(ruleType => html`
-						<button type="button" @click=${ () => this.addRootRule(ruleType.value) }>
-							+ ${ ruleType.label }
-						</button>
-					`) }
-				</div>
-				<div class="logic-canvas">
-					${ this.renderRule(this.draft.rule) }
+				<div
+					class="logic-canvas__viewport ${ this.logicCanvasDragging
+						? 'logic-canvas__viewport--dragging'
+						: '' }"
+					tabindex="0"
+					aria-label="Achievement logic canvas"
+					@wheel=${ this.handleLogicCanvasWheel }
+					@pointerdown=${ this.handleLogicCanvasPointerDown }
+					@pointermove=${ this.handleLogicCanvasPointerMove }
+					@pointerup=${ this.handleLogicCanvasPointerUp }
+					@pointercancel=${ this.handleLogicCanvasPointerUp }
+					@lostpointercapture=${ this.handleLogicCanvasPointerUp }
+				>
+					<div
+						class="logic-canvas__stage"
+						style="transform: translate(${ this.logicCanvasX }px, ${ this.logicCanvasY }px)
+							scale(${ this.logicCanvasScale });"
+					>
+						<div class="logic-canvas__graph">
+							${ this.renderRuleBranch(this.draft.rule) }
+						</div>
+					</div>
 				</div>
 			</section>
 		`;
