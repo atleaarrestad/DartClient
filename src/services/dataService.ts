@@ -8,6 +8,8 @@ import {
 } from '../api/users.requests.js';
 import { DartThrow } from '../models/dartThrowSchema.js';
 import {
+	AchievementCategoryResponse,
+	AchievementCategoryResponseSchema,
 	AchievementBuilderCatalog,
 	AchievementBuilderCatalogSchema,
 	AchievementInstanceResponse,
@@ -16,9 +18,12 @@ import {
 	AchievementTemplateResponseSchema,
 	AchievementValidationResponse,
 	AchievementValidationResponseSchema,
+	CreateAchievementCategoryRequest,
 	PredictAchievementThrowsRequest,
 	PredictAchievementThrowsResponse,
 	PredictAchievementThrowsResponseSchema,
+	ReorderAchievementCategoriesRequest,
+	UpdateAchievementCategoryRequest,
 	UpsertAchievementTemplateRequest,
 } from '../models/achievementBuilderApi.js';
 import {
@@ -335,6 +340,132 @@ export class DataService {
 			response.data,
 			'Invalid achievement templates received from the API',
 		);
+	}
+
+	async getAchievementCategories(
+		seasonId: string,
+	): Promise<AchievementCategoryResponse[]> {
+		const response = await this.get<unknown>(
+			`achievement-builder/categories?seasonId=${ encodeURIComponent(seasonId) }`,
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to load achievement categories', response);
+
+		return this.parseApiData(
+			z.array(AchievementCategoryResponseSchema),
+			response.data,
+			'Invalid achievement categories received from the API',
+		);
+	}
+
+	async createAchievementCategory(
+		request: CreateAchievementCategoryRequest,
+		adminKey: string,
+	): Promise<AchievementCategoryResponse> {
+		const response = await this.post<CreateAchievementCategoryRequest, unknown>(
+			'achievement-builder/categories',
+			request,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to create achievement category', response);
+
+		return this.parseApiData(
+			AchievementCategoryResponseSchema,
+			response.data,
+			'Invalid achievement category received after creation',
+		);
+	}
+
+	async updateAchievementCategory(
+		categoryId: string,
+		request: UpdateAchievementCategoryRequest,
+		adminKey: string,
+	): Promise<AchievementCategoryResponse> {
+		const response = await this.put<UpdateAchievementCategoryRequest, unknown>(
+			`achievement-builder/categories/${ encodeURIComponent(categoryId) }`,
+			request,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to update achievement category', response);
+
+		return this.parseApiData(
+			AchievementCategoryResponseSchema,
+			response.data,
+			'Invalid achievement category received after update',
+		);
+	}
+
+	async reorderAchievementCategories(
+		request: ReorderAchievementCategoriesRequest,
+		adminKey: string,
+	): Promise<AchievementCategoryResponse[]> {
+		const response = await this.put<ReorderAchievementCategoriesRequest, unknown>(
+			'achievement-builder/categories/order',
+			request,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to reorder achievement categories', response);
+
+		return this.parseApiData(
+			z.array(AchievementCategoryResponseSchema),
+			response.data,
+			'Invalid achievement categories received after reordering',
+		);
+	}
+
+	async archiveAchievementCategory(
+		categoryId: string,
+		adminKey: string,
+	): Promise<AchievementCategoryResponse> {
+		const response = await this.post<undefined, unknown>(
+			`achievement-builder/categories/${ encodeURIComponent(categoryId) }/archive`,
+			undefined,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to archive achievement category', response);
+
+		return this.parseApiData(
+			AchievementCategoryResponseSchema,
+			response.data,
+			'Invalid achievement category received after archiving',
+		);
+	}
+
+	async restoreAchievementCategory(
+		categoryId: string,
+		adminKey: string,
+	): Promise<AchievementCategoryResponse> {
+		const response = await this.post<undefined, unknown>(
+			`achievement-builder/categories/${ encodeURIComponent(categoryId) }/restore`,
+			undefined,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to restore achievement category', response);
+
+		return this.parseApiData(
+			AchievementCategoryResponseSchema,
+			response.data,
+			'Invalid achievement category received after restoring',
+		);
+	}
+
+	async deleteAchievementCategory(
+		categoryId: string,
+		adminKey: string,
+	): Promise<boolean> {
+		const response = await this.delete<unknown>(
+			`achievement-builder/categories/${ encodeURIComponent(categoryId) }`,
+			this.getSeasonAdminHeaders(adminKey),
+		);
+		if (!response.ok)
+			throw this.createApiError('Failed to delete achievement category', response);
+
+		return true;
 	}
 
 	async getAchievementBuilderInstances(

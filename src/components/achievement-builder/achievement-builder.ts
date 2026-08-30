@@ -1,9 +1,11 @@
 import '../aa-tabs/aa-tabs.js';
+import '../achievement-category-manager/achievement-category-manager.js';
 import '../../ui/button/aa-button.js';
 
 import { html, LitElement, nothing, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
+import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
 import {
 	AchievementParameterDraft,
 	AchievementProgressionDraft,
@@ -17,8 +19,13 @@ import {
 	createEmptyAchievementTemplate,
 } from '../../models/achievementBuilder.js';
 import { AchievementTier } from '../../models/enums.js';
+import type { AchievementCategoryResponse } from '../../models/achievementBuilderApi.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
 import type { AaTabItem } from '../aa-tabs/aa-tabs.js';
+import type {
+	AchievementCategoriesUpdatedDetail,
+	AchievementCategoryActions,
+} from '../achievement-category-manager/achievement-category-manager.js';
 import achievementBuilderStyles from './achievement-builder.css?inline';
 import {
 	formatAchievementRule,
@@ -33,7 +40,6 @@ const tabs: AaTabItem[] = [
 	{ id: 'details', label: 'Details' },
 	{ id: 'parameters', label: 'Parameters' },
 	{ id: 'logic', label: 'Logic blocks' },
-	{ id: 'preview', label: 'Preview' },
 ];
 
 const ruleTypes: { value: AchievementRuleDraft['type']; label: string; }[] = [
@@ -67,6 +73,7 @@ const valueSources: { value: AchievementValueSource; label: string; }[] = [
 
 type BuilderScope = 'root' | 'round';
 type ValueEditorRole = 'comparison-left' | 'comparison-right' | 'hit-location';
+type TemplateField = 'nameTemplate' | 'descriptionTemplate';
 interface CanvasDragState {
 	pointerId: number;
 	startX: number;
@@ -80,6 +87,8 @@ export class AaAchievementBuilder extends LitElement {
 
 	@property({ type: String }) seasonId = '';
 	@property({ attribute: false }) initialDraft?: AchievementTemplateDraft;
+	@property({ attribute: false }) categories: AchievementCategoryResponse[] = [];
+	@property({ attribute: false }) categoryActions?: AchievementCategoryActions;
 	@property({ type: Number }) maximumGeneratedInstances = 500;
 
 	@state() private selectedTab = 'details';
@@ -92,6 +101,8 @@ export class AaAchievementBuilder extends LitElement {
 	@state() private openAddControlId = '';
 	@state() private expandedRuleId = '';
 	@state() private expandedSequenceTargetId = '';
+	@state() private showCategoryManager = false;
+	@state() private activeTemplateField: TemplateField = 'nameTemplate';
 
 	private logicCanvasDrag?: CanvasDragState;
 
@@ -100,14 +111,19 @@ export class AaAchievementBuilder extends LitElement {
 	}
 
 	private resetDraft(): void {
-		this.draft = structuredClone(
+		const draft = structuredClone(
 			this.initialDraft ?? createEmptyAchievementTemplate(this.seasonId),
 		);
+		if (!draft.categoryId)
+			draft.categoryId = this.getPreferredCategoryId('Custom');
+		this.draft = draft;
 		this.selectedTab = 'details';
 		this.errors = [];
 		this.openAddControlId = '';
 		this.expandedRuleId = '';
 		this.expandedSequenceTargetId = '';
+		this.showCategoryManager = false;
+		this.activeTemplateField = 'nameTemplate';
 		this.resetLogicCanvas();
 	}
 
@@ -119,6 +135,55 @@ export class AaAchievementBuilder extends LitElement {
 	private updateDraft(patch: Partial<AchievementTemplateDraft>): void {
 		this.draft = { ...this.draft, ...patch };
 		this.errors = [];
+	}
+
+	private getPreferredCategoryId(preferredName: string): string {
+		const active = this.categories
+			.filter(category => !category.isArchived)
+			.sort((left, right) => left.sortOrder - right.sortOrder);
+		return active.find(category =>
+			category.name.localeCompare(preferredName, undefined, {
+				sensitivity: 'accent',
+			}) === 0)?.id
+			?? active.find(category =>
+				category.name.localeCompare('Custom', undefined, {
+					sensitivity: 'accent',
+				}) === 0)?.id
+			?? active[0]?.id
+			?? '';
+	}
+
+	private get templateParameterKeys(): string[] {
+		return [ ...new Set(
+			this.draft.parameters
+				.map(parameter => parameter.key.trim())
+				.filter(key => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key)),
+		) ];
+	}
+
+	private insertTemplateParameter(parameterKey: string): void {
+		const field = this.activeTemplateField;
+		const control = this.shadowRoot?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+			`[data-template-field="${ field }"]`,
+		);
+		const value = this.draft[field];
+		const start = control?.selectionStart ?? value.length;
+		const end = control?.selectionEnd ?? start;
+		const token = `{${ parameterKey }}`;
+		const nextValue = `${ value.slice(0, start) }${ token }${ value.slice(end) }`;
+		const caret = start + token.length;
+
+		this.updateDraft(field === 'nameTemplate'
+			? { nameTemplate: nextValue }
+			: { descriptionTemplate: nextValue });
+		void this.updateComplete.then(() => {
+			const updatedControl =
+				this.shadowRoot?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+					`[data-template-field="${ field }"]`,
+				);
+			updatedControl?.focus();
+			updatedControl?.setSelectionRange(caret, caret);
+		});
 	}
 
 	private handleTabChange(event: CustomEvent<{ id: string; }>): void {
@@ -234,8 +299,13 @@ export class AaAchievementBuilder extends LitElement {
 			errors.push('Name is required.');
 		if (!this.draft.descriptionTemplate.trim())
 			errors.push('Description is required.');
-		if (!this.draft.category.trim())
-			errors.push('Category is required.');
+		const selectedCategory = this.categories.find(
+			category => category.id === this.draft.categoryId,
+		);
+		if (!selectedCategory)
+			errors.push('Choose a valid category.');
+		else if (selectedCategory.isArchived && !this.draft.id)
+			errors.push('Choose an active category for a new achievement.');
 		if (!Object.values(AchievementTier).includes(this.draft.tier))
 			errors.push('Choose a valid achievement tier.');
 
@@ -392,6 +462,30 @@ export class AaAchievementBuilder extends LitElement {
 		});
 	}
 
+	private setParameterValueType(
+		parameter: AchievementParameterDraft,
+		valueType: AchievementParameterDraft['valueType'],
+	): void {
+		this.updateParameter(parameter.id, {
+			valueType,
+			generatorType: valueType === 'integer' ? parameter.generatorType : 'set',
+			values: valueType === 'boolean'
+				? parameter.values.filter(value => value === 'true' || value === 'false')
+				: parameter.values,
+		});
+	}
+
+	private toggleBooleanParameterValue(
+		parameter: AchievementParameterDraft,
+		value: 'true' | 'false',
+	): void {
+		this.updateParameter(parameter.id, {
+			values: parameter.values.includes(value)
+				? parameter.values.filter(item => item !== value)
+				: [ ...parameter.values, value ],
+		});
+	}
+
 	private removeParameter(id: string): void {
 		this.updateDraft({
 			parameters: this.draft.parameters.filter(parameter => parameter.id !== id),
@@ -447,156 +541,6 @@ export class AaAchievementBuilder extends LitElement {
 				targets: [],
 			};
 		}
-	}
-
-	private loadPreset(
-		preset: 'shanghai' | 'rangeKing' | 'perfectlyBalanced' | 'classic',
-	): void {
-		const id = createAchievementBuilderId;
-		const constant = (value: number): AchievementValueDraft => ({
-			source: 'constant',
-			value: String(value),
-		});
-		const parameter = (key: string): AchievementValueDraft => ({
-			source: 'parameter',
-			value: key,
-		});
-		const compare = (
-			source: AchievementValueSource,
-			operator: 'equal' | 'greaterThan' | 'greaterThanOrEqual',
-			right: AchievementValueDraft,
-		): AchievementRuleDraft => ({
-			id: id(),
-			type: 'compare',
-			left: { source, value: '' },
-			operator,
-			right,
-		});
-		const round = (children: AchievementRuleDraft[], statuses: ('valid' | 'victory')[]) => ({
-			id: id(),
-			type: 'round' as const,
-			quantifier: 'any' as const,
-			statuses,
-			condition: {
-				id: id(),
-				type: 'all' as const,
-				children,
-			},
-		});
-
-		if (preset === 'shanghai') {
-			const hit = (
-				throwType: 'single' | 'double' | 'triple',
-			): AchievementRuleDraft => ({
-				id: id(),
-				type: 'throw',
-				quantifier: 'any',
-				scope: 'currentRound',
-				hitLocation: parameter('n'),
-				throwType,
-			});
-			this.draft = {
-				...createEmptyAchievementTemplate(this.seasonId),
-				nameTemplate: 'Shanghai {n}',
-				descriptionTemplate: 'Hit {n}, D{n} and T{n} in the same round.',
-				category: 'Shanghai',
-				tier: AchievementTier.platinum,
-				parameters: [ {
-					id: id(),
-					key: 'n',
-					valueType: 'integer',
-					generatorType: 'range',
-					minimum: 1,
-					maximum: 20,
-					step: 1,
-					values: [],
-				} ],
-				rule: round([ hit('single'), hit('double'), hit('triple') ], [ 'valid', 'victory' ]),
-			};
-		}
-		else if (preset === 'rangeKing') {
-			this.draft = {
-				...createEmptyAchievementTemplate(this.seasonId),
-				nameTemplate: 'Range King {threshold}',
-				descriptionTemplate: 'Score at least {threshold} points in the winning round.',
-				category: 'Victory',
-				tier: AchievementTier.bronze,
-				parameters: [ {
-					id: id(),
-					key: 'threshold',
-					valueType: 'integer',
-					generatorType: 'range',
-					minimum: 50,
-					maximum: 180,
-					step: 10,
-					values: [],
-				} ],
-				rule: round(
-					[ compare('round.finalPoints', 'greaterThanOrEqual', parameter('threshold')) ],
-					[ 'victory' ],
-				),
-			};
-		}
-		else if (preset === 'perfectlyBalanced') {
-			this.draft = {
-				...createEmptyAchievementTemplate(this.seasonId),
-				nameTemplate: 'Perfectly Balanced',
-				descriptionTemplate:
-					'Score the same raw points with one single, one double, and one triple in the same round.',
-				category: 'Special',
-				tier: AchievementTier.gold,
-				parameters: [],
-				rule: round(
-					[
-						compare('round.throwCount', 'equal', constant(3)),
-						compare('round.singleCount', 'equal', constant(1)),
-						compare('round.doubleCount', 'equal', constant(1)),
-						compare('round.tripleCount', 'equal', constant(1)),
-						compare('round.rawPointsDistinctCount', 'equal', constant(1)),
-						compare('round.minimumRawPoints', 'greaterThan', constant(0)),
-					],
-					[ 'valid', 'victory' ],
-				),
-			};
-		}
-		else {
-			const hit = (hitLocation: AchievementValueDraft): AchievementRuleDraft => ({
-				id: id(),
-				type: 'throw',
-				quantifier: 'any',
-				scope: 'currentRound',
-				hitLocation,
-				throwType: 'single',
-			});
-			this.draft = {
-				...createEmptyAchievementTemplate(this.seasonId),
-				nameTemplate: 'Classic {n}',
-				descriptionTemplate: 'Hit {n} and both adjacent dartboard numbers as singles.',
-				category: 'Classic',
-				tier: AchievementTier.bronze,
-				parameters: [ {
-					id: id(),
-					key: 'n',
-					valueType: 'integer',
-					generatorType: 'range',
-					minimum: 1,
-					maximum: 20,
-					step: 1,
-					values: [],
-				} ],
-				rule: round(
-					[
-						hit({ source: 'board.leftNeighbor', value: 'n' }),
-						hit(parameter('n')),
-						hit({ source: 'board.rightNeighbor', value: 'n' }),
-					],
-					[ 'valid', 'victory' ],
-				),
-			};
-		}
-
-		this.errors = [];
-		this.selectedTab = 'details';
 	}
 
 	private replaceRule(
@@ -1565,94 +1509,234 @@ export class AaAchievementBuilder extends LitElement {
 
 	private renderDetails(): TemplateResult {
 		return html`
-			<section class="builder-panel form-grid">
-				<div class="panel-intro">
-					<h3>Achievement identity</h3>
-					<p>Names and descriptions can use parameter tokens such as <code>{n}</code>.</p>
-				</div>
-				<div class="preset-row" aria-label="Achievement examples">
-					<span>Start from an example:</span>
-					<button type="button" @click=${ () => this.loadPreset('shanghai') }>
-						Shanghai
-					</button>
-					<button type="button" @click=${ () => this.loadPreset('rangeKing') }>
-						Range King
-					</button>
-					<button type="button" @click=${ () => this.loadPreset('perfectlyBalanced') }>
-						Perfectly Balanced
-					</button>
-					<button type="button" @click=${ () => this.loadPreset('classic') }>
-						Classic
-					</button>
-				</div>
-				<label>
-					<span>Name template</span>
-					<input
-						type="text"
-						.value=${ this.draft.nameTemplate }
-						@input=${ (event: InputEvent) => this.updateDraft({
-							nameTemplate: (event.currentTarget as HTMLInputElement).value,
-						}) }
-						placeholder="Shanghai {n}"
-					/>
-				</label>
-				<label>
-					<span>Description template</span>
-					<textarea
-						rows="3"
-						.value=${ this.draft.descriptionTemplate }
-						@input=${ (event: InputEvent) => this.updateDraft({
-							descriptionTemplate: (event.currentTarget as HTMLTextAreaElement).value,
-						}) }
-						placeholder="Hit {n}, D{n} and T{n} in the same round."
-					></textarea>
-				</label>
-				<div class="inline-fields">
-					<label>
-						<span>Category</span>
-						<input
-							type="text"
-							.value=${ this.draft.category }
-							@input=${ (event: InputEvent) => this.updateDraft({
-								category: (event.currentTarget as HTMLInputElement).value,
-							}) }
-						/>
-					</label>
-					<label>
-						<span>Tier</span>
-						<select
-							.value=${ String(this.draft.tier) }
-							@change=${ (event: Event) => this.updateDraft({
-								tier: Number((event.currentTarget as HTMLSelectElement).value),
-							}) }
-						>
-							${ Object.values(AchievementTier)
-								.filter((tier): tier is number => typeof tier === 'number')
-								.map(tier => html`
-									<option value=${ tier }>${ AchievementTier[tier] }</option>
-								`) }
-						</select>
-					</label>
-					<label>
-						<span>Achievement type</span>
-						<select
-							.value=${ this.draft.achievementScope }
-							@change=${ (event: Event) => this.updateDraft({
-								achievementScope: (event.currentTarget as HTMLSelectElement)
-									.value as AchievementTemplateDraft['achievementScope'],
-								progression:
-									(event.currentTarget as HTMLSelectElement).value === 'progression'
-										? this.draft.progression ?? {
-											statuses: [ 'valid', 'victory' ],
-											targets: [],
-										}
-										: this.draft.progression,
-							}) }
-						>
-							<option value="session">Session achievement</option>
-							<option value="progression">Progression achievement</option>
-						</select>
-					</label>
+			<section class="builder-panel details-panel">
+				<div class="details-card details-card--unified">
+					<section class="details-section">
+						<div class="identity-fields">
+							<label class=${ this.activeTemplateField === 'nameTemplate'
+								? 'identity-field identity-field--active'
+								: 'identity-field' }>
+								<span>Name</span>
+								<input
+									type="text"
+									data-template-field="nameTemplate"
+									.value=${ this.draft.nameTemplate }
+									@focus=${ () => {
+										this.activeTemplateField = 'nameTemplate';
+									} }
+									@input=${ (event: InputEvent) => this.updateDraft({
+										nameTemplate: (event.currentTarget as HTMLInputElement).value,
+									}) }
+									placeholder="Shanghai {n}"
+								/>
+							</label>
+							<label class=${ this.activeTemplateField === 'descriptionTemplate'
+								? 'identity-field identity-field--active'
+								: 'identity-field' }>
+								<span>Description</span>
+								<textarea
+									rows="2"
+									data-template-field="descriptionTemplate"
+									.value=${ this.draft.descriptionTemplate }
+									@focus=${ () => {
+										this.activeTemplateField = 'descriptionTemplate';
+									} }
+									@input=${ (event: InputEvent) => this.updateDraft({
+										descriptionTemplate:
+											(event.currentTarget as HTMLTextAreaElement).value,
+									}) }
+									placeholder="Hit {n}, D{n} and T{n} in the same round."
+								></textarea>
+							</label>
+						</div>
+						<div class="identity-parameter-tools">
+							${ this.templateParameterKeys.length > 0
+								? html`
+									<div class="identity-parameter-list">
+										${ this.templateParameterKeys.map(key => html`
+											<button
+												type="button"
+												title=${ `Insert {${ key }} into ${
+													this.activeTemplateField === 'nameTemplate'
+														? 'name'
+														: 'description'
+												}` }
+												@click=${ () => this.insertTemplateParameter(key) }
+											>
+												{${ key }}
+											</button>
+										`) }
+									</div>
+								`
+								: html`
+									<button
+										type="button"
+										class="identity-parameters__add"
+										title="Add reusable values for names, descriptions, and logic"
+										@click=${ () => {
+											this.selectedTab = 'parameters';
+										} }
+									>
+										+ Parameter
+									</button>
+								` }
+						</div>
+					</section>
+					<section class="details-section details-classification">
+					<div class="details-metadata">
+						<div class="details-category">
+							<span class="details-choice__label">Category</span>
+							<div
+								class="details-category-options"
+								role="group"
+								aria-label="Achievement category"
+							>
+								${ this.categories
+									.filter(category =>
+										!category.isArchived
+										|| category.id === this.draft.categoryId)
+									.sort((left, right) => left.sortOrder - right.sortOrder)
+									.map(category => html`
+										<button
+											type="button"
+											class=${ category.id === this.draft.categoryId
+												? 'details-choice__active'
+												: '' }
+											aria-pressed=${ category.id === this.draft.categoryId }
+											@click=${ () => this.updateDraft({
+												categoryId: category.id,
+											}) }
+										>
+											${ category.name }${ category.isArchived ? ' (archived)' : '' }
+										</button>
+									`) }
+								<button
+									type="button"
+									class=${ this.showCategoryManager
+										? 'details-category-options__manage details-category-options__manage--open'
+										: 'details-category-options__manage' }
+									title="Manage categories"
+									aria-label="Manage categories"
+									aria-expanded=${ this.showCategoryManager }
+									@click=${ () => {
+										this.showCategoryManager = !this.showCategoryManager;
+									} }
+								>
+									<svg aria-hidden="true" viewBox="0 0 24 24">
+										<path
+											d="
+												M19.14 12.94a7.4 7.4 0 0 0 .05-.94 7.4 7.4 0 0 0-.05-.94l2.03-1.58
+												-1.92-3.32-2.39.96a7.3 7.3 0 0 0-1.63-.94L14.87 3h-3.84l-.36 3.18
+												c-.58.24-1.12.56-1.63.94l-2.39-.96-1.92 3.32 2.03 1.58a7.4 7.4 0 0 0-.05.94
+												c0 .32.02.63.05.94l-2.03 1.58 1.92 3.32 2.39-.96c.5.38 1.05.7 1.63.94
+												l.36 3.18h3.84l.36-3.18c.58-.24 1.12-.56 1.63-.94l2.39.96 1.92-3.32
+												-2.03-1.58ZM12.95 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z
+											"
+										></path>
+									</svg>
+								</button>
+							</div>
+							${ this.categories.find(category =>
+								category.id === this.draft.categoryId)?.isArchived
+								? html`
+									<small class="details-category__warning">
+										This category is archived. Existing drafts may retain it.
+									</small>
+								`
+								: nothing }
+						</div>
+						<div class="details-classification-controls">
+							<div class="details-choice">
+								<span class="details-choice__label">Tier</span>
+								<div
+									class="details-tier-options"
+									role="group"
+									aria-label="Achievement tier"
+								>
+									${ Object.values(AchievementTier)
+										.filter((tier): tier is number => typeof tier === 'number')
+										.map(tier => html`
+											<button
+												type="button"
+												class=${ tier === this.draft.tier
+													? 'details-choice__active'
+													: '' }
+												title=${ AchievementTier[tier] }
+												aria-label=${ AchievementTier[tier] }
+												aria-pressed=${ tier === this.draft.tier }
+												@click=${ () => this.updateDraft({ tier }) }
+											>
+												<img
+													src=${ getAchievementTierIcon(tier) }
+													alt=""
+												/>
+											</button>
+										`) }
+								</div>
+							</div>
+							<div class="details-choice">
+								<span class="details-choice__label">Achievement type</span>
+								<div
+									class="details-type-options"
+									role="group"
+									aria-label="Achievement type"
+								>
+									${ [
+										[ 'session', 'Session' ],
+										[ 'progression', 'Progression' ],
+									].map(([ value, label ]) => html`
+										<button
+											type="button"
+											class=${ this.draft.achievementScope === value
+												? 'details-choice__active'
+												: '' }
+											aria-pressed=${ this.draft.achievementScope === value }
+											@click=${ () => this.updateDraft({
+												achievementScope:
+													value as AchievementTemplateDraft['achievementScope'],
+												progression:
+													value === 'progression'
+														? this.draft.progression ?? {
+															statuses: [ 'valid', 'victory' ],
+															targets: [],
+														}
+														: this.draft.progression,
+											}) }
+										>${ label }</button>
+									`) }
+								</div>
+							</div>
+						</div>
+					</div>
+					${ this.showCategoryManager
+						? html`
+							<aa-achievement-category-manager
+								.categories=${ this.categories }
+								.actions=${ this.categoryActions }
+								@achievement-categories-updated=${ (
+									event: CustomEvent<AchievementCategoriesUpdatedDetail>,
+								) => {
+									this.categories = event.detail.categories;
+									if (event.detail.selectedCategoryId) {
+										this.updateDraft({
+											categoryId: event.detail.selectedCategoryId,
+										});
+									}
+									else if (!this.categories.some(category =>
+										category.id === this.draft.categoryId)) {
+										this.updateDraft({
+											categoryId: this.getPreferredCategoryId('Custom'),
+										});
+									}
+								} }
+								@achievement-category-manager-close=${ () => {
+									this.showCategoryManager = false;
+								} }
+							></aa-achievement-category-manager>
+						`
+						: nothing }
+					</section>
+					${ this.renderDetailsPreview() }
 				</div>
 			</section>
 		`;
@@ -1660,41 +1744,28 @@ export class AaAchievementBuilder extends LitElement {
 
 	private renderParameters(): TemplateResult {
 		return html`
-			<section class="builder-panel">
-				<div class="panel-intro panel-intro--actions">
-					<div>
-						<h3>Generation parameters</h3>
-						<p>
-							Parameters are optional. Add several to generate combinations, or use none
-							for a single achievement such as Perfectly Balanced.
-						</p>
+			<section class="builder-panel parameters-panel">
+				<div class="parameters-card">
+					<div class="parameters-toolbar">
+						<span>Each value combination creates another achievement.</span>
+						<aa-button type="button" size="small" @click=${ this.addParameter }>
+							+ Parameter
+						</aa-button>
 					</div>
-					<aa-button type="button" size="small" @click=${ this.addParameter }>
-						Add parameter
-					</aa-button>
-				</div>
 				${ this.draft.parameters.length === 0
 					? html`
-						<div class="empty-panel">
-							This template creates one achievement because it has no parameters.
+						<div class="parameters-empty">
+							<strong>No parameters</strong>
+							<span>This template creates one achievement.</span>
 						</div>
 					`
 					: html`
 						<div class="parameter-list">
-							${ this.draft.parameters.map(parameter => html`
+							${ this.draft.parameters.map((parameter, index) => html`
 								<article class="parameter-card">
-									<header>
-										<strong>${ parameter.key || 'Unnamed parameter' }</strong>
-										<button
-											type="button"
-											class="remove-button"
-											aria-label="Remove parameter"
-											@click=${ () => this.removeParameter(parameter.id) }
-										>&times;</button>
-									</header>
-									<div class="inline-fields">
+									<div class="parameter-card__top">
 										<label>
-											<span>Key</span>
+											<span>Parameter ${ index + 1 }</span>
 											<input
 												type="text"
 												.value=${ parameter.key }
@@ -1702,53 +1773,74 @@ export class AaAchievementBuilder extends LitElement {
 													parameter.id,
 													{ key: (event.currentTarget as HTMLInputElement).value },
 												) }
+												placeholder="name"
 											/>
 										</label>
-										<label>
-											<span>Value type</span>
-											<select
-												.value=${ parameter.valueType }
-												@change=${ (event: Event) => this.updateParameter(
-													parameter.id,
-													{
-														valueType: (event.currentTarget as HTMLSelectElement)
-															.value as AchievementParameterDraft['valueType'],
-														generatorType:
-															(event.currentTarget as HTMLSelectElement).value === 'integer'
-																? parameter.generatorType
-																: 'set',
-													},
-												) }
-											>
-												<option value="integer">Integer</option>
-												<option value="string">Text / enum</option>
-												<option value="boolean">Boolean</option>
-											</select>
-										</label>
-										<label>
-											<span>Generator</span>
-											<select
-												.value=${ parameter.generatorType }
-												@change=${ (event: Event) => this.updateParameter(
-													parameter.id,
-													{
-														generatorType: (event.currentTarget as HTMLSelectElement)
-															.value as AchievementParameterDraft['generatorType'],
-													},
-												) }
-											>
-												<option value="range" ?disabled=${ parameter.valueType !== 'integer' }>
-													Numeric range
-												</option>
-												<option value="set">Explicit values</option>
-											</select>
-										</label>
+										<button
+											type="button"
+											class="remove-button"
+											aria-label="Remove parameter"
+											@click=${ () => this.removeParameter(parameter.id) }
+										>&times;</button>
+									</div>
+									<div class="parameter-configuration">
+										<div class="details-choice">
+											<span class="details-choice__label">Value type</span>
+											<div class="parameter-options" role="group" aria-label="Parameter value type">
+												${ [
+													[ 'integer', 'Number' ],
+													[ 'string', 'Text' ],
+													[ 'boolean', 'Yes / no' ],
+												].map(([ value, label ]) => html`
+													<button
+														type="button"
+														class=${ parameter.valueType === value
+															? 'parameter-options__active'
+															: '' }
+														aria-pressed=${ parameter.valueType === value }
+														@click=${ () => this.setParameterValueType(
+															parameter,
+															value as AchievementParameterDraft['valueType'],
+														) }
+													>${ label }</button>
+												`) }
+											</div>
+										</div>
+										${ parameter.valueType === 'integer'
+											? html`
+												<div class="details-choice">
+													<span class="details-choice__label">Values</span>
+													<div
+														class="parameter-options"
+														role="group"
+														aria-label="Parameter value source"
+													>
+														${ [
+															[ 'range', 'Range' ],
+															[ 'set', 'List' ],
+														].map(([ value, label ]) => html`
+															<button
+																type="button"
+																class=${ parameter.generatorType === value
+																	? 'parameter-options__active'
+																	: '' }
+																aria-pressed=${ parameter.generatorType === value }
+																@click=${ () => this.updateParameter(parameter.id, {
+																	generatorType:
+																		value as AchievementParameterDraft['generatorType'],
+																}) }
+															>${ label }</button>
+														`) }
+													</div>
+												</div>
+											`
+											: nothing }
 									</div>
 									${ parameter.generatorType === 'range'
 										? html`
-											<div class="inline-fields">
+											<div class="parameter-range">
 												<label>
-													<span>Minimum</span>
+													<span>From</span>
 													<input
 														type="number"
 														.value=${ String(parameter.minimum ?? '') }
@@ -1759,7 +1851,7 @@ export class AaAchievementBuilder extends LitElement {
 													/>
 												</label>
 												<label>
-													<span>Maximum</span>
+													<span>To</span>
 													<input
 														type="number"
 														.value=${ String(parameter.maximum ?? '') }
@@ -1770,7 +1862,7 @@ export class AaAchievementBuilder extends LitElement {
 													/>
 												</label>
 												<label>
-													<span>Step</span>
+													<span>By</span>
 													<input
 														type="number"
 														min="1"
@@ -1783,11 +1875,47 @@ export class AaAchievementBuilder extends LitElement {
 												</label>
 											</div>
 										`
-										: html`
+										: parameter.valueType === 'boolean'
+											? html`
+												<div class="details-choice">
+													<span class="details-choice__label">Allowed values</span>
+													<div
+														class="parameter-boolean-options"
+														role="group"
+														aria-label="Allowed yes or no values"
+													>
+														${ [
+															[ 'true', 'Yes' ],
+															[ 'false', 'No' ],
+														].map(([ value, label ]) => {
+															const selected = parameter.values.includes(value);
+															return html`
+																<button
+																	type="button"
+																	class=${ selected
+																		? 'parameter-options__active'
+																		: '' }
+																	aria-pressed=${ selected }
+																	@click=${ () => this.toggleBooleanParameterValue(
+																		parameter,
+																		value as 'true' | 'false',
+																	) }
+																>
+																	<span class="parameter-boolean-options__check">
+																		${ selected ? html`&check;` : nothing }
+																	</span>
+																	${ label }
+																</button>
+															`;
+														}) }
+													</div>
+												</div>
+											`
+											: html`
 											<label>
-												<span>Values (one per line)</span>
+												<span>Values - one per line</span>
 												<textarea
-													rows="4"
+													rows="3"
 													.value=${ parameter.values.join('\n') }
 													@input=${ (event: InputEvent) => this.updateParameter(
 														parameter.id,
@@ -1800,11 +1928,12 @@ export class AaAchievementBuilder extends LitElement {
 													) }
 												></textarea>
 											</label>
-										` }
+											` }
 								</article>
 							`) }
 						</div>
 					` }
+				</div>
 			</section>
 		`;
 	}
@@ -1816,13 +1945,6 @@ export class AaAchievementBuilder extends LitElement {
 		return html`
 			<section class="builder-panel logic-builder">
 				<div class="logic-builder__header">
-					<div class="panel-intro">
-						<h3>Achievement logic</h3>
-						<p>
-							Follow the connectors from left to right. Drag empty canvas space to move;
-							scroll to zoom.
-						</p>
-					</div>
 					<div class="logic-canvas__controls" aria-label="Canvas controls">
 						<button
 							type="button"
@@ -1941,35 +2063,46 @@ export class AaAchievementBuilder extends LitElement {
 		);
 	}
 
-	private renderPreview(): TemplateResult {
-		const previews = this.getPreviews();
+	private renderDetailsPreview(): TemplateResult {
+		const previews = this.getPreviews(2);
 		const count = this.getGeneratedCount();
 		return html`
-			<section class="builder-panel">
-				<div class="panel-intro">
-					<h3>Generated achievements</h3>
-					<p>
-						This template produces <strong>${ count }</strong> concrete achievement${ count === 1 ? '' : 's' }.
-						The first ${ Math.min(count, previews.length) } are shown below.
-					</p>
+			<section class="details-section details-preview">
+				<div class="details-section__heading">
+					<strong>Live preview</strong>
 				</div>
-				<div class="preview-list">
-					${ previews.map(preview => html`
-						<article class="preview-card">
-							<strong>${ preview.name || 'Untitled achievement' }</strong>
-							<p>${ preview.description || 'No description' }</p>
-							${ Object.keys(preview.bindings).length
-								? html`
-									<div class="binding-list">
-										${ Object.entries(preview.bindings).map(([ key, value ]) => html`
-											<span>${ `${ key }=${ String(value) }` }</span>
-										`) }
-									</div>
-								`
-								: html`<small>Single achievement - no parameters</small>` }
-						</article>
-					`) }
-				</div>
+				${ previews.length > 0
+					? html`
+						<div class="preview-list preview-list--details">
+							${ previews.map(preview => html`
+								<article class="preview-card">
+									<strong>${ preview.name || 'Untitled achievement' }</strong>
+									<p>${ preview.description || 'No description' }</p>
+									${ Object.keys(preview.bindings).length
+										? html`
+											<div class="binding-list">
+												${ Object.entries(preview.bindings).map(([ key, value ]) => html`
+													<span>${ `${ key }=${ String(value) }` }</span>
+												`) }
+											</div>
+										`
+										: html`<small>Single achievement - no parameters</small>` }
+								</article>
+							`) }
+						</div>
+						${ count > previews.length
+							? html`
+								<small class="details-preview__more">
+									Showing the first ${ previews.length } of ${ count }.
+								</small>
+							`
+							: nothing }
+					`
+					: html`
+						<div class="empty-panel">
+							Add values to every parameter to generate a preview.
+						</div>
+					` }
 			</section>
 		`;
 	}
@@ -1995,9 +2128,7 @@ export class AaAchievementBuilder extends LitElement {
 						? this.renderDetails()
 						: this.selectedTab === 'parameters'
 							? this.renderParameters()
-							: this.selectedTab === 'logic'
-								? this.renderLogic()
-								: this.renderPreview() }
+							: this.renderLogic() }
 				</div>
 			</div>
 		`;

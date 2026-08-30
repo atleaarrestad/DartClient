@@ -322,8 +322,8 @@ export class AaAchievementBrowser extends LitElement {
 					achievementTier: instance.achievementTier,
 				},
 				unlocked: unlockedV2Ids.has(instance.id),
-				typeKey: `v2:${ instance.category || 'Custom' }`,
-				typeLabel: instance.category || 'Custom',
+				typeKey: `v2:${ instance.categoryId }`,
+				typeLabel: instance.categoryName,
 			});
 		}
 

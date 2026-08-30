@@ -108,7 +108,7 @@ export interface AchievementTemplateDraft {
 	seasonId: string;
 	nameTemplate: string;
 	descriptionTemplate: string;
-	category: string;
+	categoryId: string;
 	tier: number;
 	achievementScope: AchievementScope;
 	parameters: AchievementParameterDraft[];
@@ -149,7 +149,7 @@ export const createEmptyAchievementTemplate = (
 	seasonId,
 	nameTemplate: '',
 	descriptionTemplate: '',
-	category: 'Custom',
+	categoryId: '',
 	tier: 1,
 	achievementScope: 'session',
 	parameters: [],

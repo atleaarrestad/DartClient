@@ -29,6 +29,15 @@ export const AchievementParameterDefinitionSchema = z.object({
 	booleanValues: z.array(z.boolean()),
 });
 
+export const AchievementCategoryResponseSchema = z.object({
+	id: z.string().uuid(),
+	seasonId: z.string().uuid(),
+	name: z.string(),
+	sortOrder: z.number().int().nonnegative(),
+	isArchived: z.boolean(),
+	usageCount: z.number().int().nonnegative(),
+});
+
 export const AchievementTemplateVersionResponseSchema = z.object({
 	id: z.string().uuid(),
 	versionNumber: z.number().int().positive(),
@@ -36,7 +45,9 @@ export const AchievementTemplateVersionResponseSchema = z.object({
 	evaluationPhase: AchievementEvaluationPhaseSchema,
 	nameTemplate: z.string(),
 	descriptionTemplate: z.string(),
-	category: z.string(),
+	categoryId: z.string().uuid(),
+	categoryName: z.string(),
+	categoryIsArchived: z.boolean(),
 	achievementTier: z.number().int(),
 	parameters: z.array(AchievementParameterDefinitionSchema),
 	definition: z.record(z.string(), z.unknown()),
@@ -61,7 +72,9 @@ export const AchievementInstanceResponseSchema = z.object({
 	bindingHash: z.string(),
 	renderedName: z.string(),
 	renderedDescription: z.string(),
-	category: z.string(),
+	categoryId: z.string().uuid(),
+	categoryName: z.string(),
+	categoryIsArchived: z.boolean(),
 	achievementTier: z.number().int(),
 	evaluationPhase: AchievementEvaluationPhaseSchema,
 });
@@ -136,6 +149,9 @@ export const PredictAchievementThrowsResponseSchema = z.object({
 export type AchievementParameterDefinition = z.infer<
 	typeof AchievementParameterDefinitionSchema
 >;
+export type AchievementCategoryResponse = z.infer<
+	typeof AchievementCategoryResponseSchema
+>;
 export type AchievementTemplateResponse = z.infer<typeof AchievementTemplateResponseSchema>;
 export type AchievementTemplateVersionResponse = z.infer<
 	typeof AchievementTemplateVersionResponseSchema
@@ -153,11 +169,25 @@ export interface UpsertAchievementTemplateRequest {
 	seasonId: string;
 	nameTemplate: string;
 	descriptionTemplate: string;
-	category: string;
+	categoryId: string;
 	achievementTier: number;
 	evaluationPhase: 'Live' | 'GameCompleted' | 'Progression';
 	parameters: AchievementParameterDefinition[];
 	definition: Record<string, unknown>;
+}
+
+export interface CreateAchievementCategoryRequest {
+	seasonId: string;
+	name: string;
+}
+
+export interface UpdateAchievementCategoryRequest {
+	name: string;
+}
+
+export interface ReorderAchievementCategoriesRequest {
+	seasonId: string;
+	orderedCategoryIds: string[];
 }
 
 export interface PredictAchievementThrowsRequest {

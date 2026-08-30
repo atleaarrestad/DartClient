@@ -368,7 +368,7 @@ export function compileAchievementTemplate(
 		seasonId: draft.seasonId,
 		nameTemplate: draft.nameTemplate.trim(),
 		descriptionTemplate: draft.descriptionTemplate.trim(),
-		category: draft.category.trim(),
+		categoryId: draft.categoryId,
 		achievementTier: draft.tier,
 		evaluationPhase: draft.achievementScope === 'progression'
 			? 'Progression'
@@ -461,7 +461,7 @@ export function restoreAchievementTemplateDraft(
 		seasonId: template.seasonId,
 		nameTemplate: version.nameTemplate,
 		descriptionTemplate: version.descriptionTemplate,
-		category: version.category,
+		categoryId: version.categoryId,
 		tier: version.achievementTier,
 		achievementScope: version.evaluationPhase === 'Progression'
 			? 'progression'

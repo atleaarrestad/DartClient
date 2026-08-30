@@ -1,7 +1,10 @@
 import { container, injectable } from 'tsyringe';
 
 import type {
+	CreateAchievementCategoryRequest,
 	PredictAchievementThrowsRequest,
+	ReorderAchievementCategoriesRequest,
+	UpdateAchievementCategoryRequest,
 	UpsertAchievementTemplateRequest,
 } from '../models/achievementBuilderApi.js';
 import { DataService } from './dataService.js';
@@ -16,6 +19,45 @@ export class AchievementBuilderService {
 
 	getTemplates(seasonId: string) {
 		return this.dataService.getAchievementBuilderTemplates(seasonId);
+	}
+
+	getCategories(seasonId: string) {
+		return this.dataService.getAchievementCategories(seasonId);
+	}
+
+	createCategory(request: CreateAchievementCategoryRequest, adminKey: string) {
+		return this.dataService.createAchievementCategory(request, adminKey);
+	}
+
+	updateCategory(
+		categoryId: string,
+		request: UpdateAchievementCategoryRequest,
+		adminKey: string,
+	) {
+		return this.dataService.updateAchievementCategory(
+			categoryId,
+			request,
+			adminKey,
+		);
+	}
+
+	reorderCategories(
+		request: ReorderAchievementCategoriesRequest,
+		adminKey: string,
+	) {
+		return this.dataService.reorderAchievementCategories(request, adminKey);
+	}
+
+	archiveCategory(categoryId: string, adminKey: string) {
+		return this.dataService.archiveAchievementCategory(categoryId, adminKey);
+	}
+
+	restoreCategory(categoryId: string, adminKey: string) {
+		return this.dataService.restoreAchievementCategory(categoryId, adminKey);
+	}
+
+	deleteCategory(categoryId: string, adminKey: string) {
+		return this.dataService.deleteAchievementCategory(categoryId, adminKey);
 	}
 
 	getInstances(seasonId: string) {

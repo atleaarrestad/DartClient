@@ -40,7 +40,10 @@ import {
 	Season,
 } from '../../../models/schemas.js';
 import type { AchievementTemplateDraft } from '../../../models/achievementBuilder.js';
-import type { AchievementTemplateResponse } from '../../../models/achievementBuilderApi.js';
+import type {
+	AchievementCategoryResponse,
+	AchievementTemplateResponse,
+} from '../../../models/achievementBuilderApi.js';
 import { AchievementBuilderService } from '../../../services/achievementBuilderService.js';
 import { DialogService } from '../../../services/dialogService.js';
 import { NotificationService } from '../../../services/notificationService.js';
@@ -53,6 +56,7 @@ import { sharedStyles } from '../../../styles/shared-styles.js';
 import type { AaButton } from '../../../ui/button/aa-button.js';
 import type { AaMmrConfigurationEditor } from '../../aa-mmr-configuration-editor/aa-mmr-configuration-editor.js';
 import type { AaAchievementBuilder } from '../../achievement-builder/achievement-builder.js';
+import type { AchievementCategoryActions } from '../../achievement-category-manager/achievement-category-manager.js';
 import type {
 	SeasonBasicsChangeEvent,
 	SeasonBasicsValue,
@@ -1139,6 +1143,7 @@ rule.executionOrder = Number(
 
 			return;
 		}
+		const seasonId = this.draft.id;
 
 		if (!this.accessGranted) {
 			const unlocked = await this.openUnlockSavingDialog();
@@ -1147,10 +1152,61 @@ rule.executionOrder = Number(
 		}
 
 		try {
-			const [ templates, catalog ] = await Promise.all([
-				this.achievementBuilderService.getTemplates(this.draft.id),
+			const [ templates, catalog, loadedCategories ] = await Promise.all([
+				this.achievementBuilderService.getTemplates(seasonId),
 				this.achievementBuilderService.getCatalog(),
+				this.achievementBuilderService.getCategories(seasonId),
 			]);
+			let categories = loadedCategories;
+			const refreshCategories = async (): Promise<AchievementCategoryResponse[]> => {
+				categories = await this.achievementBuilderService.getCategories(seasonId);
+				return categories;
+			};
+			const categoryActions: AchievementCategoryActions = {
+				create: async name => {
+					await this.achievementBuilderService.createCategory(
+						{ seasonId, name },
+						this.adminKey,
+					);
+					return refreshCategories();
+				},
+				rename: async (categoryId, name) => {
+					await this.achievementBuilderService.updateCategory(
+						categoryId,
+						{ name },
+						this.adminKey,
+					);
+					return refreshCategories();
+				},
+				reorder: async orderedCategoryIds => {
+					await this.achievementBuilderService.reorderCategories(
+						{ seasonId, orderedCategoryIds },
+						this.adminKey,
+					);
+					return refreshCategories();
+				},
+				archive: async categoryId => {
+					await this.achievementBuilderService.archiveCategory(
+						categoryId,
+						this.adminKey,
+					);
+					return refreshCategories();
+				},
+				restore: async categoryId => {
+					await this.achievementBuilderService.restoreCategory(
+						categoryId,
+						this.adminKey,
+					);
+					return refreshCategories();
+				},
+				delete: async categoryId => {
+					await this.achievementBuilderService.deleteCategory(
+						categoryId,
+						this.adminKey,
+					);
+					return refreshCategories();
+				},
+			};
 			this.achievementTemplatesBySeason = {
 				...this.achievementTemplatesBySeason,
 				[this.draft.id]: templates,
@@ -1251,7 +1307,9 @@ rule.executionOrder = Number(
 						Publish achievement
 					</aa-button>
 					<aa-achievement-builder
-						seasonId=${ this.draft.id }
+						seasonId=${ seasonId }
+						.categories=${ categories }
+						.categoryActions=${ categoryActions }
 						.maximumGeneratedInstances=${ catalog.limits.maximumGeneratedInstances }
 						@achievement-builder-save=${ async (
 							event: CustomEvent<AchievementTemplateDraft>,

@@ -27,7 +27,7 @@ const draft = (
 	seasonId: '00000000-0000-0000-0000-000000000001',
 	nameTemplate: 'Test {n}',
 	descriptionTemplate: 'Test description {n}',
-	category: 'Custom',
+	categoryId: '00000000-0000-0000-0000-000000000002',
 	tier: 1,
 	achievementScope: 'session',
 	parameters: [],
