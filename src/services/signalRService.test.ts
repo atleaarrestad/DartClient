@@ -218,7 +218,7 @@ describe('SignalRService', () => {
 			},
 		});
 		const second = service.registerSubscription({
-			event: 'OnSessionAchievementUnlocked',
+			event: 'OnV2AchievementProjectionAdded',
 			handler: vi.fn(),
 			group: {
 				join:  'SubscribeAchievement',

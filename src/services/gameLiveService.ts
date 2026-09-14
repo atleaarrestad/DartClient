@@ -1,6 +1,5 @@
 import { container, injectable } from 'tsyringe';
 
-import type { SessionAchievement } from '../models/enums.js';
 import type { AchievementInstanceResponse } from '../models/achievementBuilderApi.js';
 import type { GameResult, GameTracker, GameTrackerDelta } from '../models/schemas.js';
 import {
@@ -15,25 +14,6 @@ export class GameLiveService {
 
 	constructor() {
 		this.signalRService = container.resolve(SignalRService);
-	}
-
-	subscribeToAchievements(
-		gameId: string,
-		handler: (
-			gameId: string,
-			playerId: string,
-			sessionAchievements: SessionAchievement[],
-		) => void,
-	): SignalRSubscription {
-		return this.signalRService.registerSubscription({
-			event: 'OnSessionAchievementUnlocked',
-			handler,
-			group: {
-				join:  'SubscribeAchievement',
-				leave: 'UnsubscribeAchievement',
-				args:  [ gameId ],
-			},
-		});
 	}
 
 	subscribeToV2Achievements(

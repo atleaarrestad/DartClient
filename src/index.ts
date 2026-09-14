@@ -40,7 +40,6 @@ import hljs from 'highlight.js/lib/core';
 import csharp from 'highlight.js/lib/languages/csharp';
 import { container } from 'tsyringe';
 
-import { achievementService } from './services/achievementService.js';
 import { CacheService } from './services/cacheService.js';
 import { DataService } from './services/dataService.js';
 import { DialogService } from './services/dialogService.js';
@@ -64,7 +63,6 @@ container.register(RuleService,         { useClass: RuleService });
 container.registerSingleton(SignalRService, SignalRService);
 container.register(ActiveGamesLiveService, { useClass: ActiveGamesLiveService });
 container.register(GameLiveService,        { useClass: GameLiveService });
-container.register(achievementService,      { useClass: achievementService });
 
 
 hljs.registerLanguage('csharp', csharp);

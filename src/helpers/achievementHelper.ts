@@ -1,28 +1,9 @@
 import { html, type TemplateResult } from "lit";
-import { AchievementDefinitionsResponse, PlayerResult } from "../models/schemas.js";
-import { AchievementTier, AchievementType } from "../models/enums.js";
+import { PlayerResult } from "../models/schemas.js";
+import { AchievementTier } from "../models/enums.js";
 import { getAbsoluteBase } from '../getAbsoluteBase.js';
 
-const achievementTypeLabels: Record<AchievementType, string> = {
-	[AchievementType.RangeKing]:        'Range king',
-	[AchievementType.Special]:          'Special',
-	[AchievementType.VictoryRelated]:   'Victory',
-	[AchievementType.Classic]:          'Classic',
-	[AchievementType.PointsRelated]:    'Points',
-	[AchievementType.Progression]:      'Progression',
-	[AchievementType.Shanghai]:         'Shanghai',
-	[AchievementType.ThreeOfAKind]:     'Three of',
-	[AchievementType.Ladder]:           'Ladder',
-};
-
-export function getAchievementTypeLabel(achievementType: number): string {
-	return achievementTypeLabels[achievementType as AchievementType] ?? `Type ${ achievementType }`;
-}
-
-function groupUnlockedByTier(
-  pr: PlayerResult,
-  defs: AchievementDefinitionsResponse
-) {
+function groupUnlockedByTier(pr: PlayerResult) {
   const byTier = new Map<AchievementTier, { count: number; items: { name: string; description: string }[] }>();
 
   const add = (def?: { name: string; description: string; achievementTier: number }) => {
@@ -34,12 +15,6 @@ function groupUnlockedByTier(
     byTier.set(tier, entry);
   };
 
-  pr.unlockedSessionAchievements.forEach(a =>
-    add(defs.sessionAchievementDefinitions.get(a))
-  );
-  pr.unlockedProgressAchievements.forEach(a =>
-    add(defs.progressionAchievementDefinitions.get(a))
-  );
   pr.unlockedV2Achievements.forEach(achievement => add({
     name: achievement.renderedName,
     description: achievement.renderedDescription,
@@ -59,11 +34,8 @@ function groupUnlockedByTier(
     .filter(x => x.count > 0);
 }
 
-export function renderAchievementSummary(
-  pr: PlayerResult,
-  defs: AchievementDefinitionsResponse
-): TemplateResult {
-  const grouped = groupUnlockedByTier(pr, defs);
+export function renderAchievementSummary(pr: PlayerResult): TemplateResult {
+  const grouped = groupUnlockedByTier(pr);
   const total = grouped.reduce((sum, g) => sum + g.count, 0);
   if (total === 0) return html``;
 

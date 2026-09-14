@@ -5,40 +5,31 @@ import '../../ui/empty-state/aa-empty-state.js';
 import { html, LitElement, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
-import {
-	getAchievementTierIcon,
-	getAchievementTypeLabel,
-} from '../../helpers/achievementHelper.js';
+import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
 import type { AchievementInstanceResponse } from '../../models/achievementBuilderApi.js';
+import { AchievementTier, ThrowType } from '../../models/enums.js';
 import {
-	AchievementTier,
-	ProgressAchievement,
-	SessionAchievement,
-	ThrowType,
-} from '../../models/enums.js';
-import {
-	AchievementDefinitionsResponse,
-	ProgressionAchievementDefinition,
-	ProgressionAchievementProgress,
-	ProgressionAchievementTarget,
+	AchievementProgressionProgress,
+	AchievementProgressionTarget,
 	SeasonStatistics,
-	SessionsAchievementDefinition,
 } from '../../models/schemas.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
 import type { AaTabItem } from '../aa-tabs/aa-tabs.js';
 import achievementBrowserStyles from './aa-achievement-browser.css?inline';
 
-type AchievementDefinition = Pick<
-	SessionsAchievementDefinition | ProgressionAchievementDefinition,
-	'name' | 'description' | 'achievementTier'
->;
+interface AchievementDefinition {
+	name: string;
+	description: string;
+	achievementTier: number;
+}
 
 interface AchievementEntry {
+	instance:   AchievementInstanceResponse;
 	definition: AchievementDefinition;
 	unlocked:   boolean;
 	typeKey:    string;
 	typeLabel:  string;
-	progress?:  ProgressionAchievementProgress;
+	progress?:  AchievementProgressionProgress;
 }
 
 interface TierProgress {
@@ -50,12 +41,18 @@ interface TierProgress {
 
 export type AchievementGrouping = 'type' | 'tier';
 
+export const achievementTemplateViewEventName = 'achievement-template-view';
+
+export interface AchievementTemplateViewDetail {
+	templateId: string;
+	templateVersionId: string;
+	achievementName: string;
+}
+
 @customElement('aa-achievement-browser')
 export class AaAchievementBrowser extends LitElement {
-
-	@property({ attribute: false }) stats?:       SeasonStatistics;
-	@property({ attribute: false }) definitions?: AchievementDefinitionsResponse;
-	@property({ attribute: false }) v2Instances:  AchievementInstanceResponse[] = [];
+	@property({ attribute: false }) stats?: SeasonStatistics;
+	@property({ attribute: false }) achievementInstances: AchievementInstanceResponse[] = [];
 
 	@state() private grouping: AchievementGrouping = 'type';
 	@state() private selectedTab = '';
@@ -91,8 +88,8 @@ export class AaAchievementBrowser extends LitElement {
 
 		return html`
 			<div class="status-columns">
-				${ this.renderStatusColumn('unlocked', 'Completed', unlocked, badge) }
-				${ this.renderStatusColumn('locked', 'Remaining', locked, badge) }
+				${this.renderStatusColumn('unlocked', 'Completed', unlocked, badge)}
+				${this.renderStatusColumn('locked', 'Remaining', locked, badge)}
 			</div>
 		`;
 	}
@@ -104,26 +101,26 @@ export class AaAchievementBrowser extends LitElement {
 		badge: 'tier' | 'type',
 	): TemplateResult {
 		return html`
-			<section class="status-column status-column--${ status }">
+			<section class="status-column status-column--${status}">
 				<header class="status-heading">
-					<h3>${ title }</h3>
-					<strong class="status-count">${ achievements.length }</strong>
+					<h3>${title}</h3>
+					<strong class="status-count">${achievements.length}</strong>
 				</header>
 
-				${ achievements.length
+				${achievements.length
 					? html`
 						<ul class="achievement-cards">
-							${ achievements.map(achievement =>
-								this.renderAchievementCard(achievement, badge)) }
+							${achievements.map(achievement =>
+								this.renderAchievementCard(achievement, badge))}
 						</ul>
 					`
 					: html`
 						<aa-empty-state compact>
-							${ status === 'unlocked'
+							${status === 'unlocked'
 								? 'Nothing completed in this category yet.'
-								: 'Everything in this category is complete.' }
+								: 'Everything in this category is complete.'}
 						</aa-empty-state>
-					` }
+					`}
 			</section>
 		`;
 	}
@@ -138,29 +135,54 @@ export class AaAchievementBrowser extends LitElement {
 		return html`
 			<li class="achievement-card">
 				<div class="achievement-card__heading">
-					<strong>${ item.name }</strong>
-					${ badge === 'type'
+					<strong>${item.name}</strong>
+					${badge === 'type'
 						? html`
 							<aa-badge pill>
-								${ achievement.typeLabel }
+								${achievement.typeLabel}
 							</aa-badge>
 						`
 						: html`
 							<aa-badge pill>
-								<img src=${ getAchievementTierIcon(tier) } alt="" />
-								${ AchievementTier[tier] }
+								<img src=${getAchievementTierIcon(tier)} alt="" />
+								${AchievementTier[tier]}
 							</aa-badge>
-						` }
+						`}
 				</div>
-				<p>${ item.description }</p>
-				${ achievement.progress
+				<p>${item.description}</p>
+				${achievement.progress
 					? this.renderProgressionProgress(achievement.progress)
-					: null }
+					: null}
+				<button
+					type="button"
+					class="achievement-card__template-link"
+					title="View source template and logic"
+					aria-label="View source template for ${item.name}"
+					@click=${(event: Event) => {
+						event.stopPropagation();
+						this.dispatchEvent(new CustomEvent<AchievementTemplateViewDetail>(
+							achievementTemplateViewEventName,
+							{
+								detail: {
+									templateId:        achievement.instance.templateId,
+									templateVersionId: achievement.instance.templateVersionId,
+									achievementName:   achievement.instance.renderedName,
+								},
+								bubbles:  true,
+								composed: true,
+							},
+						));
+					}}
+				>
+					Template
+				</button>
 			</li>
 		`;
 	}
 
-	private renderProgressionProgress(progress: ProgressionAchievementProgress): TemplateResult {
+	private renderProgressionProgress(
+		progress: AchievementProgressionProgress,
+	): TemplateResult {
 		const percentage = progress.requiredTargets > 0
 			? Math.round((progress.completedTargets / progress.requiredTargets) * 100)
 			: 0;
@@ -169,40 +191,40 @@ export class AaAchievementBrowser extends LitElement {
 			<div class="progression-progress">
 				<div class="progression-progress__label">
 					<span>Target progress</span>
-					<strong>${ progress.completedTargets }/${ progress.requiredTargets }</strong>
+					<strong>${progress.completedTargets}/${progress.requiredTargets}</strong>
 				</div>
 				<div
 					class="progression-progress__track"
 					role="progressbar"
 					aria-label="Progression achievement target progress"
 					aria-valuemin="0"
-					aria-valuemax=${ progress.requiredTargets }
-					aria-valuenow=${ progress.completedTargets }
+					aria-valuemax=${progress.requiredTargets}
+					aria-valuenow=${progress.completedTargets}
 				>
-					<span style="width: ${ percentage }%"></span>
+					<span style="width: ${percentage}%"></span>
 				</div>
-				${ progress.remainingTargets.length > 0
+				${progress.remainingTargets.length > 0
 					? html`
 						<details class="remaining-targets">
 							<summary>
 								Remaining targets
-								<strong>${ progress.remainingTargets.length }</strong>
+								<strong>${progress.remainingTargets.length}</strong>
 							</summary>
 							<div class="remaining-targets__list">
-								${ progress.remainingTargets.map(target => html`
-									<span title=${ this.getProgressionTargetDescription(target) }>
-										${ this.getProgressionTargetLabel(target) }
+								${progress.remainingTargets.map(target => html`
+									<span title=${this.getProgressionTargetDescription(target)}>
+										${this.getProgressionTargetLabel(target)}
 									</span>
-								`) }
+								`)}
 							</div>
 						</details>
 					`
-					: html`<span class="progression-complete">All targets completed</span>` }
+					: html`<span class="progression-complete">All targets completed</span>`}
 			</div>
 		`;
 	}
 
-	private getProgressionTargetLabel(target: ProgressionAchievementTarget): string {
+	private getProgressionTargetLabel(target: AchievementProgressionTarget): string {
 		if (target.hitLocation === 25)
 			return 'Outer bull';
 		if (target.hitLocation === 50)
@@ -210,15 +232,17 @@ export class AaAchievementBrowser extends LitElement {
 
 		switch (target.throwType) {
 		case ThrowType.Double:
-			return `D${ target.hitLocation }`;
+			return `D${target.hitLocation}`;
 		case ThrowType.Triple:
-			return `T${ target.hitLocation }`;
+			return `T${target.hitLocation}`;
 		default:
 			return String(target.hitLocation);
 		}
 	}
 
-	private getProgressionTargetDescription(target: ProgressionAchievementTarget): string {
+	private getProgressionTargetDescription(
+		target: AchievementProgressionTarget,
+	): string {
 		if (target.hitLocation === 25)
 			return 'Outer bull';
 		if (target.hitLocation === 50)
@@ -226,11 +250,11 @@ export class AaAchievementBrowser extends LitElement {
 
 		switch (target.throwType) {
 		case ThrowType.Double:
-			return `Double ${ target.hitLocation }`;
+			return `Double ${target.hitLocation}`;
 		case ThrowType.Triple:
-			return `Triple ${ target.hitLocation }`;
+			return `Triple ${target.hitLocation}`;
 		default:
-			return `Single ${ target.hitLocation }`;
+			return `Single ${target.hitLocation}`;
 		}
 	}
 
@@ -254,47 +278,11 @@ export class AaAchievementBrowser extends LitElement {
 	}
 
 	override render(): TemplateResult {
-		if (!this.stats || !this.definitions)
+		if (!this.stats)
 			return html``;
 
-		const unlockedSession = new Set(
-			this.stats.unlockedSessionAchievements.filter(
-				(achievement): achievement is SessionAchievement => achievement !== 'unknown',
-			),
-		);
-		const unlockedProgress = new Set(
-			this.stats.unlockedProgressAchievements.filter(
-				(achievement): achievement is ProgressAchievement => achievement !== 'unknown',
-			),
-		);
-		const achievements: AchievementEntry[] = [];
-		const progressByAchievement = new Map(
-			this.stats.progressAchievementProgress
-				.filter(progress => progress.achievement !== 'unknown')
-				.map(progress => [ progress.achievement, progress ]),
-		);
-
-		for (const [ id, definition ] of this.definitions.sessionAchievementDefinitions.entries()) {
-			achievements.push({
-				definition,
-				unlocked: unlockedSession.has(id),
-				typeKey: `legacy:${ definition.achievementType }`,
-				typeLabel: getAchievementTypeLabel(definition.achievementType),
-			});
-		}
-
-		for (const [ id, definition ] of this.definitions.progressionAchievementDefinitions.entries()) {
-			achievements.push({
-				definition,
-				unlocked: unlockedProgress.has(id),
-				typeKey: `legacy:${ definition.achievementType }`,
-				typeLabel: getAchievementTypeLabel(definition.achievementType),
-				progress: progressByAchievement.get(id),
-			});
-		}
-
 		const latestVersionByTemplate = new Map<string, number>();
-		for (const instance of this.v2Instances) {
+		for (const instance of this.achievementInstances) {
 			latestVersionByTemplate.set(
 				instance.templateId,
 				Math.max(
@@ -303,29 +291,38 @@ export class AaAchievementBrowser extends LitElement {
 				),
 			);
 		}
-		const visibleV2 = new Map(
-			this.v2Instances
+		const visibleAchievements = new Map(
+			this.achievementInstances
 				.filter(instance =>
 					instance.versionNumber === latestVersionByTemplate.get(instance.templateId))
 				.map(instance => [ instance.id, instance ]),
 		);
 		this.stats.unlockedV2Achievements.forEach(instance =>
-			visibleV2.set(instance.id, instance));
-		const unlockedV2Ids = new Set(
+			visibleAchievements.set(instance.id, instance));
+
+		const unlockedIds = new Set(
 			this.stats.unlockedV2Achievements.map(instance => instance.id),
 		);
-		for (const instance of visibleV2.values()) {
-			achievements.push({
-				definition: {
-					name: instance.renderedName,
-					description: instance.renderedDescription,
-					achievementTier: instance.achievementTier,
-				},
-				unlocked: unlockedV2Ids.has(instance.id),
-				typeKey: `v2:${ instance.categoryId }`,
-				typeLabel: instance.categoryName,
-			});
-		}
+		const progressByInstance = new Map(
+			this.stats.progressionAchievementProgress.map(progress => [
+				progress.achievementInstanceId,
+				progress,
+			]),
+		);
+		const achievements: AchievementEntry[] = [
+			...visibleAchievements.values(),
+		].map(instance => ({
+			instance,
+			definition: {
+				name:            instance.renderedName,
+				description:     instance.renderedDescription,
+				achievementTier: instance.achievementTier,
+			},
+			unlocked:  unlockedIds.has(instance.id),
+			typeKey:  `${instance.evaluationPhase}:${instance.categoryId}`,
+			typeLabel: instance.categoryName,
+			progress:  progressByInstance.get(instance.id),
+		}));
 
 		const byType: Map<string, Map<AchievementTier, TierProgress>> = new Map();
 		const typeLabels = new Map<string, string>();
@@ -373,9 +370,9 @@ export class AaAchievementBrowser extends LitElement {
 			AchievementTier.platinum,
 			AchievementTier.diamond,
 		];
-		const typeEntries = [ ...byType.entries() ].sort(([ left ], [ right ]) =>
+		const typeEntries = [...byType.entries()].sort(([left], [right]) =>
 			(typeLabels.get(left) ?? left).localeCompare(typeLabels.get(right) ?? right));
-		const typeTabs: AaTabItem[] = typeEntries.map(([ type, tiers ]) => {
+		const typeTabs: AaTabItem[] = typeEntries.map(([type, tiers]) => {
 			const total = tierOrder.reduce(
 				(sum, tier) => sum + (tiers.get(tier)?.total ?? 0),
 				0,
@@ -386,9 +383,9 @@ export class AaAchievementBrowser extends LitElement {
 			);
 
 			return {
-				id:    `type:${ encodeURIComponent(type) }`,
+				id:    `type:${encodeURIComponent(type)}`,
 				label: typeLabels.get(type) ?? type,
-				count: `${ earned }/${ total }`,
+				count: `${earned}/${total}`,
 			};
 		});
 		const tierTabs: AaTabItem[] = tierOrder
@@ -400,9 +397,9 @@ export class AaAchievementBrowser extends LitElement {
 					.length;
 
 				return {
-					id:      `tier:${ tier }`,
+					id:      `tier:${tier}`,
 					label:   AchievementTier[tier],
-					count:   `${ earned }/${ tierAchievements.length }`,
+					count:   `${earned}/${tierAchievements.length}`,
 					iconSrc: getAchievementTierIcon(tier),
 					iconAlt: AchievementTier[tier],
 				};
@@ -421,9 +418,6 @@ export class AaAchievementBrowser extends LitElement {
 		const activeTab = tabs.find(tab => tab.id === activeTabId);
 		const activeType = decodeURIComponent(activeTabId.slice('type:'.length));
 		const activeTier = Number(activeTabId.slice('tier:'.length));
-		const hasUnknown =
-			this.stats.unlockedSessionAchievements.includes('unknown') ||
-			this.stats.unlockedProgressAchievements.includes('unknown');
 		const activeAchievements = this.grouping === 'type'
 			? this.getTypeAchievements(byType.get(activeType), tierOrder)
 			: achievements.filter(
@@ -435,26 +429,22 @@ export class AaAchievementBrowser extends LitElement {
 				<div class="sticky-controls">
 					<aa-tabs
 						label="Achievement categories"
-						.items=${ tabs }
-						.selected=${ activeTabId }
-						@tab-change=${ this.handleTabChange }
+						.items=${tabs}
+						.selected=${activeTabId}
+						@tab-change=${this.handleTabChange}
 					></aa-tabs>
 				</div>
 
 				<section
 					class="tab-panel"
 					role="tabpanel"
-					aria-label=${ activeTab?.label ?? 'Achievements' }
+					aria-label=${activeTab?.label ?? 'Achievements'}
 				>
-					${ this.renderAchievementBoard(
+					${this.renderAchievementBoard(
 						activeAchievements,
 						this.grouping === 'type' ? 'tier' : 'type',
-					) }
+					)}
 				</section>
-
-				${ hasUnknown
-					? html`<p class="unknown">Some achievements were unknown to this client version and were ignored.</p>`
-					: null }
 			</div>
 		`;
 	}
@@ -463,5 +453,14 @@ export class AaAchievementBrowser extends LitElement {
 		sharedStyles,
 		unsafeCSS(achievementBrowserStyles),
 	];
+}
 
+declare global {
+	interface HTMLElementTagNameMap {
+		'aa-achievement-browser': AaAchievementBrowser;
+	}
+
+	interface HTMLElementEventMap {
+		[achievementTemplateViewEventName]: CustomEvent<AchievementTemplateViewDetail>;
+	}
 }

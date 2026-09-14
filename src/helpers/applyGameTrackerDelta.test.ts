@@ -52,10 +52,6 @@ function createState(): GameTrackerState {
 			createPlayer(firstPlayerId),
 			createPlayer(secondPlayerId),
 		],
-		projectedSessionAchievementsByPlayer: {
-			[firstPlayerId]:  [],
-			[secondPlayerId]: [],
-		},
 	};
 }
 
@@ -72,7 +68,6 @@ function createDelta(rounds: Round[]): GameTrackerDelta {
 			roundCount:      rounds[0]!.roundIndex + rounds.length,
 			rounds,
 		} ],
-		projectedSessionAchievementsByPlayer: {},
 	};
 }
 
@@ -135,21 +130,6 @@ describe('applyGameTrackerDelta', () => {
 
 		expect(result.state.playersRounds[0]!.rounds).toHaveLength(4);
 		expect(result.state.playersRounds[1]!.rounds).toHaveLength(4);
-	});
-
-	it('replaces projected achievements with an empty authoritative value', () => {
-		const state = createState();
-		state.projectedSessionAchievementsByPlayer[firstPlayerId] = [ 0 ];
-		const delta = createDelta([ createRound(0) ]);
-		delta.projectedSessionAchievementsByPlayer[firstPlayerId] = [];
-
-		const result = applyGameTrackerDelta(state, delta);
-
-		expect(result.status).toBe('applied');
-		if (result.status !== 'applied')
-			return;
-
-		expect(result.state.projectedSessionAchievementsByPlayer[firstPlayerId]).toEqual([]);
 	});
 
 	it('rejects revision gaps without changing local state', () => {

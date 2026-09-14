@@ -96,11 +96,34 @@
 }
 
 .achievement-card {
+	position: relative;
 	padding: 0.6rem 0.65rem;
+	padding-bottom: 2.5rem;
 	background: var(--color-surface-raised);
 	border: 2px solid var(--color-border-strong);
 	border-radius: var(--radius-md);
 	box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.8);
+}
+
+.achievement-card__template-link {
+	position: absolute;
+	right: 0.55rem;
+	bottom: 0.5rem;
+	padding: 0.15rem 0.45rem;
+	background: var(--color-surface-cool);
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: var(--radius-control-sm);
+	box-shadow: var(--shadow-brutal-xs);
+	font: 800 0.68rem/1.2 var(--font-family-ui);
+	cursor: pointer;
+}
+
+.achievement-card__template-link:hover,
+.achievement-card__template-link:focus-visible {
+	background: var(--color-accent-primary);
+	outline: none;
+	transform: translate(-1px, -1px);
+	box-shadow: var(--shadow-brutal-sm);
 }
 
 .achievement-card__heading {

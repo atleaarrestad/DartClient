@@ -6,23 +6,19 @@ import { container } from 'tsyringe';
 
 import { UserQueryOptions } from '../../../api/users.requests.js';
 import type { AchievementInstanceResponse } from '../../../models/achievementBuilderApi.js';
-import {
-	AchievementDefinitionsResponse,
-	Season,
-	SeasonStatistics,
-	User,
-} from '../../../models/schemas.js';
+import { Season, SeasonStatistics, User } from '../../../models/schemas.js';
 import { DialogService } from '../../../services/dialogService.js';
 import { SeasonService } from '../../../services/seasonService.js';
 import { UserService } from '../../../services/userService.js';
 import { sharedStyles } from '../../../styles/shared-styles.js';
 import userPageStyles from './user-page.css?inline';
-import { achievementService } from '../../../services/achievementService.js';
 import { AchievementBuilderService } from '../../../services/achievementBuilderService.js';
 import type {
 	AaAchievementBrowser,
 	AchievementGrouping,
+	AchievementTemplateViewDetail,
 } from '../../aa-achievement-browser/aa-achievement-browser.js';
+import type { AaDialog } from '../../aa-dialog/aa-dialog.js';
 import type { UserSeasonChangedEvent } from '../../user-season-summary/aa-user-season-summary.js';
 import type {
 	HitDistributionView,
@@ -31,6 +27,7 @@ import type {
 import '../../user-season-summary/aa-user-season-summary.js';
 import '../../user-statistics-charts/aa-user-statistics-charts.js';
 import '../../aa-achievement-browser/aa-achievement-browser.js';
+import '../../achievement-builder/achievement-builder.js';
 import '../../aa-loading-state/aa-loading-state.js';
 import '../../../ui/button/aa-button.js';
 
@@ -50,7 +47,6 @@ export class UserPage extends LitElement {
 	@state() private currentSeason?: Season;
 	@state() private seasons?: Season[];
 	@state() private selectedSeason?: Season;
-	@state() private achievementDefinitions?: AchievementDefinitionsResponse;
 	@state() private v2AchievementInstances: AchievementInstanceResponse[] = [];
 	@state() private isLoadingSeasonStats = false;
 	@state() private hitDistributionView: HitDistributionView = 'bars';
@@ -58,7 +54,6 @@ export class UserPage extends LitElement {
 	private seasonService: SeasonService;
 	private userService: UserService;
 	private user?: User;
-	private achievementService: achievementService;
 	private achievementBuilderService: AchievementBuilderService;
 	private dialogService: DialogService;
 	private seasonStatsRequestId = 0;
@@ -67,7 +62,6 @@ export class UserPage extends LitElement {
 		super();
 		this.userService = container.resolve(UserService);
 		this.seasonService = container.resolve(SeasonService);
-		this.achievementService = container.resolve(achievementService);
 		this.achievementBuilderService = container.resolve(AchievementBuilderService);
 		this.dialogService = container.resolve(DialogService);
 	}
@@ -79,17 +73,14 @@ export class UserPage extends LitElement {
 	override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
 
-		const [currentSeason, seasons, achievementDefinitions] = await Promise.all([
+		const [currentSeason, seasons] = await Promise.all([
 			this.seasonService.getCurrentSeason(),
 			this.seasonService.getAll(),
-			this.achievementService.getAchievementDefinitions(),
 		]);
 
 		this.currentSeason = currentSeason;
 		this.seasons = seasons;
 		this.selectedSeason = this.seasons.find(s => s.id === this.currentSeason?.id) || this.seasons[0];
-		this.achievementDefinitions = achievementDefinitions;
-
 		if (this.selectedSeason) {
 			await this.loadUserForSeason(this.selectedSeason.id);
 		}
@@ -153,10 +144,8 @@ export class UserPage extends LitElement {
 			highestRoundScoreNoSeasonRules: 0,
 			highestRoundScoreForVictory: 0,
 			finishCount: [],
-			unlockedProgressAchievements: [],
-			unlockedSessionAchievements: [],
 			unlockedV2Achievements: [],
-			progressAchievementProgress: [],
+			progressionAchievementProgress: [],
 		};
 
 		if (!this.user?.seasonStatistics?.length) {
@@ -177,35 +166,12 @@ export class UserPage extends LitElement {
 		stats: SeasonStatistics,
 		season: Season,
 	): AchievementProgress {
-		if (!this.achievementDefinitions) {
-			return {
-				earned:            0,
-				total:             0,
-				earnedCapIncrease: 0,
-				totalCapIncrease:  0,
-			};
-		}
-
-		const unlockedSession = new Set(
-			stats.unlockedSessionAchievements.filter(achievement => achievement !== 'unknown'),
-		);
-		const unlockedProgress = new Set(
-			stats.unlockedProgressAchievements.filter(achievement => achievement !== 'unknown'),
-		);
-		const sessionDefinitions = this.achievementDefinitions.sessionAchievementDefinitions;
-		const progressionDefinitions = this.achievementDefinitions.progressionAchievementDefinitions;
 		const capIncreaseByTier = new Map(
 			season.achievementTierRewards.map(reward => [
 				reward.achievementTier,
 				reward.mmrCapIncrease,
 			]),
 		);
-		const sessionEntries = [ ...sessionDefinitions.entries() ];
-		const progressionEntries = [ ...progressionDefinitions.entries() ];
-		const earnedSession = sessionEntries.filter(([ achievement ]) =>
-			unlockedSession.has(achievement));
-		const earnedProgress = progressionEntries.filter(([ achievement ]) =>
-			unlockedProgress.has(achievement));
 		const latestVersionByTemplate = new Map<string, number>();
 		this.v2AchievementInstances.forEach(instance => latestVersionByTemplate.set(
 			instance.templateId,
@@ -231,27 +197,17 @@ export class UserPage extends LitElement {
 			capIncreaseByTier.get(achievementTier) ?? 0;
 
 		return {
-			earned:            earnedSession.length + earnedProgress.length + earnedV2.length,
-			total:             sessionEntries.length + progressionEntries.length
-				+ v2Achievements.size,
-			earnedCapIncrease: [
-				...earnedSession.map(([ , definition ]) => definition),
-				...earnedProgress.map(([ , definition ]) => definition),
-				...earnedV2,
-			].reduce((sum, definition) =>
+			earned:            earnedV2.length,
+			total:             v2Achievements.size,
+			earnedCapIncrease: earnedV2.reduce((sum, definition) =>
 				sum + getCapIncrease(definition.achievementTier), 0),
-			totalCapIncrease:  [
-				...sessionEntries.map(([ , definition ]) => definition),
-				...progressionEntries.map(([ , definition ]) => definition),
-				...v2Achievements.values(),
-			].reduce((sum, definition) =>
+			totalCapIncrease:  [ ...v2Achievements.values() ].reduce((sum, definition) =>
 				sum + getCapIncrease(definition.achievementTier), 0),
 		};
 	}
 
 	private async openAchievements(stats: SeasonStatistics): Promise<void> {
-		if (!this.achievementDefinitions)
-			return;
+		let templateToView: AchievementTemplateViewDetail | undefined;
 
 		try {
 			await this.dialogService.open(
@@ -280,8 +236,15 @@ export class UserPage extends LitElement {
 					</button>
 					<aa-achievement-browser
 						.stats=${stats}
-						.definitions=${this.achievementDefinitions}
-						.v2Instances=${this.v2AchievementInstances}
+						.achievementInstances=${this.v2AchievementInstances}
+						@achievement-template-view=${(
+							event: CustomEvent<AchievementTemplateViewDetail>,
+						) => {
+							templateToView = event.detail;
+							((event.currentTarget as HTMLElement)
+								.closest('aa-dialog') as AaDialog | null)
+								?.close();
+						}}
 					></aa-achievement-browser>
 				`,
 				{
@@ -289,10 +252,52 @@ export class UserPage extends LitElement {
 					fixedHeight: true,
 				},
 			);
+
+			if (templateToView)
+				await this.openAchievementTemplate(templateToView);
 		}
 		catch (error) {
 			console.error('Unable to open achievements dialog.', error);
 		}
+	}
+
+	private async openAchievementTemplate(
+		detail: AchievementTemplateViewDetail,
+	): Promise<void> {
+		const seasonId = this.selectedSeason?.id;
+		if (!seasonId)
+			return;
+
+		const [ templates, categories, catalog ] = await Promise.all([
+			this.achievementBuilderService.getTemplates(seasonId),
+			this.achievementBuilderService.getCategories(seasonId),
+			this.achievementBuilderService.getCatalog(),
+		]);
+		const template = templates.find(candidate => candidate.id === detail.templateId);
+		const version = template?.versions.find(
+			candidate => candidate.id === detail.templateVersionId,
+		);
+		if (!template || !version)
+			throw new Error('The source achievement template version is no longer available.');
+
+		await this.dialogService.open(
+			html`
+				<aa-achievement-builder
+					.viewOnly=${true}
+					.seasonId=${seasonId}
+					.initialTemplateId=${detail.templateId}
+					.initialVersionId=${detail.templateVersionId}
+					.categories=${categories}
+					.templates=${templates}
+					.maximumGeneratedInstances=${catalog.limits.maximumGeneratedInstances}
+				></aa-achievement-builder>
+			`,
+			{
+				title:       `Achievement template: ${detail.achievementName} (Read only)`,
+				large:       true,
+				fixedHeight: true,
+			},
+		);
 	}
 
 	private setAchievementGrouping(

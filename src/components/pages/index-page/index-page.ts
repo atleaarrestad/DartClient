@@ -447,7 +447,6 @@ export class IndexPage extends GamePage {
 			this.gameIdFromLocalStorage = newGameID;
 			this.gameRevisionId = newGameID;
 			this.gameRevision = 0;
-			this.projectedSessionAchievementsByPlayer = {};
 			this.projectedV2AchievementsByPlayer = {};
 			await this.subscribeToAchievementEvents(newGameID);
 		}
@@ -691,9 +690,8 @@ export class IndexPage extends GamePage {
 			this.players = [];
 			this.requestUpdate();
 
-			const achievementDefinitions = await this.achievementService.getAchievementDefinitions();
 			await this.dialogService.open(
-				postGameTemplate(gameResult, this.users, achievementDefinitions),
+				postGameTemplate(gameResult, this.users),
 				{ title: 'Game Summary' },
 			);
 		}

@@ -7,8 +7,7 @@ import '../components/rank-display/aa-rank-display.js';
 import '../ui/button/aa-button.js';
 import { defaultMmrConfiguration } from '../models/mmr.js';
 import { getRankDisplayValue, getRankIcon, Rank } from '../models/rank.js';
-import { AchievementDefinitionsResponse, GameResult, User, RuleDefinition } from '../models/schemas.js';
-import { SessionAchievement } from "../models/enums.js";
+import { GameResult, User, RuleDefinition } from '../models/schemas.js';
 import { renderAchievementSummary } from "../helpers/achievementHelper.js";
 
 export interface SeasonRuleDialogItem {
@@ -317,7 +316,6 @@ export const newUserTemplate = (options: {
 export const postGameTemplate = (
 	gameResult: GameResult,
 	users: User[],
-	achievementDefinitions: AchievementDefinitionsResponse
 ): TemplateResult => {
 	const sortedPlayerResults = [ ...gameResult.playerResults ].sort((a, b) => {
 		if (a.placement === 0 && b.placement !== 0)
@@ -366,7 +364,7 @@ export const postGameTemplate = (
 								<div class="pill"><span class="label">Avg</span> ${pr.averageScore}</div>
 							</div>
 
-							${renderAchievementSummary(pr, achievementDefinitions)}
+							${renderAchievementSummary(pr)}
 
 							${index < sortedPlayerResults.length - 1
 								? html`<div class="divider"></div>`
@@ -431,7 +429,7 @@ export const seasonSpotlightDialogTemplate = (options: {
 
 
 
-export const gameResultDummyData: GameResult = {
+export const gameResultDummyData = {
 	date:             new Date('2025-03-24T01:14:58.205118Z'),
 	playerRoundsList: [],
 	playerResults:    [
@@ -447,8 +445,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2250,
 			oldRank:      4,
 			newRank:      5,
-			unlockedSessionAchievements: [SessionAchievement.ThreeOfAKind20],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 		{
@@ -463,8 +459,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
-			unlockedSessionAchievements: [SessionAchievement.ClassicAnyDouble, SessionAchievement.ClassicAnyTripple, SessionAchievement.Classic1, SessionAchievement.Classic3, SessionAchievement.Classic2],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 		{
@@ -479,8 +473,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
-			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 		{
@@ -495,8 +487,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
-			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 		{
@@ -511,8 +501,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
-			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 		{
@@ -527,8 +515,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
-			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 		{
@@ -543,8 +529,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
-			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 		{
@@ -559,8 +543,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
-			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 		{
@@ -575,8 +557,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
-			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 		{
@@ -591,8 +571,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
-			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 		{
@@ -607,8 +585,6 @@ export const gameResultDummyData: GameResult = {
 			newMMR:       2330,
 			oldRank:      5,
 			newRank:      5,
-			unlockedSessionAchievements: [],
-			unlockedProgressAchievements: [],
 			unlockedV2Achievements: [],
 		},
 	],

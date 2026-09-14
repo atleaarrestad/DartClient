@@ -7,15 +7,22 @@ import type {
 
 const valueSourceLabels: Partial<Record<AchievementValueSource, string>> = {
 	'round.throwCount':             'Round throw count',
+	'round.modifiedThrowCount':     'Throws using seasonal modifiers',
+	'round.number':                 'Round number',
 	'round.finalPoints':            'Round final points',
-	'round.rawPointsDistinctCount': 'Distinct raw-point values',
-	'round.minimumRawPoints':       'Minimum raw points',
+	'round.rawPointsDistinctCount': 'Number of unique unmodified throw scores',
+	'round.minimumRawPoints':       'Lowest unmodified throw score',
 	'round.singleCount':            'Singles in round',
 	'round.doubleCount':            'Doubles in round',
 	'round.tripleCount':            'Triples in round',
 	'game.roundsPlayed':            'Rounds played',
 	'game.placement':               'Final placement',
+	'game.validRoundCount':         'Valid rounds',
+	'game.victoryCount':            'Victory rounds',
 	'game.overshootCount':          'Overshoot rounds',
+	'game.failedWinConditionCount': 'Failed-win rounds',
+	'game.doubleCount':             'Double hits',
+	'game.tripleCount':             'Triple hits',
 	'game.rimCount':                'Rim hits',
 	'game.missCount':               'Misses',
 };
@@ -31,7 +38,7 @@ const operatorLabels: Record<AchievementComparisonOperator, string> = {
 
 const throwTypeLabels = {
 	any:        'throw',
-	anyScoring: 'scoring throw',
+	anyScoring: 'single, double, or triple',
 	single:     'single',
 	double:     'double',
 	triple:     'triple',
@@ -44,6 +51,14 @@ export const formatAchievementValue = (value: AchievementValueDraft): string => 
 	case 'constant':
 	case 'parameter':
 		return value.value || 'Choose value';
+	case 'parameter.offset': {
+		if (!value.value)
+			return 'Choose adjusted parameter';
+		const offset = value.offset ?? 0;
+		return offset < 0
+			? `${ value.value } - ${ Math.abs(offset) }`
+			: `${ value.value } + ${ offset }`;
+	}
 	case 'board.leftNeighbor':
 		return value.value ? `left of ${ value.value }` : 'Choose left neighbor';
 	case 'board.rightNeighbor':
@@ -71,10 +86,36 @@ export const formatAchievementRule = (rule: AchievementRuleDraft): string => {
 	}
 	case 'throw': {
 		const quantifier = rule.quantifier === 'any' ? 'Any' : 'Every';
-
-		return `${ quantifier } ${ throwTypeLabels[rule.throwType] } hits ${
-			formatAchievementValue(rule.hitLocation)
+		return rule.hitLocation
+			? `${ quantifier } ${ throwTypeLabels[rule.throwType] } hits ${
+				formatAchievementValue(rule.hitLocation)
+			}`
+			: `${ quantifier } throw is a ${ throwTypeLabels[rule.throwType] }`;
+	}
+	case 'throwCount':
+		return `${
+			rule.hitLocation ? `${ formatAchievementValue(rule.hitLocation) } ` : ''
+		}${ throwTypeLabels[rule.throwType] } count ${ operatorLabels[rule.operator] } ${
+			formatAchievementValue(rule.count)
 		}`;
+	case 'winningThrow': {
+		const target = rule.hitLocation
+			? formatAchievementValue(rule.hitLocation)
+			: '';
+		if (rule.throwType === 'any' && target === '25')
+			return 'Winning throw is a bull';
+		if (rule.throwType === 'any' && target === '50')
+			return 'Winning throw is a double bull';
+
+		const typeLabels = {
+			any: 'Winning throw',
+			single: 'Winning throw is a single',
+			double: 'Winning throw is a double or double bull',
+			triple: 'Winning throw is a triple',
+		};
+		return target
+			? `${ typeLabels[rule.throwType] } hitting ${ target }`
+			: typeLabels[rule.throwType];
 	}
 	case 'compare':
 		return `${ formatAchievementValue(rule.left) } ${ operatorLabels[rule.operator] } ${
@@ -90,10 +131,50 @@ export const formatAchievementRule = (rule: AchievementRuleDraft): string => {
 			? `Sequence: ${ targets.join(' -> ') }`
 			: 'Sequence: add the first step';
 	}
+	case 'raw': {
+		const collection = rule.ast['collection'];
+		const predicate = rule.ast['predicate'];
+		if (
+			rule.ast['kind'] === 'all'
+			&& collection && typeof collection === 'object'
+			&& (collection as Record<string, unknown>)['kind'] === 'field'
+			&& (collection as Record<string, unknown>)['path'] === 'round.throws'
+			&& predicate && typeof predicate === 'object'
+		) {
+			const predicateNode = predicate as Record<string, unknown>;
+			const left = predicateNode['left'];
+			const right = predicateNode['right'];
+			if (
+				predicateNode['kind'] === 'equal'
+				&& left && typeof left === 'object'
+				&& (left as Record<string, unknown>)['kind'] === 'field'
+				&& (left as Record<string, unknown>)['path'] === 'throw.modifierCount'
+				&& right && typeof right === 'object'
+				&& (right as Record<string, unknown>)['kind'] === 'constant'
+				&& (right as Record<string, unknown>)['valueType'] === 'integer'
+				&& (right as Record<string, unknown>)['value'] === 0
+			)
+				return 'No throws use seasonal modifiers';
+		}
+
+		const kind = typeof rule.ast['kind'] === 'string'
+			? rule.ast['kind']
+			: 'custom';
+		const descriptions: Record<string, string> = {
+			all: 'Every item matches an advanced condition',
+			any: 'At least one item matches an advanced condition',
+			count: 'Advanced count expression',
+			sum: 'Advanced sum expression',
+			sequence: 'Advanced sequence condition',
+		};
+		return descriptions[kind] ?? `Advanced ${ kind } condition`;
+	}
 	}
 };
 
 export const formatSequenceTarget = (
 	target: Extract<AchievementRuleDraft, { type: 'sequence'; }>['targets'][number],
 ): string =>
-	`${ formatAchievementValue(target.hitLocation) } - ${ throwTypeLabels[target.throwType] }`;
+	target.throwType === 'rim' || target.throwType === 'miss'
+		? throwTypeLabels[target.throwType]
+		: `${ formatAchievementValue(target.hitLocation) } - ${ throwTypeLabels[target.throwType] }`;

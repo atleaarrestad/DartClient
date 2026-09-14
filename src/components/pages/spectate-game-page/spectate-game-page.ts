@@ -136,8 +136,10 @@ export class SpectateGamePage extends GamePage {
 		if (gameId !== this.gameId)
 			return;
 
-		const achievementDefinitions = await this.achievementService.getAchievementDefinitions();
-		this.dialogService.open(postGameTemplate(gameResult, this.users, achievementDefinitions), { title: 'Game Summary' });
+		this.dialogService.open(
+			postGameTemplate(gameResult, this.users),
+			{ title: 'Game Summary' },
+		);
 	}
 
 	static override styles = [ ...GamePage.styles, faIcons, unsafeCSS(spectateGamePageStyles) ];

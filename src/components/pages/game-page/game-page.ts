@@ -15,8 +15,8 @@ import {
 	ApplyGameTrackerDeltaResult,
 } from '../../../helpers/applyGameTrackerDelta.js';
 import { sum } from '../../../helpers/sum.js';
-import { AchievementTier, RoundStatus, SessionAchievement } from '../../../models/enums.js';
-import { AchievementDefinitionsResponse, GameTracker, GameTrackerDelta, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../../models/schemas.js';
+import { AchievementTier, RoundStatus } from '../../../models/enums.js';
+import { GameTracker, GameTrackerDelta, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../../models/schemas.js';
 import { DataService } from '../../../services/dataService.js';
 import { DialogService } from '../../../services/dialogService.js';
 import { GameService } from '../../../services/gameService.js';
@@ -28,7 +28,6 @@ import { sharedStyles } from '../../../styles/shared-styles.js';
 import gamePageStyles from './game-page.css?inline';
 import { aaDartThrow } from '../../aa-dart-throw-cmp/aa-dart-throw-cmp.js';
 import '../../rank-display/aa-rank-display.js';
-import { achievementService } from '../../../services/achievementService.js';
 import {
 	SignalRConnectionStatus,
 	SignalRService,
@@ -49,7 +48,6 @@ export class GamePage extends LitElement {
 	@state() protected syncStatus: SignalRConnectionStatus = 'disconnected';
 	@state() protected syncStatusMessage = 'Live sync offline';
 	@state() protected browserOnline = navigator.onLine;
-	@state() protected achievementDefinitions?: AchievementDefinitionsResponse;
 	@state() protected visibleRoundCapacity = 10;
 	@state() protected maximumRounds: number | null = null;
 	@state() protected configuredMaximumRounds: number | null = null;
@@ -57,7 +55,6 @@ export class GamePage extends LitElement {
 
 	protected dataService: DataService;
 	protected seasonService: SeasonService;
-	protected achievementService: achievementService;
 	protected userService: UserService;
 	protected notificationService: NotificationService;
 	protected dialogService: DialogService;
@@ -70,13 +67,11 @@ export class GamePage extends LitElement {
 	protected selectedId?: string;
 	protected selectedCellElement?: aaDartThrow = undefined;
 	protected isActiveGame: boolean = false;
-	protected projectedSessionAchievementsByPlayer: Record<string, SessionAchievement[]> = {};
 	protected projectedV2AchievementsByPlayer: Record<string, AchievementInstanceResponse[]> = {};
 	protected scrollLeader: HTMLElement | null = null;
 	protected signalRService: SignalRService;
 	protected gameLiveService: GameLiveService;
 	private removeSignalRStatusListener?: () => void;
-	private achievementSubscription?: SignalRSubscription;
 	private v2AchievementSubscription?: SignalRSubscription;
 	private lifecycleGeneration = 0;
 	private observedPlayerContainer?: HTMLElement;
@@ -85,11 +80,6 @@ export class GamePage extends LitElement {
 	private playerGridAnimationFrame?: number;
 
 	private hasShownInitialSyncFailure = false;
-	private readonly onSessionAchievementUnlocked = (
-		gameId: string,
-		playerId: string,
-		sessionAchievements: SessionAchievement[],
-	) => this.HandleSessionAchievementUnlocked(gameId, playerId, sessionAchievements);
 	private readonly onV2AchievementProjected = (
 		gameId: string,
 		playerId: string,
@@ -101,7 +91,6 @@ export class GamePage extends LitElement {
 
 		this.notificationService = container.resolve(NotificationService);
 		this.seasonService = container.resolve(SeasonService);
-		this.achievementService = container.resolve(achievementService);
 		this.dialogService = container.resolve(DialogService);
 		this.dataService = container.resolve(DataService);
 		this.userService = container.resolve(UserService);
@@ -146,10 +135,9 @@ export class GamePage extends LitElement {
 
 		await this.healthCheckServer();
 		await this.GetLatestSeason();
-		await Promise.all([
-			this.loadUsers({query: {includeSeasonStatistics: true, limitToSeasonId: this.season!.id}}),
-			this.loadAchievementDefinitions(),
-		]);
+		await this.loadUsers({
+			query: {includeSeasonStatistics: true, limitToSeasonId: this.season!.id},
+		});
 
 		const locallyCachedGameSessionId = this.gameService.getCachedGameId();
 		if (locallyCachedGameSessionId !== undefined) {
@@ -185,45 +173,18 @@ export class GamePage extends LitElement {
 	public async subscribeToAchievementEvents(gameId: string): Promise<void> {
 		await this.unsubscribeFromAchievementEvents();
 
-		const legacySubscription = this.gameLiveService.subscribeToAchievements(
-			gameId,
-			this.onSessionAchievementUnlocked,
-		);
 		const v2Subscription = this.gameLiveService.subscribeToV2Achievements(
 			gameId,
 			this.onV2AchievementProjected,
 		);
-		this.achievementSubscription = legacySubscription;
 		this.v2AchievementSubscription = v2Subscription;
-		await Promise.all([ legacySubscription.ready, v2Subscription.ready ]);
+		await v2Subscription.ready;
 	}
 
 	public async unsubscribeFromAchievementEvents(): Promise<void> {
-		const legacySubscription = this.achievementSubscription;
 		const v2Subscription = this.v2AchievementSubscription;
-		this.achievementSubscription = undefined;
 		this.v2AchievementSubscription = undefined;
-		await Promise.all([
-			legacySubscription?.dispose(),
-			v2Subscription?.dispose(),
-		]);
-	}
-
-	private async HandleSessionAchievementUnlocked(
-		gameId: string,
-		playerId: string,
-		sessionAchievements: SessionAchievement[],
-	) {
-		const achievementNames = sessionAchievements.map(sessionAchievement => {
-			const achievementName = SessionAchievement[sessionAchievement];
-			return achievementName.replace(/([a-z])([A-Z])/g, '$1 $2');
-		});
-
-		this.notificationService.addNotification({
-			type: 'achievement',
-			achievementNames,
-			timeout: 6000,
-		});
+		await v2Subscription?.dispose();
 	}
 
 	private async HandleV2AchievementProjected(
@@ -273,15 +234,6 @@ export class GamePage extends LitElement {
 			.catch((error) => {
 				this.reportError(error, 'Unable to load users.');
 			});
-	}
-
-	protected async loadAchievementDefinitions(): Promise<void> {
-		try {
-			this.achievementDefinitions = await this.achievementService.getAchievementDefinitions();
-		}
-		catch (error) {
-			this.reportError(error, 'Unable to load achievement details.');
-		}
 	}
 
 	protected async registerSignalRSubscriptions(): Promise<void> {
@@ -430,7 +382,6 @@ export class GamePage extends LitElement {
 		if (this.gameRevisionId !== gameTracker.id) {
 			this.gameRevisionId = gameTracker.id;
 			this.gameRevision = 0;
-			this.projectedSessionAchievementsByPlayer = {};
 			this.projectedV2AchievementsByPlayer = {};
 		}
 		else if (gameTracker.revision < this.gameRevision) {
@@ -445,9 +396,6 @@ export class GamePage extends LitElement {
 		this.configuredMaximumRounds = gameTracker.configuredMaximumRounds;
 		this.gameRevision = gameTracker.revision;
 		this.players = [ ...gameTracker.playersRounds ];
-		this.projectedSessionAchievementsByPlayer = {
-			...gameTracker.projectedSessionAchievementsByPlayer,
-		};
 		this.projectedV2AchievementsByPlayer = {
 			...gameTracker.projectedV2AchievementsByPlayer,
 		};
@@ -471,7 +419,6 @@ export class GamePage extends LitElement {
 			maximumRounds:           this.maximumRounds,
 			configuredMaximumRounds: this.configuredMaximumRounds,
 			playersRounds:           this.players,
-			projectedSessionAchievementsByPlayer: this.projectedSessionAchievementsByPlayer,
 		}, delta);
 
 		if (result.status !== 'applied')
@@ -481,8 +428,6 @@ export class GamePage extends LitElement {
 		this.maximumRounds = result.state.maximumRounds;
 		this.configuredMaximumRounds = result.state.configuredMaximumRounds;
 		this.players = result.state.playersRounds;
-		this.projectedSessionAchievementsByPlayer =
-			result.state.projectedSessionAchievementsByPlayer;
 
 		const newRoundCount = Math.max(...this.players.map(player => player.rounds.length), 0);
 		if (oldRoundCount !== newRoundCount)
@@ -771,26 +716,12 @@ export class GamePage extends LitElement {
 	}
 
 	protected renderProjectedAchievements(playerId: string): unknown {
-		const legacyAchievements = this.projectedSessionAchievementsByPlayer[playerId] ?? [];
 		const v2Achievements = this.projectedV2AchievementsByPlayer[playerId] ?? [];
-		if (legacyAchievements.length === 0 && v2Achievements.length === 0)
+		if (v2Achievements.length === 0)
 			return null;
 
 		const countsByTier = new Map<AchievementTier, number>();
 		const namesByTier = new Map<AchievementTier, string[]>();
-		for (const achievement of legacyAchievements) {
-			const definition =
-				this.achievementDefinitions?.sessionAchievementDefinitions.get(achievement);
-			if (!definition)
-				continue;
-
-			const tier = definition.achievementTier as AchievementTier;
-			countsByTier.set(tier, (countsByTier.get(tier) ?? 0) + 1);
-			namesByTier.set(tier, [
-				...(namesByTier.get(tier) ?? []),
-				definition.name,
-			]);
-		}
 		for (const achievement of v2Achievements) {
 			const tier = achievement.achievementTier as AchievementTier;
 			countsByTier.set(tier, (countsByTier.get(tier) ?? 0) + 1);
@@ -897,8 +828,6 @@ export class GamePage extends LitElement {
 							const hasVictory = player.rounds.some(r => r.roundStatus === RoundStatus.Victory);
 							const placeholderRoundCount = this.getPlaceholderRoundCount(player);
 							const roundLimitBarrierCount = this.getRoundLimitBarrierCount(player);
-							const projectedAchievements =
-								this.projectedSessionAchievementsByPlayer[player.playerId];
 							const projectedV2Achievements =
 								this.projectedV2AchievementsByPlayer[player.playerId];
 							const isAchievementCompact =
@@ -914,7 +843,6 @@ export class GamePage extends LitElement {
 								this.maximumRounds,
 								this.configuredMaximumRounds,
 								this.visibleRoundCapacity,
-								projectedAchievements,
 								projectedV2Achievements,
 								isAchievementCompact,
 								isActive,

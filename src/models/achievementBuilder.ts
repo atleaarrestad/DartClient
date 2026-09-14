@@ -25,9 +25,12 @@ export type AchievementComparisonOperator =
 export type AchievementValueSource =
 	| 'constant'
 	| 'parameter'
+	| 'parameter.offset'
 	| 'board.leftNeighbor'
 	| 'board.rightNeighbor'
 	| 'round.throwCount'
+	| 'round.modifiedThrowCount'
+	| 'round.number'
 	| 'round.finalPoints'
 	| 'round.rawPointsDistinctCount'
 	| 'round.minimumRawPoints'
@@ -36,13 +39,19 @@ export type AchievementValueSource =
 	| 'round.tripleCount'
 	| 'game.roundsPlayed'
 	| 'game.placement'
+	| 'game.validRoundCount'
+	| 'game.victoryCount'
 	| 'game.overshootCount'
+	| 'game.failedWinConditionCount'
+	| 'game.doubleCount'
+	| 'game.tripleCount'
 	| 'game.rimCount'
 	| 'game.missCount';
 
 export interface AchievementValueDraft {
 	source: AchievementValueSource;
 	value: string;
+	offset?: number;
 }
 
 export interface AchievementGroupRuleDraft {
@@ -70,7 +79,7 @@ export interface AchievementThrowRuleDraft {
 	type: 'throw';
 	quantifier: 'any' | 'all';
 	scope: 'currentRound';
-	hitLocation: AchievementValueDraft;
+	hitLocation?: AchievementValueDraft;
 	throwType: 'any' | 'single' | 'double' | 'triple' | 'rim' | 'miss';
 }
 
@@ -80,6 +89,22 @@ export interface AchievementComparisonRuleDraft {
 	left: AchievementValueDraft;
 	operator: AchievementComparisonOperator;
 	right: AchievementValueDraft;
+}
+
+export interface AchievementThrowCountRuleDraft {
+	id: string;
+	type: 'throwCount';
+	hitLocation?: AchievementValueDraft;
+	throwType: 'any' | 'single' | 'double' | 'triple' | 'rim' | 'miss';
+	operator: AchievementComparisonOperator;
+	count: AchievementValueDraft;
+}
+
+export interface AchievementWinningThrowRuleDraft {
+	id: string;
+	type: 'winningThrow';
+	hitLocation?: AchievementValueDraft;
+	throwType: 'any' | 'single' | 'double' | 'triple';
 }
 
 export interface AchievementSequenceTargetDraft {
@@ -95,13 +120,22 @@ export interface AchievementSequenceRuleDraft {
 	targets: AchievementSequenceTargetDraft[];
 }
 
+export interface AchievementRawRuleDraft {
+	id: string;
+	type: 'raw';
+	ast: Record<string, unknown>;
+}
+
 export type AchievementRuleDraft =
 	| AchievementGroupRuleDraft
 	| AchievementNotRuleDraft
 	| AchievementRoundRuleDraft
 	| AchievementThrowRuleDraft
 	| AchievementComparisonRuleDraft
-	| AchievementSequenceRuleDraft;
+	| AchievementThrowCountRuleDraft
+	| AchievementWinningThrowRuleDraft
+	| AchievementSequenceRuleDraft
+	| AchievementRawRuleDraft;
 
 export interface AchievementTemplateDraft {
 	id?: string;

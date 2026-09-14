@@ -2,7 +2,6 @@ import type {
 	GameTrackerDelta,
 	PlayerRounds,
 } from '../models/schemas.js';
-import type { SessionAchievement } from '../models/enums.js';
 
 export interface GameTrackerState {
 	gameId: string;
@@ -10,7 +9,6 @@ export interface GameTrackerState {
 	maximumRounds: number | null;
 	configuredMaximumRounds: number | null;
 	playersRounds: PlayerRounds[];
-	projectedSessionAchievementsByPlayer: Record<string, SessionAchievement[]>;
 }
 
 export type ApplyGameTrackerDeltaResult =
@@ -37,11 +35,6 @@ export function applyGameTrackerDelta(
 	);
 
 	for (const playerId of deltasByPlayerId.keys()) {
-		if (!current.playersRounds.some(player => player.playerId === playerId))
-			return { status: 'invalid' };
-	}
-
-	for (const playerId of Object.keys(delta.projectedSessionAchievementsByPlayer)) {
 		if (!current.playersRounds.some(player => player.playerId === playerId))
 			return { status: 'invalid' };
 	}
@@ -74,10 +67,6 @@ export function applyGameTrackerDelta(
 			maximumRounds:           delta.maximumRounds,
 			configuredMaximumRounds: delta.configuredMaximumRounds,
 			playersRounds:           playersRounds as PlayerRounds[],
-			projectedSessionAchievementsByPlayer: {
-				...current.projectedSessionAchievementsByPlayer,
-				...delta.projectedSessionAchievementsByPlayer,
-			},
 		},
 	};
 }

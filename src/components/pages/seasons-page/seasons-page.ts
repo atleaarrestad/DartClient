@@ -14,7 +14,6 @@ import { container } from 'tsyringe';
 import { getAchievementTierIcon } from '../../../helpers/achievementHelper.js';
 import {
 	compileAchievementTemplate,
-	restoreAchievementTemplateDraft,
 } from '../../../helpers/compileAchievementTemplate.js';
 import {
 	AchievementTier,
@@ -1152,7 +1151,7 @@ rule.executionOrder = Number(
 		}
 
 		try {
-			const [ templates, catalog, loadedCategories ] = await Promise.all([
+			let [ templates, catalog, loadedCategories ] = await Promise.all([
 				this.achievementBuilderService.getTemplates(seasonId),
 				this.achievementBuilderService.getCatalog(),
 				this.achievementBuilderService.getCategories(seasonId),
@@ -1223,35 +1222,6 @@ rule.executionOrder = Number(
 
 			await this.dialogService.open(
 				html`
-					<select
-						slot="actions"
-						aria-label="Select achievement template"
-						@change=${ (event: Event) => {
-							const select = event.currentTarget as HTMLSelectElement;
-							const template = templates.find(item => item.id === select.value);
-							const dialog = select.closest('aa-dialog');
-							const builder = dialog?.querySelector(
-								'aa-achievement-builder',
-							) as AaAchievementBuilder | null;
-							builder?.loadDraft(
-								template
-									? restoreAchievementTemplateDraft(template)
-									: undefined,
-							);
-						} }
-					>
-						<option value="">New achievement</option>
-						${ templates.map(template => {
-							const version = template.versions.find(item => item.status === 'Draft')
-								?? template.versions[0];
-							return html`
-								<option value=${ template.id }>
-									${ version?.nameTemplate ?? 'Unnamed achievement' }
-									${ version?.status === 'Published' ? '(published)' : '(draft)' }
-								</option>
-							`;
-						}) }
-					</select>
 					<aa-button
 						slot="footer-secondary"
 						type="button"
@@ -1309,8 +1279,20 @@ rule.executionOrder = Number(
 					<aa-achievement-builder
 						seasonId=${ seasonId }
 						.categories=${ categories }
+						.templates=${ templates }
 						.categoryActions=${ categoryActions }
 						.maximumGeneratedInstances=${ catalog.limits.maximumGeneratedInstances }
+						@achievement-builder-workspace-change=${ (
+							event: CustomEvent<{ tab: string; }>,
+						) => {
+							const dialog = (event.currentTarget as HTMLElement).closest('aa-dialog');
+							dialog?.querySelectorAll<HTMLElement>('[data-achievement-submit]')
+								.forEach(button => {
+									button.style.display = event.detail.tab === 'browse'
+										? 'none'
+										: '';
+								});
+						} }
 						@achievement-builder-save=${ async (
 							event: CustomEvent<AchievementTemplateDraft>,
 						) => {
@@ -1328,7 +1310,6 @@ rule.executionOrder = Number(
 										request,
 										this.adminKey,
 									);
-								builder.loadDraft({ ...event.detail, id: saved.id });
 								const seasonTemplates = this.achievementTemplatesBySeason[
 									event.detail.seasonId
 								] ?? [];
@@ -1342,6 +1323,8 @@ rule.executionOrder = Number(
 											index === savedIndex ? saved : template)
 										: [ ...seasonTemplates, saved ],
 								};
+								templates = this.achievementTemplatesBySeason[event.detail.seasonId] ?? [];
+								builder.setTemplates(templates, saved.id);
 								const validation = await this.achievementBuilderService
 									.validateTemplate(saved.id);
 								if (!validation.isValid) {
@@ -1372,6 +1355,8 @@ rule.executionOrder = Number(
 											index === existingIndex ? result : template)
 										: [ ...currentTemplates, result ],
 								};
+								templates = this.achievementTemplatesBySeason[event.detail.seasonId] ?? [];
+								builder.setTemplates(templates, result.id);
 								this.notificationService.addNotification({
 									type: 'success',
 									message: shouldPublish

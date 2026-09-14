@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { AchievementInstanceResponseSchema } from './achievementBuilderApi.js';
 import { DartThrowSchema } from './dartThrowSchema.js';
-import { AchievementTier, GameConstraint, ProgressAchievement, RoundStatus, ScoreModifier, SessionAchievement, ThrowType, WinCondition } from './enums.js';
+import { AchievementTier, GameConstraint, RoundStatus, ScoreModifier, ThrowType, WinCondition } from './enums.js';
 import { Rank } from './rank.js';
 
 
@@ -35,8 +35,6 @@ export const PlayerResultSchema = z.object({
 	newMMR:                       z.number().int(),
 	oldRank:                      z.nativeEnum(Rank),
 	newRank:                      z.nativeEnum(Rank),
-	unlockedProgressAchievements: z.array(z.nativeEnum(ProgressAchievement)),
-	unlockedSessionAchievements:  z.array(z.nativeEnum(SessionAchievement)),
 	unlockedV2Achievements:       z.array(AchievementInstanceResponseSchema).default([]),
 });
 
@@ -47,10 +45,6 @@ export const GameTrackerSchema = z.object({
 	maximumRounds:                        z.number().int().nullable().default(null),
 	configuredMaximumRounds:              z.number().int().nullable().default(null),
 	playersRounds:                        z.array(PlayerRoundsSchema),
-	projectedSessionAchievementsByPlayer: z.record(
-		z.string().uuid(),
-		z.array(z.nativeEnum(SessionAchievement)),
-	).default({}),
 	projectedV2AchievementsByPlayer: z.record(
 		z.string().uuid(),
 		z.array(AchievementInstanceResponseSchema),
@@ -95,10 +89,6 @@ export const GameTrackerDeltaSchema = z.object({
 	maximumRounds:                        z.number().int().nullable(),
 	configuredMaximumRounds:              z.number().int().nullable(),
 	playerRoundDeltas:                    z.array(PlayerRoundDeltaSchema),
-	projectedSessionAchievementsByPlayer: z.record(
-		z.string().uuid(),
-		z.array(z.nativeEnum(SessionAchievement)),
-	),
 }).superRefine((delta, context) => {
 	if (delta.revision !== delta.baseRevision + 1) {
 		context.addIssue({
@@ -144,42 +134,16 @@ export const FinishCountSchema = z.object({
 	seasonStatisticsId: z.number(),
 });
 
-const SessionAchievementValues = Object.values(SessionAchievement).filter(
-	(v): v is number => typeof v === 'number',
-);
-
-const ProgressionAchievementValues = Object.values(ProgressAchievement).filter(
-	(v): v is number => typeof v === 'number',
-);
-
-export const SessionAchievementSafeSchema = z
-	.number()
-	.int()
-	.transform((value) =>
-		SessionAchievementValues.includes(value)
-			? (value as SessionAchievement)
-			: 'unknown');
-export const ProgressionAchievementSafeSchema = z
-	.number()
-	.int()
-	.transform((value) =>
-		ProgressionAchievementValues.includes(value)
-			? (value as ProgressAchievement)
-			: 'unknown');
-
-export type SessionAchievementSafe = SessionAchievement | 'unknown';
-export type ProgressionAchievementSafe = ProgressAchievement | 'unknown';
-
-export const ProgressionAchievementTargetSchema = z.object({
+export const AchievementProgressionTargetSchema = z.object({
 	hitLocation: z.number().int(),
 	throwType:   z.nativeEnum(ThrowType),
 });
 
-export const ProgressionAchievementProgressSchema = z.object({
-	achievement:      ProgressionAchievementSafeSchema,
-	completedTargets: z.number().int().nonnegative(),
-	requiredTargets:  z.number().int().nonnegative(),
-	remainingTargets: z.array(ProgressionAchievementTargetSchema),
+export const AchievementProgressionProgressSchema = z.object({
+	achievementInstanceId: z.string().uuid(),
+	completedTargets:      z.number().int().nonnegative(),
+	requiredTargets:       z.number().int().nonnegative(),
+	remainingTargets:      z.array(AchievementProgressionTargetSchema),
 });
 
 export const SeasonStatisticsSchema = z.object({
@@ -195,10 +159,8 @@ export const SeasonStatisticsSchema = z.object({
 	matchSnapshots:               	 z.array(MatchSnapshotSchema),
 	hitCounts:                    	 z.array(HitCountSchema),
 	finishCount:                  	 z.array(FinishCountSchema),
-	unlockedProgressAchievements: 	 z.array(ProgressionAchievementSafeSchema),
-	unlockedSessionAchievements:  	 z.array(SessionAchievementSafeSchema),
 	unlockedV2Achievements:          z.array(AchievementInstanceResponseSchema).default([]),
-	progressAchievementProgress:    z.array(ProgressionAchievementProgressSchema).default([]),
+	progressionAchievementProgress:  z.array(AchievementProgressionProgressSchema).default([]),
 });
 
 export const UserSchema = z.object({
@@ -291,57 +253,6 @@ export const RuleDefinitionsResponseSchema = z.object({
 	gameConstraints: z.array(RuleDefinitionSchema).default([]),
 });
 
-export const SessionAchievementDefinition = z.object({
-	name:            z.string(),
-	description:     z.string(),
-	achievementTier: z.number(),
-	achievementType: z.number(),
-});
-
-export const ProgressionAchievementDefinition = z.object({
-	name:            z.string(),
-	description:     z.string(),
-	achievementTier: z.number(),
-	achievementType: z.number(),
-});
-
-const SessionAchievementKeySchema = z.string().refine(
-	(k): k is keyof typeof SessionAchievement => k in SessionAchievement,
-	{ message: 'Invalid SessionAchievement key' },
-);
-
-const ProgressAchievementKeySchema = z.string().refine(
-	(k): k is keyof typeof ProgressAchievement => k in ProgressAchievement,
-	{ message: 'Invalid ProgressAchievement key' },
-);
-
-export const AchievementDefinitionsResponseSchema = z.object({
-	sessionAchievementDefinitions: z.record(
-		SessionAchievementKeySchema,
-		SessionAchievementDefinition,
-	),
-	progressionAchievementDefinitions: z.record(
-		ProgressAchievementKeySchema,
-		ProgressionAchievementDefinition,
-	),
-}).transform((resp) => {
-	return {
-		sessionAchievementDefinitions: new Map(
-			Object.entries(resp.sessionAchievementDefinitions).map(([ k, v ]) => [
-				SessionAchievement[k as keyof typeof SessionAchievement],
-				v,
-			]),
-		),
-		progressionAchievementDefinitions: new Map(
-			Object.entries(resp.progressionAchievementDefinitions).map(([ k, v ]) => [
-				ProgressAchievement[k as keyof typeof ProgressAchievement],
-				v,
-			]),
-		),
-	};
-});
-
-
 export type Round = z.infer<typeof RoundSchema>;
 export type PlayerRounds = z.infer<typeof PlayerRoundsSchema>;
 
@@ -351,8 +262,8 @@ export type SeasonStatistics = z.infer<typeof SeasonStatisticsSchema>;
 export type MatchSnapshot = z.infer<typeof MatchSnapshotSchema>;
 export type HitCount = z.infer<typeof HitCountSchema>;
 export type FinishCount = z.infer<typeof FinishCountSchema>;
-export type ProgressionAchievementTarget = z.infer<typeof ProgressionAchievementTargetSchema>;
-export type ProgressionAchievementProgress = z.infer<typeof ProgressionAchievementProgressSchema>;
+export type AchievementProgressionTarget = z.infer<typeof AchievementProgressionTargetSchema>;
+export type AchievementProgressionProgress = z.infer<typeof AchievementProgressionProgressSchema>;
 export type GameTracker = z.infer<typeof GameTrackerSchema>;
 export type PlayerRoundDelta = z.infer<typeof PlayerRoundDeltaSchema>;
 export type GameTrackerDelta = z.infer<typeof GameTrackerDeltaSchema>;
@@ -369,6 +280,3 @@ export type AchievementTierReward = z.infer<typeof AchievementTierRewardSchema>;
 export type MmrConfiguration = z.infer<typeof MmrConfigurationSchema>;
 export type RuleDefinition = z.infer<typeof RuleDefinitionSchema>;
 export type RuleDefinitionsResponse = z.infer<typeof RuleDefinitionsResponseSchema>;
-export type AchievementDefinitionsResponse = z.infer<typeof AchievementDefinitionsResponseSchema>;
-export type SessionsAchievementDefinition = z.infer<typeof SessionAchievementDefinition>;
-export type ProgressionAchievementDefinition = z.infer<typeof ProgressionAchievementDefinition>;

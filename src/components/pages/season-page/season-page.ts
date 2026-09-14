@@ -97,8 +97,8 @@ export class SeasonPage extends LitElement {
 			matchSnapshots: [],
 			hitCounts: [],
 			finishCount: [],
-			unlockedProgressAchievements: [],
-			unlockedSessionAchievements: [],
+			unlockedV2Achievements: [],
+			progressionAchievementProgress: [],
 		} as unknown as SeasonStatistics;
 	}
 
@@ -284,11 +284,13 @@ export class SeasonPage extends LitElement {
 					averagePlayersPerMatch: this.getAveragePlayersPerMatch(stats),
 					averageFinishRound: this.getAverageFinishRound(stats),
 					finishEvents: stats?.finishCount?.reduce((sum, x) => sum + (x.count ?? 0), 0) ?? 0,
-					progressAchievements: stats?.unlockedProgressAchievements?.length ?? 0,
-					sessionAchievements: stats?.unlockedSessionAchievements?.length ?? 0,
-					totalAchievements:
-						(stats?.unlockedProgressAchievements?.length ?? 0) +
-						(stats?.unlockedSessionAchievements?.length ?? 0),
+					progressAchievements: stats?.unlockedV2Achievements
+						?.filter(achievement =>
+							achievement.evaluationPhase === 'Progression').length ?? 0,
+					sessionAchievements: stats?.unlockedV2Achievements
+						?.filter(achievement =>
+							achievement.evaluationPhase !== 'Progression').length ?? 0,
+					totalAchievements: stats?.unlockedV2Achievements?.length ?? 0,
 				};
 			})
 			.sort((a, b) => b.mmr - a.mmr);

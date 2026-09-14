@@ -123,9 +123,11 @@ export class AaAchievementCategoryManager extends LitElement {
 			return;
 
 		const reordered = [ ...active ];
+		const current = reordered[index]!;
+		const target = reordered[destination]!;
 		[ reordered[index], reordered[destination] ] = [
-			reordered[destination],
-			reordered[index],
+			target,
+			current,
 		];
 		void this.run(
 			`reorder:${ categoryId }`,

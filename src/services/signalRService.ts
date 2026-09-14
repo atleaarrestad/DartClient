@@ -1,7 +1,6 @@
 import * as signalR from '@microsoft/signalr';
 import { injectable } from 'tsyringe';
 
-import type { SessionAchievement } from '../models/enums.js';
 import type { AchievementInstanceResponse } from '../models/achievementBuilderApi.js';
 import type { GameResult, GameTracker, GameTrackerDelta } from '../models/schemas.js';
 
@@ -12,11 +11,6 @@ export interface SignalRClientEvents {
 	OnGameUpdated: [gameId: string, gameTracker: GameTracker];
 	OnGameDelta: [gameId: string, delta: GameTrackerDelta];
 	OnGameFinished: [gameId: string, gameResult: GameResult];
-	OnSessionAchievementUnlocked: [
-		gameId: string,
-		playerId: string,
-		sessionAchievements: SessionAchievement[],
-	];
 	OnV2AchievementProjectionAdded: [
 		gameId: string,
 		playerId: string,

@@ -6,6 +6,7 @@ import { html, LitElement, nothing, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
+import { restoreAchievementTemplateDraft } from '../../helpers/compileAchievementTemplate.js';
 import {
 	AchievementParameterDraft,
 	AchievementProgressionDraft,
@@ -19,7 +20,12 @@ import {
 	createEmptyAchievementTemplate,
 } from '../../models/achievementBuilder.js';
 import { AchievementTier } from '../../models/enums.js';
-import type { AchievementCategoryResponse } from '../../models/achievementBuilderApi.js';
+import type {
+	AchievementCategoryResponse,
+	AchievementParameterDefinition,
+	AchievementTemplateResponse,
+	AchievementTemplateVersionResponse,
+} from '../../models/achievementBuilderApi.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
 import type { AaTabItem } from '../aa-tabs/aa-tabs.js';
 import type {
@@ -42,31 +48,53 @@ const tabs: AaTabItem[] = [
 	{ id: 'logic', label: 'Logic blocks' },
 ];
 
-const ruleTypes: { value: AchievementRuleDraft['type']; label: string; }[] = [
+const workspaceTabs: AaTabItem[] = [
+	{ id: 'browse', label: 'Browse achievements' },
+	{ id: 'editor', label: 'Achievement editor' },
+];
+
+type EditableAchievementRuleType = Exclude<AchievementRuleDraft['type'], 'raw'>;
+
+const ruleTypes: { value: EditableAchievementRuleType; label: string; }[] = [
 	{ value: 'all', label: 'All conditions' },
 	{ value: 'any', label: 'Any condition' },
 	{ value: 'not', label: 'Not' },
 	{ value: 'round', label: 'Round matches' },
 	{ value: 'throw', label: 'Throw matches' },
+	{ value: 'throwCount', label: 'Count matching throws' },
+	{ value: 'winningThrow', label: 'Winning throw' },
 	{ value: 'compare', label: 'Compare values' },
 	{ value: 'sequence', label: 'Ordered sequence' },
 ];
 
+const getRuleTypeLabel = (rule: AchievementRuleDraft): string =>
+	rule.type === 'raw'
+		? 'Advanced condition'
+		: ruleTypes.find(item => item.value === rule.type)?.label ?? rule.type;
+
 const valueSources: { value: AchievementValueSource; label: string; }[] = [
 	{ value: 'constant', label: 'Constant' },
 	{ value: 'parameter', label: 'Parameter' },
+	{ value: 'parameter.offset', label: 'Parameter with numeric offset' },
 	{ value: 'board.leftNeighbor', label: 'Left dartboard neighbor of parameter' },
 	{ value: 'board.rightNeighbor', label: 'Right dartboard neighbor of parameter' },
 	{ value: 'round.throwCount', label: 'Round throw count' },
+	{ value: 'round.modifiedThrowCount', label: 'Throws using seasonal modifiers' },
+	{ value: 'round.number', label: 'Round number' },
 	{ value: 'round.finalPoints', label: 'Round final-points sum' },
-	{ value: 'round.rawPointsDistinctCount', label: 'Distinct raw-point values' },
-	{ value: 'round.minimumRawPoints', label: 'Minimum raw points' },
+	{ value: 'round.rawPointsDistinctCount', label: 'Number of unique unmodified throw scores' },
+	{ value: 'round.minimumRawPoints', label: 'Lowest unmodified throw score' },
 	{ value: 'round.singleCount', label: 'Singles in round' },
 	{ value: 'round.doubleCount', label: 'Doubles in round' },
 	{ value: 'round.tripleCount', label: 'Triples in round' },
 	{ value: 'game.roundsPlayed', label: 'Rounds played' },
 	{ value: 'game.placement', label: 'Final placement' },
+	{ value: 'game.validRoundCount', label: 'Valid rounds' },
+	{ value: 'game.victoryCount', label: 'Victory rounds' },
 	{ value: 'game.overshootCount', label: 'Overshoot rounds' },
+	{ value: 'game.failedWinConditionCount', label: 'Failed-win rounds' },
+	{ value: 'game.doubleCount', label: 'Double hits' },
+	{ value: 'game.tripleCount', label: 'Triple hits' },
 	{ value: 'game.rimCount', label: 'Rim hits' },
 	{ value: 'game.missCount', label: 'Misses' },
 ];
@@ -74,6 +102,7 @@ const valueSources: { value: AchievementValueSource; label: string; }[] = [
 type BuilderScope = 'root' | 'round';
 type ValueEditorRole = 'comparison-left' | 'comparison-right' | 'hit-location';
 type TemplateField = 'nameTemplate' | 'descriptionTemplate';
+type TemplateSortColumn = 'achievement' | 'category' | 'type' | 'generated' | 'version';
 interface CanvasDragState {
 	pointerId: number;
 	startX: number;
@@ -88,9 +117,14 @@ export class AaAchievementBuilder extends LitElement {
 	@property({ type: String }) seasonId = '';
 	@property({ attribute: false }) initialDraft?: AchievementTemplateDraft;
 	@property({ attribute: false }) categories: AchievementCategoryResponse[] = [];
+	@property({ attribute: false }) templates: AchievementTemplateResponse[] = [];
 	@property({ attribute: false }) categoryActions?: AchievementCategoryActions;
 	@property({ type: Number }) maximumGeneratedInstances = 500;
+	@property({ type: Boolean }) viewOnly = false;
+	@property({ type: String }) initialTemplateId = '';
+	@property({ type: String }) initialVersionId = '';
 
+	@state() private selectedWorkspaceTab = 'editor';
 	@state() private selectedTab = 'details';
 	@state() private draft: AchievementTemplateDraft = createEmptyAchievementTemplate('');
 	@state() private errors: string[] = [];
@@ -103,10 +137,27 @@ export class AaAchievementBuilder extends LitElement {
 	@state() private expandedSequenceTargetId = '';
 	@state() private showCategoryManager = false;
 	@state() private activeTemplateField: TemplateField = 'nameTemplate';
+	@state() private selectedTemplateId = '';
+	@state() private selectedVersionId = '';
+	@state() private templateFilter = '';
+	@state() private templateSortColumn: TemplateSortColumn = 'achievement';
+	@state() private templateSortDirection: 'ascending' | 'descending' = 'ascending';
+	@state() private readOnlyVersion = false;
 
 	private logicCanvasDrag?: CanvasDragState;
+	private baselineDraft = '';
 
 	override firstUpdated(): void {
+		if (
+			this.initialTemplateId
+			&& this.viewTemplateVersion(
+				this.initialTemplateId,
+				this.initialVersionId || undefined,
+			)
+		) {
+			return;
+		}
+
 		this.resetDraft();
 	}
 
@@ -124,12 +175,173 @@ export class AaAchievementBuilder extends LitElement {
 		this.expandedSequenceTargetId = '';
 		this.showCategoryManager = false;
 		this.activeTemplateField = 'nameTemplate';
+		this.baselineDraft = JSON.stringify(draft);
 		this.resetLogicCanvas();
 	}
 
 	public loadDraft(draft?: AchievementTemplateDraft): void {
 		this.initialDraft = draft;
+		this.selectedTemplateId = draft?.id ?? '';
+		this.selectedVersionId = '';
+		this.readOnlyVersion = false;
 		this.resetDraft();
+	}
+
+	public setTemplates(
+		templates: AchievementTemplateResponse[],
+		selectedTemplateId?: string,
+	): void {
+		this.templates = templates;
+		if (selectedTemplateId)
+			this.loadTemplateVersion(selectedTemplateId, undefined, false);
+	}
+
+	public viewTemplateVersion(templateId: string, versionId?: string): boolean {
+		const loaded = this.loadTemplateVersion(templateId, versionId, false);
+		if (!loaded)
+			return false;
+
+		this.readOnlyVersion = true;
+		this.setWorkspaceTab('editor');
+		return true;
+	}
+
+	private get isDirty(): boolean {
+		return JSON.stringify(this.draft) !== this.baselineDraft;
+	}
+
+	private get sortedTemplates(): AchievementTemplateResponse[] {
+		return [ ...this.templates ].sort((left, right) =>
+			this.getTemplateLabel(left).localeCompare(this.getTemplateLabel(right)));
+	}
+
+	private get selectedTemplate(): AchievementTemplateResponse | undefined {
+		return this.templates.find(template => template.id === this.selectedTemplateId);
+	}
+
+	private get selectedVersion(): AchievementTemplateVersionResponse | undefined {
+		return this.selectedTemplate?.versions.find(
+			version => version.id === this.selectedVersionId,
+		);
+	}
+
+	private getVersions(template: AchievementTemplateResponse): AchievementTemplateVersionResponse[] {
+		return [ ...template.versions ]
+			.sort((left, right) => right.versionNumber - left.versionNumber);
+	}
+
+	private getDefaultVersion(
+		template: AchievementTemplateResponse,
+	): AchievementTemplateVersionResponse | undefined {
+		const versions = this.getVersions(template);
+		return versions.find(version => version.status === 'Draft') ?? versions[0];
+	}
+
+	private getTemplateLabel(template: AchievementTemplateResponse): string {
+		return this.getDefaultVersion(template)?.nameTemplate || 'Unnamed achievement';
+	}
+
+	private getGeneratedInstanceCount(
+		parameters: AchievementParameterDefinition[],
+	): number {
+		return parameters.reduce((count, parameter) => {
+			switch (parameter.kind) {
+			case 'IntegerRange': {
+				const minimum = parameter.minimum ?? 0;
+				const maximum = parameter.maximum ?? minimum;
+				const step = Math.max(parameter.step, 1);
+				return count * Math.max(0, Math.floor((maximum - minimum) / step) + 1);
+			}
+			case 'IntegerSet':
+				return count * parameter.integerValues.length;
+			case 'StringSet':
+				return count * parameter.stringValues.length;
+			case 'BooleanSet':
+				return count * parameter.booleanValues.length;
+			}
+		}, 1);
+	}
+
+	private setTemplateSort(column: TemplateSortColumn): void {
+		if (this.templateSortColumn === column) {
+			this.templateSortDirection = this.templateSortDirection === 'ascending'
+				? 'descending'
+				: 'ascending';
+			return;
+		}
+		this.templateSortColumn = column;
+		this.templateSortDirection = 'ascending';
+	}
+
+	private renderTemplateSortHeader(
+		column: TemplateSortColumn,
+		label: string,
+	): TemplateResult {
+		const active = this.templateSortColumn === column;
+		return html`
+			<th aria-sort=${ active ? this.templateSortDirection : 'none' }>
+				<button
+					type="button"
+					class="template-table__sort"
+					@click=${ () => this.setTemplateSort(column) }
+				>
+					${ label }
+					<span aria-hidden="true">
+						${ active
+							? this.templateSortDirection === 'ascending' ? '↑' : '↓'
+							: '↕' }
+					</span>
+				</button>
+			</th>
+		`;
+	}
+
+	private canDiscardDraft(): boolean {
+		return !this.isDirty
+			|| window.confirm('Discard unsaved achievement changes?');
+	}
+
+	private loadTemplateVersion(
+		templateId: string,
+		versionId?: string,
+		confirmDiscard = true,
+	): boolean {
+		if (confirmDiscard && !this.canDiscardDraft())
+			return false;
+
+		if (!templateId) {
+			this.selectedTemplateId = '';
+			this.selectedVersionId = '';
+			this.readOnlyVersion = false;
+			this.initialDraft = undefined;
+			this.resetDraft();
+			return true;
+		}
+
+		const template = this.templates.find(item => item.id === templateId);
+		const version = template && (
+			versionId
+				? template.versions.find(item => item.id === versionId)
+				: this.getDefaultVersion(template)
+		);
+		if (!template || !version)
+			return false;
+
+		const restored = restoreAchievementTemplateDraft(template, version.id);
+		if (!restored)
+			return false;
+
+		this.selectedTemplateId = template.id;
+		this.selectedVersionId = version.id;
+		this.readOnlyVersion = this.viewOnly || version.status === 'Published';
+		this.initialDraft = restored;
+		this.resetDraft();
+		return true;
+	}
+
+	private createEditableDraft(): void {
+		this.readOnlyVersion = false;
+		this.setWorkspaceTab('editor');
 	}
 
 	private updateDraft(patch: Partial<AchievementTemplateDraft>): void {
@@ -190,6 +402,22 @@ export class AaAchievementBuilder extends LitElement {
 		this.selectedTab = event.detail.id;
 		if (this.selectedTab === 'logic')
 			void this.fitLogicCanvas();
+	}
+
+	private handleWorkspaceTabChange(event: CustomEvent<{ id: string; }>): void {
+		this.setWorkspaceTab(event.detail.id);
+	}
+
+	private setWorkspaceTab(tab: string): void {
+		this.selectedWorkspaceTab = tab;
+		this.dispatchEvent(new CustomEvent<{ tab: string; }>(
+			'achievement-builder-workspace-change',
+			{
+				detail: { tab },
+				bubbles: true,
+				composed: true,
+			},
+		));
 	}
 
 	private resetLogicCanvas(): void {
@@ -293,6 +521,28 @@ export class AaAchievementBuilder extends LitElement {
 		this.logicCanvasY = Math.max(24, (viewport.clientHeight - graph.offsetHeight * this.logicCanvasScale) / 2);
 	}
 
+	private getRenderedRule(ruleId: string): HTMLElement | undefined {
+		return [ ...this.shadowRoot?.querySelectorAll<HTMLElement>('[data-rule-id]') ?? [] ]
+			.find(element => element.dataset['ruleId'] === ruleId);
+	}
+
+	private async setExpandedRule(
+		ruleId: string,
+		expandedRuleId = ruleId,
+	): Promise<void> {
+		const previousBounds = this.getRenderedRule(ruleId)?.getBoundingClientRect();
+		this.expandedRuleId = expandedRuleId;
+		this.expandedSequenceTargetId = '';
+		await this.updateComplete;
+
+		const updatedBounds = this.getRenderedRule(ruleId)?.getBoundingClientRect();
+		if (!previousBounds || !updatedBounds)
+			return;
+
+		this.logicCanvasX += previousBounds.left - updatedBounds.left;
+		this.logicCanvasY += previousBounds.top - updatedBounds.top;
+	}
+
 	private validate(): string[] {
 		const errors: string[] = [];
 		if (!this.draft.nameTemplate.trim())
@@ -363,6 +613,7 @@ export class AaAchievementBuilder extends LitElement {
 				errors.push(`${ valuePath } is not available in this block scope.`);
 			if (
 				value.source === 'parameter'
+				|| value.source === 'parameter.offset'
 				|| value.source === 'board.leftNeighbor'
 				|| value.source === 'board.rightNeighbor'
 			) {
@@ -374,6 +625,11 @@ export class AaAchievementBuilder extends LitElement {
 					&& parameter.valueType !== 'integer'
 				)
 					errors.push(`${ valuePath } needs an integer parameter.`);
+				else if (
+					value.source === 'parameter.offset'
+					&& !Number.isInteger(value.offset)
+				)
+					errors.push(`${ valuePath } needs an integer offset.`);
 			}
 			else if (value.source === 'constant' && !Number.isFinite(Number(value.value))) {
 				errors.push(`${ valuePath } needs a numeric constant.`);
@@ -397,7 +653,15 @@ export class AaAchievementBuilder extends LitElement {
 			errors.push(...this.getRuleErrors(rule.condition, `${ path } round condition`, 'round'));
 			break;
 		case 'throw':
-			validateValue(rule.hitLocation, `${ path } hit location`, 'hit-location');
+			if (rule.hitLocation)
+				validateValue(rule.hitLocation, `${ path } hit location`, 'hit-location');
+			else if (rule.throwType !== 'rim' && rule.throwType !== 'miss')
+				errors.push(`${ path } needs a hit location.`);
+			break;
+		case 'throwCount':
+			if (rule.hitLocation)
+				validateValue(rule.hitLocation, `${ path } hit location`, 'hit-location');
+			validateValue(rule.count, `${ path } count`, 'comparison-right');
 			break;
 		case 'compare':
 			validateValue(rule.left, `${ path } left value`, 'comparison-left');
@@ -406,12 +670,21 @@ export class AaAchievementBuilder extends LitElement {
 		case 'sequence':
 			if (rule.targets.length !== 3)
 				errors.push(`${ path } needs exactly three sequence targets.`);
-			rule.targets.forEach((target, index) =>
-				validateValue(
-					target.hitLocation,
-					`${ path } target ${ index + 1 }`,
-					'hit-location',
-				));
+			rule.targets.forEach((target, index) => {
+				if (target.throwType !== 'rim' && target.throwType !== 'miss') {
+					validateValue(
+						target.hitLocation,
+						`${ path } target ${ index + 1 }`,
+						'hit-location',
+					);
+				}
+			});
+			break;
+		case 'winningThrow':
+			if (rule.hitLocation)
+				validateValue(rule.hitLocation, `${ path } hit location`, 'hit-location');
+			break;
+		case 'raw':
 			break;
 		}
 
@@ -419,6 +692,8 @@ export class AaAchievementBuilder extends LitElement {
 	}
 
 	public submit(): boolean {
+		if (this.readOnlyVersion)
+			return false;
 		const errors = this.validate();
 		this.errors = errors;
 		if (errors.length > 0) {
@@ -493,7 +768,7 @@ export class AaAchievementBuilder extends LitElement {
 	}
 
 	private createRule(
-		type: AchievementRuleDraft['type'],
+		type: EditableAchievementRuleType,
 		scope: BuilderScope = 'root',
 	): AchievementRuleDraft {
 		const id = createAchievementBuilderId();
@@ -520,6 +795,22 @@ export class AaAchievementBuilder extends LitElement {
 				quantifier: 'any',
 				scope: 'currentRound',
 				hitLocation: constant(),
+				throwType: 'any',
+			};
+		case 'throwCount':
+			return {
+				id,
+				type,
+				hitLocation: constant(),
+				throwType: 'any',
+				operator: 'equal',
+				count: { source: 'constant', value: '1' },
+			};
+		case 'winningThrow':
+			return {
+				id,
+				type,
+				hitLocation: { source: 'constant', value: '25' },
 				throwType: 'any',
 			};
 		case 'compare':
@@ -598,7 +889,7 @@ export class AaAchievementBuilder extends LitElement {
 
 	private addChildRule(
 		parentId: string,
-		type: AchievementRuleDraft['type'],
+		type: EditableAchievementRuleType,
 		scope: BuilderScope,
 	): void {
 		const find = (rule: AchievementRuleDraft): AchievementRuleDraft | undefined => {
@@ -657,6 +948,7 @@ export class AaAchievementBuilder extends LitElement {
 	private getValueEditorChoice(value: AchievementValueDraft): string {
 		if (
 			value.source === 'parameter'
+			|| value.source === 'parameter.offset'
 			|| value.source === 'board.leftNeighbor'
 			|| value.source === 'board.rightNeighbor'
 		)
@@ -670,9 +962,18 @@ export class AaAchievementBuilder extends LitElement {
 	): AchievementValueDraft {
 		const separator = choice.indexOf(':');
 		if (separator >= 0) {
+			const source = choice.slice(0, separator) as AchievementValueSource;
+			const value = choice.slice(separator + 1);
 			return {
-				source: choice.slice(0, separator) as AchievementValueSource,
-				value: choice.slice(separator + 1),
+				source,
+				value,
+				...(source === 'parameter.offset'
+					? {
+						offset: current.source === source && current.value === value
+							? current.offset ?? 1
+							: 1,
+					}
+					: {}),
 			};
 		}
 		return {
@@ -702,6 +1003,7 @@ export class AaAchievementBuilder extends LitElement {
 					${ availableSources
 						.filter(source =>
 							source.value !== 'parameter'
+							&& source.value !== 'parameter.offset'
 							&& source.value !== 'board.leftNeighbor'
 							&& source.value !== 'board.rightNeighbor')
 						.map(source => html`
@@ -717,6 +1019,15 @@ export class AaAchievementBuilder extends LitElement {
 										${ parameter.key }
 									</option>
 								`) }
+							</optgroup>
+							<optgroup label="Adjusted achievement values">
+								${ this.draft.parameters
+									.filter(parameter => parameter.valueType === 'integer')
+									.map(parameter => html`
+										<option value=${ `parameter.offset:${ parameter.key }` }>
+											${ parameter.key } with offset
+										</option>
+									`) }
 							</optgroup>
 							<optgroup label="Dartboard neighbors">
 								${ this.draft.parameters
@@ -750,6 +1061,19 @@ export class AaAchievementBuilder extends LitElement {
 						/>
 					`
 					: nothing }
+				${ value.source === 'parameter.offset'
+					? html`
+						<input
+							type="number"
+							aria-label="Parameter offset"
+							.value=${ String(value.offset ?? 1) }
+							@input=${ (event: InputEvent) => onChange({
+								...value,
+								offset: Number((event.currentTarget as HTMLInputElement).value),
+							}) }
+						/>
+					`
+					: nothing }
 			</div>
 		`;
 	}
@@ -761,6 +1085,7 @@ export class AaAchievementBuilder extends LitElement {
 		const common: AchievementValueSource[] = [
 			'constant',
 			'parameter',
+			'parameter.offset',
 			'board.leftNeighbor',
 			'board.rightNeighbor',
 		];
@@ -802,24 +1127,28 @@ export class AaAchievementBuilder extends LitElement {
 							express all current board-coverage progression achievements.
 						</p>
 					</div>
-					<aa-button
-						type="button"
-						size="small"
-						@click=${ () => this.updateProgression({
-							targets: [
-								...progression.targets,
-								{
-									id: createAchievementBuilderId(),
-									hitLocation: { source: 'constant', value: '1' },
-									throwType: 'single',
-								},
-							],
-						}) }
-					>
-						Add target
-					</aa-button>
+					${ this.readOnlyVersion
+						? nothing
+						: html`
+							<aa-button
+								type="button"
+								size="small"
+								@click=${ () => this.updateProgression({
+									targets: [
+										...progression.targets,
+										{
+											id: createAchievementBuilderId(),
+											hitLocation: { source: 'constant', value: '1' },
+											throwType: 'single',
+										},
+									],
+								}) }
+							>
+								Add target
+							</aa-button>
+						` }
 				</div>
-				<div class="sequence-targets">
+				<div class="sequence-targets" ?inert=${ this.readOnlyVersion }>
 					${ progression.targets.map((target, index) => html`
 						<div class="sequence-target">
 							<strong>#${ index + 1 }</strong>
@@ -847,14 +1176,20 @@ export class AaAchievementBuilder extends LitElement {
 								<option value="double">Double</option>
 								<option value="triple">Triple</option>
 							</select>
-							<button
-								type="button"
-								class="remove-button"
-								aria-label="Remove progression target"
-								@click=${ () => this.updateProgression({
-									targets: progression.targets.filter(item => item.id !== target.id),
-								}) }
-							>&times;</button>
+							${ this.readOnlyVersion
+								? nothing
+								: html`
+									<button
+										type="button"
+										class="remove-button"
+										aria-label="Remove progression target"
+										@click=${ () => this.updateProgression({
+											targets: progression.targets.filter(
+												item => item.id !== target.id,
+											),
+										}) }
+									>&times;</button>
+								` }
 						</div>
 					`) }
 				</div>
@@ -874,7 +1209,7 @@ export class AaAchievementBuilder extends LitElement {
 		depth = 0,
 		scope: BuilderScope = 'root',
 	): TemplateResult {
-		const canRemove = depth > 0;
+		const canRemove = depth > 0 && !this.readOnlyVersion;
 		if (rule.type === 'not') {
 			return html`
 				<article class="logic-node logic-node--not logic-node--compact">
@@ -946,20 +1281,31 @@ export class AaAchievementBuilder extends LitElement {
 		const isExpanded = !canCollapse || this.expandedRuleId === rule.id;
 		if (!isExpanded) {
 			return html`
-				<article class="logic-node logic-node--${ rule.type } logic-node--summary">
+				<article
+					class="logic-node logic-node--${ rule.type } logic-node--summary"
+					data-rule-id=${ rule.id }
+				>
 					<button
 						type="button"
 						class="logic-node__summary-button"
 						aria-label=${ `Edit ${ formatAchievementRule(rule) }` }
-						@click=${ () => {
-							this.expandedRuleId = rule.id;
-							this.expandedSequenceTargetId = '';
-						} }
+						@click=${ () => void this.setExpandedRule(rule.id) }
 					>
 						<strong class="logic-node__type">
-							${ ruleTypes.find(item => item.value === rule.type)?.label }
+							${ getRuleTypeLabel(rule) }
 						</strong>
-						<span>${ formatAchievementRule(rule) }</span>
+						${ rule.type === 'sequence'
+							? html`
+								<ol class="logic-sequence-summary">
+									${ rule.targets.map((target, index) => html`
+										<li>
+											<span>${ index + 1 }</span>
+											<strong>${ formatSequenceTarget(target) }</strong>
+										</li>
+									`) }
+								</ol>
+							`
+							: html`<span>${ formatAchievementRule(rule) }</span>` }
 					</button>
 					${ canRemove
 						? html`
@@ -976,14 +1322,17 @@ export class AaAchievementBuilder extends LitElement {
 		}
 
 		return html`
-			<article class="logic-node logic-node--${ rule.type } logic-node--expanded">
+			<article
+				class="logic-node logic-node--${ rule.type } logic-node--expanded"
+				data-rule-id=${ rule.id }
+			>
 				<header>
 					<div class="logic-node__heading">
 						${ depth === 0
 							? html`<span class="logic-node__scope">Start</span>`
 							: nothing }
 						<strong class="logic-node__type">
-							${ ruleTypes.find(item => item.value === rule.type)?.label }
+							${ getRuleTypeLabel(rule) }
 						</strong>
 						${ rule.type === 'round' || rule.type === 'compare'
 							? nothing
@@ -996,10 +1345,7 @@ export class AaAchievementBuilder extends LitElement {
 									type="button"
 									class="logic-node__collapse"
 									aria-label="Collapse logic block"
-									@click=${ () => {
-										this.expandedRuleId = '';
-										this.expandedSequenceTargetId = '';
-									} }
+									@click=${ () => void this.setExpandedRule(rule.id, '') }
 								>-</button>
 							`
 							: nothing }
@@ -1034,10 +1380,16 @@ export class AaAchievementBuilder extends LitElement {
 			return 'Finds matching rounds, then checks their condition';
 		case 'throw':
 			return 'Checks throws inside the connected round';
+		case 'throwCount':
+			return 'Counts throws matching a location and type';
+		case 'winningThrow':
+			return 'Checks the throw that completed the game';
 		case 'compare':
 			return 'Compares two values';
 		case 'sequence':
 			return 'Matches an ordered three-throw pattern';
+		case 'raw':
+			return 'Preserves logic that is not available as an editable builder block';
 		}
 	}
 
@@ -1075,6 +1427,8 @@ export class AaAchievementBuilder extends LitElement {
 	}
 
 	private canAddRuleChildren(rule: AchievementRuleDraft): boolean {
+		if (this.readOnlyVersion)
+			return false;
 		if (rule.type === 'all' || rule.type === 'any' || rule.type === 'round')
 			return true;
 		return rule.type === 'not'
@@ -1149,13 +1503,22 @@ export class AaAchievementBuilder extends LitElement {
 		scope: BuilderScope = 'root',
 	): TemplateResult {
 		const children = this.getRuleChildren(rule, scope);
+		if (
+			depth === 0
+			&& this.readOnlyVersion
+			&& (rule.type === 'all' || rule.type === 'any')
+			&& children.length === 1
+		) {
+			const child = children[0]!;
+			return this.renderRuleBranch(child.rule, 1, child.scope);
+		}
 		const canAddChildren = this.canAddRuleChildren(rule);
 		if (
 			depth > 0
 			&& (rule.type === 'all' || rule.type === 'any')
 			&& children.length === 1
 		) {
-			const child = children[0];
+			const child = children[0]!;
 			const childIsTransparentGroup = (
 				child.rule.type === 'all' || child.rule.type === 'any'
 			) && child.rule.children.length === 1;
@@ -1176,7 +1539,14 @@ export class AaAchievementBuilder extends LitElement {
 			: children.length === 1
 				? 'single'
 				: 'multiple';
-		const showJunctionAdd = childLayout === 'multiple' && canAddChildren;
+		const childGroupOwnsAddControl = rule.type === 'round'
+			&& children.length === 1
+			&& (
+				children[0]?.rule.type === 'all'
+				|| children[0]?.rule.type === 'any'
+			);
+		const showAddControl = canAddChildren && !childGroupOwnsAddControl;
+		const showJunctionAdd = childLayout === 'multiple' && showAddControl;
 		return html`
 			<div class="logic-branch ${ children.length > 0 || canAddChildren
 				? 'logic-branch--has-children'
@@ -1194,7 +1564,7 @@ export class AaAchievementBuilder extends LitElement {
 						<div class="logic-branch__children logic-branch__children--${ childLayout }">
 							${ children.map(child =>
 								this.renderRuleBranch(child.rule, depth + 1, child.scope)) }
-							${ canAddChildren && !showJunctionAdd
+							${ showAddControl && !showJunctionAdd
 								? this.renderRuleAddControl(rule, scope)
 								: nothing }
 						</div>
@@ -1219,8 +1589,10 @@ export class AaAchievementBuilder extends LitElement {
 				return false;
 			return (
 				scope === 'round'
-					? ruleType.value !== 'round'
-					: ruleType.value !== 'throw' && ruleType.value !== 'sequence'
+					? ruleType.value !== 'round' && ruleType.value !== 'winningThrow'
+					: ruleType.value !== 'throw'
+						&& ruleType.value !== 'throwCount'
+						&& ruleType.value !== 'sequence'
 			);
 		});
 	}
@@ -1332,12 +1704,16 @@ export class AaAchievementBuilder extends LitElement {
 							<option value="any">Any throw</option>
 							<option value="all">Every throw</option>
 						</select>
-						<span>hits</span>
-						${ this.renderValueEditor(
-							rule.hitLocation,
-							value => this.updateRule(rule.id, { hitLocation: value }),
-							'round',
-						) }
+						${ rule.hitLocation
+							? html`
+								<span>hits</span>
+								${ this.renderValueEditor(
+									rule.hitLocation,
+									value => this.updateRule(rule.id, { hitLocation: value }),
+									'round',
+								) }
+							`
+							: html`<span>matches the selected type</span>` }
 					</div>
 					${ rule.throwType === 'any'
 						? html`
@@ -1357,6 +1733,14 @@ export class AaAchievementBuilder extends LitElement {
 										@change=${ (event: Event) => this.updateRule(rule.id, {
 											throwType: (event.currentTarget as HTMLSelectElement)
 												.value as typeof rule.throwType,
+											hitLocation: [ 'rim', 'miss' ].includes(
+												(event.currentTarget as HTMLSelectElement).value,
+											)
+												? undefined
+												: rule.hitLocation ?? {
+													source: 'constant',
+													value: '0',
+												},
 										}) }
 									>
 										${ [ 'single', 'double', 'triple', 'rim', 'miss' ].map(type => html`
@@ -1370,6 +1754,113 @@ export class AaAchievementBuilder extends LitElement {
 									>Clear</button>
 								</div>
 							</div>
+						` }
+				</div>
+			`;
+		case 'throwCount':
+			return html`
+				<div class="comparison-editor">
+					<div class="value-editor">
+						<select
+							aria-label="Counted throw type"
+							.value=${ rule.throwType }
+							@change=${ (event: Event) => {
+								const throwType = (event.currentTarget as HTMLSelectElement)
+									.value as typeof rule.throwType;
+								this.updateRule(rule.id, {
+									throwType,
+									hitLocation: throwType === 'rim' || throwType === 'miss'
+										? undefined
+										: rule.hitLocation ?? {
+											source: 'constant',
+											value: '0',
+										},
+								});
+							} }
+						>
+							<option value="any">Any type</option>
+							<option value="single">Single</option>
+							<option value="double">Double</option>
+							<option value="triple">Triple</option>
+							<option value="rim">Rim</option>
+							<option value="miss">Miss</option>
+						</select>
+						${ rule.hitLocation
+							? this.renderValueEditor(
+								rule.hitLocation,
+								value => this.updateRule(rule.id, { hitLocation: value }),
+								'round',
+							)
+							: nothing }
+					</div>
+					<select
+						aria-label="Count comparison operator"
+						.value=${ rule.operator }
+						@change=${ (event: Event) => this.updateRule(rule.id, {
+							operator: (event.currentTarget as HTMLSelectElement)
+								.value as typeof rule.operator,
+						}) }
+					>
+						<option value="equal">=</option>
+						<option value="notEqual">!=</option>
+						<option value="greaterThan">&gt;</option>
+						<option value="greaterThanOrEqual">&gt;=</option>
+						<option value="lessThan">&lt;</option>
+						<option value="lessThanOrEqual">&lt;=</option>
+					</select>
+					${ this.renderValueEditor(
+						rule.count,
+						value => this.updateRule(rule.id, { count: value }),
+						'round',
+						'comparison-right',
+					) }
+				</div>
+			`;
+		case 'winningThrow':
+			return html`
+				<div class="throw-editor">
+					<div class="throw-editor__sentence">
+						<span>Winning throw</span>
+						${ rule.hitLocation
+							? html`
+								<span>hits</span>
+								${ this.renderValueEditor(
+									rule.hitLocation,
+									value => this.updateRule(rule.id, { hitLocation: value }),
+									'round',
+								) }
+							`
+							: html`<span>matches the selected type</span>` }
+					</div>
+					<select
+						aria-label="Winning throw type"
+						.value=${ rule.throwType }
+						@change=${ (event: Event) => this.updateRule(rule.id, {
+							throwType: (event.currentTarget as HTMLSelectElement)
+								.value as typeof rule.throwType,
+						}) }
+					>
+						<option value="any">Any scoring type</option>
+						<option value="single">Single</option>
+						<option value="double">Double or double bull</option>
+						<option value="triple">Triple</option>
+					</select>
+					${ rule.hitLocation
+						? html`
+							<button
+								type="button"
+								class="logic-secondary-action"
+								@click=${ () => this.updateRule(rule.id, { hitLocation: undefined }) }
+							>Clear target</button>
+						`
+						: html`
+							<button
+								type="button"
+								class="logic-secondary-action"
+								@click=${ () => this.updateRule(rule.id, {
+									hitLocation: { source: 'constant', value: '16' },
+								}) }
+							>+ Add target</button>
 						` }
 				</div>
 			`;
@@ -1440,16 +1931,18 @@ export class AaAchievementBuilder extends LitElement {
 								${ expanded
 									? html`
 										<div class="sequence-target__editor">
-											${ this.renderValueEditor(
-												target.hitLocation,
-												value => this.updateRule(rule.id, {
-													targets: rule.targets.map(item =>
-														item.id === target.id
-															? { ...item, hitLocation: value }
-															: item),
-												}),
-												'round',
-											) }
+											${ target.throwType === 'rim' || target.throwType === 'miss'
+												? nothing
+												: this.renderValueEditor(
+													target.hitLocation,
+													value => this.updateRule(rule.id, {
+														targets: rule.targets.map(item =>
+															item.id === target.id
+																? { ...item, hitLocation: value }
+																: item),
+													}),
+													'round',
+												) }
 											<select
 												aria-label=${ `Sequence step ${ index + 1 } throw type` }
 												.value=${ target.throwType }
@@ -1465,14 +1958,19 @@ export class AaAchievementBuilder extends LitElement {
 												}) }
 											>
 												${ [
-													[ 'anyScoring', 'Any scoring' ],
+													[ 'anyScoring', 'Single, double, or triple' ],
 													[ 'single', 'Single' ],
 													[ 'double', 'Double' ],
 													[ 'triple', 'Triple' ],
 													[ 'rim', 'Rim' ],
 													[ 'miss', 'Miss' ],
 												].map(([ type, label ]) => html`
-													<option value=${ type }>${ label }</option>
+													<option
+														value=${ type }
+														?selected=${ target.throwType === type }
+													>
+														${ label }
+													</option>
 												`) }
 											</select>
 										</div>
@@ -1502,6 +2000,19 @@ export class AaAchievementBuilder extends LitElement {
 							</button>
 						`
 						: nothing }
+				</div>
+			`;
+		case 'raw':
+			return html`
+				<div class="raw-rule">
+					<strong>${ formatAchievementRule(rule) }</strong>
+					<p>
+						Advanced conditions preserve logic outside the standard visual controls.
+					</p>
+					<details>
+						<summary>View condition definition</summary>
+						<pre>${ JSON.stringify(rule.ast, null, 2) }</pre>
+					</details>
 				</div>
 			`;
 		}
@@ -1748,9 +2259,13 @@ export class AaAchievementBuilder extends LitElement {
 				<div class="parameters-card">
 					<div class="parameters-toolbar">
 						<span>Each value combination creates another achievement.</span>
-						<aa-button type="button" size="small" @click=${ this.addParameter }>
-							+ Parameter
-						</aa-button>
+						${ this.readOnlyVersion
+							? nothing
+							: html`
+								<aa-button type="button" size="small" @click=${ this.addParameter }>
+									+ Parameter
+								</aa-button>
+							` }
 					</div>
 				${ this.draft.parameters.length === 0
 					? html`
@@ -1776,12 +2291,16 @@ export class AaAchievementBuilder extends LitElement {
 												placeholder="name"
 											/>
 										</label>
-										<button
-											type="button"
-											class="remove-button"
-											aria-label="Remove parameter"
-											@click=${ () => this.removeParameter(parameter.id) }
-										>&times;</button>
+										${ this.readOnlyVersion
+											? nothing
+											: html`
+												<button
+													type="button"
+													class="remove-button"
+													aria-label="Remove parameter"
+													@click=${ () => this.removeParameter(parameter.id) }
+												>&times;</button>
+											` }
 									</div>
 									<div class="parameter-configuration">
 										<div class="details-choice">
@@ -1884,10 +2403,10 @@ export class AaAchievementBuilder extends LitElement {
 														role="group"
 														aria-label="Allowed yes or no values"
 													>
-														${ [
+														${ ([
 															[ 'true', 'Yes' ],
 															[ 'false', 'No' ],
-														].map(([ value, label ]) => {
+														] as const).map(([ value, label ]) => {
 															const selected = parameter.values.includes(value);
 															return html`
 																<button
@@ -1978,7 +2497,10 @@ export class AaAchievementBuilder extends LitElement {
 						style="transform: translate(${ this.logicCanvasX }px, ${ this.logicCanvasY }px)
 							scale(${ this.logicCanvasScale });"
 					>
-						<div class="logic-canvas__graph">
+						<div
+							class="logic-canvas__graph"
+							?inert=${ this.readOnlyVersion }
+						>
 							${ this.renderRuleBranch(this.draft.rule) }
 						</div>
 					</div>
@@ -2028,20 +2550,52 @@ export class AaAchievementBuilder extends LitElement {
 			bindings.splice(0, bindings.length, ...expanded);
 		}
 
-		const renderText = (
-			template: string,
-			binding: Record<string, string | number | boolean>,
-		): string => Object.entries(binding).reduce(
+		return bindings.map(binding => this.createPreview(binding));
+	}
+
+	private createPreview(
+		binding: Record<string, string | number | boolean>,
+	): AchievementTemplatePreview {
+		const renderText = (template: string): string => Object.entries(binding).reduce(
 			(result, [ key, value ]) =>
 				result.replaceAll(`{${ key }}`, String(value)),
 			template,
 		);
 
-		return bindings.map(binding => ({
+		return {
 			bindings: binding,
-			name: renderText(this.draft.nameTemplate, binding),
-			description: renderText(this.draft.descriptionTemplate, binding),
-		}));
+			name: renderText(this.draft.nameTemplate),
+			description: renderText(this.draft.descriptionTemplate),
+		};
+	}
+
+	private getPreviewSamples(): AchievementTemplatePreview[] {
+		const count = this.getGeneratedCount();
+		if (count <= 2)
+			return this.getPreviews(2);
+
+		const first = this.getPreviews(1)[0];
+		const lastBinding: Record<string, string | number | boolean> = {};
+		for (const parameter of this.draft.parameters) {
+			if (parameter.generatorType === 'range') {
+				const minimum = parameter.minimum ?? 0;
+				const maximum = parameter.maximum ?? minimum;
+				const step = Math.max(parameter.step ?? 1, 1);
+				lastBinding[parameter.key] =
+					minimum + Math.max(0, Math.floor((maximum - minimum) / step)) * step;
+			}
+			else {
+				const values = this.getParameterValues(parameter);
+				const last = values.at(-1);
+				if (last === undefined)
+					return [];
+				lastBinding[parameter.key] = last;
+			}
+		}
+
+		return first
+			? [ first, this.createPreview(lastBinding) ]
+			: [];
 	}
 
 	private getGeneratedCount(): number {
@@ -2064,7 +2618,7 @@ export class AaAchievementBuilder extends LitElement {
 	}
 
 	private renderDetailsPreview(): TemplateResult {
-		const previews = this.getPreviews(2);
+		const previews = this.getPreviewSamples();
 		const count = this.getGeneratedCount();
 		return html`
 			<section class="details-section details-preview">
@@ -2093,7 +2647,7 @@ export class AaAchievementBuilder extends LitElement {
 						${ count > previews.length
 							? html`
 								<small class="details-preview__more">
-									Showing the first ${ previews.length } of ${ count }.
+									Showing the first and last of ${ count }.
 								</small>
 							`
 							: nothing }
@@ -2107,29 +2661,249 @@ export class AaAchievementBuilder extends LitElement {
 		`;
 	}
 
-	override render(): TemplateResult {
+	private renderTemplateLibrary(): TemplateResult {
+		const normalizedFilter = this.templateFilter.trim().toLocaleLowerCase();
+		const rows = this.sortedTemplates
+			.flatMap(template => this.getVersions(template).map(version => ({
+				template,
+				version,
+				generatedCount: this.getGeneratedInstanceCount(version.parameters),
+			})))
+			.filter(({ version }) => !normalizedFilter || [
+				version.nameTemplate,
+				version.descriptionTemplate,
+				version.categoryName,
+				version.evaluationPhase,
+				version.status,
+			].some(value => value.toLocaleLowerCase().includes(normalizedFilter)))
+			.sort((left, right) => {
+				let result = 0;
+				switch (this.templateSortColumn) {
+				case 'achievement':
+					result = left.version.nameTemplate.localeCompare(
+						right.version.nameTemplate,
+					);
+					break;
+				case 'category':
+					result = left.version.categoryName.localeCompare(
+						right.version.categoryName,
+					);
+					break;
+				case 'type':
+					result = left.version.evaluationPhase.localeCompare(
+						right.version.evaluationPhase,
+					);
+					break;
+				case 'generated':
+					result = left.generatedCount - right.generatedCount;
+					break;
+				case 'version':
+					result = left.version.versionNumber - right.version.versionNumber;
+					break;
+				}
+				if (result !== 0)
+					return this.templateSortDirection === 'ascending' ? result : -result;
+				return left.version.nameTemplate.localeCompare(
+					right.version.nameTemplate,
+				) || right.version.versionNumber - left.version.versionNumber;
+			});
+
 		return html`
-			<div class="achievement-builder">
-				<aa-tabs
-					.items=${ tabs }
-					.selected=${ this.selectedTab }
-					label="Achievement builder sections"
-					@tab-change=${ this.handleTabChange }
-				></aa-tabs>
-				${ this.errors.length > 0
+			<section class="template-library" aria-label="Existing achievements">
+				<div class="template-library__heading">
+					<div>
+						<strong>Achievement library</strong>
+						<span>Select an existing achievement to view or edit.</span>
+					</div>
+					<div class="template-library__actions">
+						${ this.isDirty
+							? html`<span class="template-library__dirty">Unsaved changes</span>`
+							: nothing }
+						<aa-button
+							type="button"
+							size="small"
+							variant="secondary"
+							@click=${ () => {
+								if (this.loadTemplateVersion(''))
+									this.setWorkspaceTab('editor');
+							} }
+						>
+							Create new achievement
+						</aa-button>
+					</div>
+				</div>
+				<div class="template-library__controls">
+					<label>
+						<span>Find achievement</span>
+						<input
+							type="search"
+							.value=${ this.templateFilter }
+							@input=${ (event: InputEvent) => {
+								this.templateFilter =
+									(event.currentTarget as HTMLInputElement).value;
+							} }
+							placeholder="Search name, category, description..."
+						/>
+					</label>
+					<span class="template-library__result-count">
+						${ rows.length } version${ rows.length === 1 ? '' : 's' }
+					</span>
+				</div>
+				${ rows.length > 0
 					? html`
-						<div class="error-list" role="alert">
-							${ this.errors.map(error => html`<p>${ error }</p>`) }
+						<div class="template-table-wrap">
+							<table class="template-table">
+								<thead>
+									<tr>
+										${ this.renderTemplateSortHeader('achievement', 'Achievement') }
+										${ this.renderTemplateSortHeader('category', 'Category') }
+										${ this.renderTemplateSortHeader('type', 'Type') }
+										${ this.renderTemplateSortHeader('generated', 'Generates') }
+										${ this.renderTemplateSortHeader('version', 'Version') }
+										<th aria-label="Action"></th>
+									</tr>
+								</thead>
+								<tbody>
+									${ rows.map(({ template, version, generatedCount }) => {
+										const selected = template.id === this.selectedTemplateId
+											&& version.id === this.selectedVersionId;
+										return html`
+											<tr class=${ selected ? 'template-table__selected' : '' }>
+												<td>
+													<div class="template-table__identity">
+														<img
+															src=${ getAchievementTierIcon(version.achievementTier) }
+															alt=""
+														/>
+														<div>
+															<strong>${ version.nameTemplate || 'Unnamed achievement' }</strong>
+															<span>
+																${ version.descriptionTemplate || 'No description' }
+															</span>
+														</div>
+													</div>
+												</td>
+												<td>${ version.categoryName }</td>
+												<td>
+													${ version.evaluationPhase === 'Progression'
+														? 'Progression'
+														: 'Session' }
+												</td>
+												<td>
+													<strong>${ generatedCount }</strong>
+												</td>
+												<td>
+													<div class="template-table__version">
+														<strong>v${ version.versionNumber }</strong>
+														<span class="template-table__status template-table__status--${
+															version.status.toLocaleLowerCase()
+														}">
+															${ version.status }
+														</span>
+													</div>
+												</td>
+												<td>
+													<button
+														type="button"
+														class="template-table__open"
+														@click=${ () => {
+															if (this.loadTemplateVersion(
+																template.id,
+																version.id,
+															))
+																this.setWorkspaceTab('editor');
+														} }
+													>
+														${ version.status === 'Draft' ? 'Edit' : 'View' }
+													</button>
+												</td>
+											</tr>
+										`;
+									}) }
+								</tbody>
+							</table>
 						</div>
 					`
-					: nothing }
-				<div class="builder-content">
-					${ this.selectedTab === 'details'
-						? this.renderDetails()
-						: this.selectedTab === 'parameters'
-							? this.renderParameters()
-							: this.renderLogic() }
+					: html`
+						<div class="empty-panel">
+							No achievement versions match your search.
+						</div>
+					` }
+			</section>
+		`;
+	}
+
+	private renderPublishedVersionNotice(): TemplateResult {
+		return this.readOnlyVersion && !this.viewOnly
+			? html`
+				<div class="template-library__published">
+					<span>
+						Published version ${ this.selectedVersion?.versionNumber } is read-only.
+					</span>
+					<aa-button
+						type="button"
+						size="small"
+						variant="secondary"
+						@click=${ this.createEditableDraft }
+					>
+						Create editable draft
+					</aa-button>
 				</div>
+			`
+			: html``;
+	}
+
+	override render(): TemplateResult {
+		return html`
+			<div class="achievement-builder ${ this.viewOnly
+				? 'achievement-builder--view-only'
+				: '' }">
+				${ this.viewOnly
+					? nothing
+					: html`
+						<aa-tabs
+							.items=${ workspaceTabs }
+							.selected=${ this.selectedWorkspaceTab }
+							label="Achievement builder workspace"
+							@tab-change=${ this.handleWorkspaceTabChange }
+						></aa-tabs>
+					` }
+				${ this.selectedWorkspaceTab === 'browse'
+					? html`
+						<div class="workspace-content browse-workspace">
+							${ this.renderTemplateLibrary() }
+						</div>
+					`
+					: html`
+						<div class="workspace-content editor-workspace">
+							<div class="editor-workspace__header">
+								<aa-tabs
+									.items=${ tabs }
+									.selected=${ this.selectedTab }
+									label="Achievement editor sections"
+									@tab-change=${ this.handleTabChange }
+								></aa-tabs>
+								${ this.renderPublishedVersionNotice() }
+								${ this.errors.length > 0
+									? html`
+										<div class="error-list" role="alert">
+											${ this.errors.map(error => html`<p>${ error }</p>`) }
+										</div>
+									`
+									: nothing }
+							</div>
+							<div
+								class="builder-content"
+								?inert=${ this.readOnlyVersion && this.selectedTab !== 'logic' }
+							>
+								${ this.selectedTab === 'details'
+									? this.renderDetails()
+									: this.selectedTab === 'parameters'
+										? this.renderParameters()
+										: this.renderLogic() }
+							</div>
+						</div>
+					` }
 			</div>
 		`;
 	}

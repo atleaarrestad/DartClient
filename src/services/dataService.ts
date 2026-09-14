@@ -27,8 +27,6 @@ import {
 	UpsertAchievementTemplateRequest,
 } from '../models/achievementBuilderApi.js';
 import {
-	AchievementDefinitionsResponse,
-	AchievementDefinitionsResponseSchema,
 	GameResult,
 	GameResultSchema,
 	GameTracker,
@@ -79,23 +77,6 @@ export class DataService {
 		}
 		catch {
 			throw new Error('Invalid rule-definition data received from the API');
-		}
-	}
-
-	async GetAchievementDefinitions(): Promise<AchievementDefinitionsResponse> {
-		const resp = await this.get<AchievementDefinitionsResponse>('achievement/definitions');
-
-		if (!resp.ok) {
-			throw new Error(
-				`Failed to fetch achievement definitions: ${resp.status} ${resp.statusText}`,
-			);
-		}
-
-		try {
-			return AchievementDefinitionsResponseSchema.parse(resp.data);
-		}
-		catch {
-			throw new Error('Invalid achievement definition data received from the API');
 		}
 	}
 
