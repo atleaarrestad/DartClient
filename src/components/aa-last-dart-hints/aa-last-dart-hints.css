@@ -1,0 +1,258 @@
+:host {
+	--aa-last-dart-hints-height: 7rem;
+	display: block;
+	min-width: 0;
+	container: dock / inline-size;
+	pointer-events: none;
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+/* Always the same size; only opacity changes, so the page never reflows. */
+.dock {
+	box-sizing: border-box;
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr)) 3.25rem;
+	align-items: stretch;
+	gap: var(--space-2);
+	height: var(--aa-last-dart-hints-height);
+	padding: var(--space-2);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-lg);
+	background: var(--color-surface-warning-subtle);
+	box-shadow: var(--shadow-brutal-sm);
+	color: var(--color-text-primary);
+	font-family: var(--font-family-ui);
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 150ms ease, visibility 0s linear 150ms;
+}
+
+:host([visible]) {
+	pointer-events: auto;
+}
+
+:host([visible]) .dock {
+	opacity: 1;
+	visibility: visible;
+	transition: opacity 150ms ease;
+}
+
+.hints {
+	display: contents;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+/*
+ * Name on top, the throws underneath: what to aim for is the most visible part. Each card
+ * is a container, so it shows as many targets as its own width allows.
+ */
+.hint {
+	box-sizing: border-box;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	grid-template-rows: minmax(0, 1fr) auto;
+	column-gap: var(--space-2);
+	row-gap: var(--space-1);
+	min-width: 0;
+	container: hint / inline-size;
+	padding: var(--space-2) var(--space-3);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	background: var(--color-surface-raised);
+	box-shadow: var(--shadow-brutal-xs);
+}
+
+.hint--empty {
+	border-style: dashed;
+	border-color: rgba(0, 0, 0, 0.12);
+	background: transparent;
+	box-shadow: none;
+}
+
+.hint__tier {
+	grid-row: 1;
+	align-self: center;
+	width: 2rem;
+	height: 2rem;
+	object-fit: contain;
+}
+
+.hint__name {
+	align-self: center;
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	font-size: var(--font-size-md);
+	font-weight: 800;
+	line-height: 1.15;
+}
+
+.targets {
+	grid-column: 1 / -1;
+	display: flex;
+	align-items: center;
+	gap: var(--space-1);
+	min-width: 0;
+	overflow: hidden;
+}
+
+.targets__label {
+	margin-right: var(--space-1);
+	font-size: var(--font-size-xs);
+	font-weight: 800;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	opacity: 0.6;
+}
+
+/* Coloured like the board: trebles and the bull red, doubles and the outer bull green. */
+.target {
+	box-sizing: border-box;
+	display: inline-grid;
+	place-items: center;
+	min-width: 2.75rem;
+	height: 1.75rem;
+	padding: 0 var(--space-2);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-sm);
+	font-size: var(--font-size-md);
+	font-weight: 900;
+	white-space: nowrap;
+}
+
+.target--single {
+	background: var(--color-surface-plain);
+}
+
+.target--treble,
+.target--bull {
+	background: #b83232;
+	color: #fff;
+}
+
+.target--double,
+.target--outer-bull {
+	background: #2e7d4f;
+	color: #fff;
+}
+
+.target--off-board {
+	background: var(--color-medal-silver);
+}
+
+.targets__more {
+	display: none;
+	font-size: var(--font-size-sm);
+	font-weight: 800;
+	opacity: 0.7;
+}
+
+.targets__more--3 {
+	display: inline;
+}
+
+@container hint (max-width: 15rem) {
+	.targets__label {
+		display: none;
+	}
+}
+
+@container hint (max-width: 11.5rem) {
+	.target--3,
+	.targets__more--3 {
+		display: none;
+	}
+
+	.targets__more--2 {
+		display: inline;
+	}
+}
+
+@container hint (max-width: 8.5rem) {
+	.target--2,
+	.targets__more--2 {
+		display: none;
+	}
+
+	.targets__more--1 {
+		display: inline;
+	}
+}
+
+.more {
+	display: grid;
+	align-content: center;
+	justify-items: center;
+	cursor: help;
+}
+
+.more__count {
+	font-size: var(--font-size-lg);
+	font-weight: 900;
+	line-height: 1;
+}
+
+.more__label {
+	font-size: var(--font-size-xs);
+	font-weight: 800;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	opacity: 0.6;
+}
+
+/* Keeps its column, so the cards do not shift when the count appears. */
+.more[hidden] {
+	display: grid;
+	visibility: hidden;
+}
+
+@container dock (max-width: 52rem) {
+	.hint {
+		padding: var(--space-1) var(--space-2);
+	}
+}
+
+/* Narrow: the tier and the easiest throw; the name stays in the tooltip. */
+@container dock (max-width: 34rem) {
+	.dock {
+		grid-template-columns: repeat(3, minmax(0, 1fr)) 2.5rem;
+		gap: var(--space-1);
+		padding: var(--space-1);
+	}
+
+	.hint {
+		grid-template-rows: auto auto;
+		justify-items: center;
+		align-content: center;
+	}
+
+	.hint__tier {
+		grid-column: 1 / -1;
+	}
+
+	.hint__name {
+		display: none;
+	}
+
+	.targets {
+		justify-content: center;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.dock,
+	:host([visible]) .dock {
+		transition: none;
+	}
+}

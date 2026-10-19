@@ -134,10 +134,30 @@ export const AchievementLegalHitSchema = z.object({
 	throwType: z.nativeEnum(ThrowType),
 });
 
+// Unknown means the search gave up before finding a sequence; never show it as unlockable.
+export const AchievementPredictionOutcomeSchema = z.enum([
+	'Reachable',
+	'ReachableTruncated',
+	'Unknown',
+]);
+
 export const AchievementPredictionSchema = z.object({
 	achievement: AchievementInstanceResponseSchema,
 	hitSequences: z.array(z.array(AchievementLegalHitSchema)),
 	isTruncated: z.boolean(),
+	outcome: AchievementPredictionOutcomeSchema,
+});
+
+export const LastDartHintSchema = z.object({
+	achievement: AchievementInstanceResponseSchema,
+	winningHits: z.array(AchievementLegalHitSchema).min(1),
+});
+
+// Ranked best first and capped by the server; totalCount includes the hints beyond the cap.
+export const LastDartHintsSchema = z.object({
+	roundIndex: z.number().int().nonnegative(),
+	totalCount: z.number().int().nonnegative(),
+	hints: z.array(LastDartHintSchema),
 });
 
 export const PredictAchievementThrowsResponseSchema = z.object({
@@ -166,6 +186,9 @@ export type AchievementBuilderCatalog = z.infer<typeof AchievementBuilderCatalog
 export type PredictAchievementThrowsResponse = z.infer<
 	typeof PredictAchievementThrowsResponseSchema
 >;
+export type AchievementLegalHit = z.infer<typeof AchievementLegalHitSchema>;
+export type LastDartHint = z.infer<typeof LastDartHintSchema>;
+export type LastDartHints = z.infer<typeof LastDartHintsSchema>;
 
 export interface UpsertAchievementTemplateRequest {
 	seasonId: string;

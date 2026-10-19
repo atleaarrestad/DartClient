@@ -448,6 +448,7 @@ export class IndexPage extends GamePage {
 			this.gameRevisionId = newGameID;
 			this.gameRevision = 0;
 			this.projectedV2AchievementsByPlayer = {};
+			this.lastDartHintsByPlayer = {};
 			await this.subscribeToAchievementEvents(newGameID);
 		}
 

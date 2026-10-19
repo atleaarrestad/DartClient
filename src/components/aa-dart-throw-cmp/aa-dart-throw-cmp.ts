@@ -14,6 +14,9 @@ export class aaDartThrow extends LitElement {
 	@property({ type: Object }) dartThrow:   DartThrow;
 	@property({ type: Boolean }) isDisabled: boolean = false;
 	@property({ type: Boolean }) isSaving: boolean = false;
+	// This is the last dart of a round that can still unlock achievements.
+	@property({ type: Boolean, reflect: true, attribute: 'has-last-dart-hints' })
+	hasLastDartHints: boolean = false;
 
 	@state() isReadOnly:   boolean = false;
 	@state() oldValue:     number = 0;

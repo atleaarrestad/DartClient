@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AchievementInstanceResponse } from '../models/achievementBuilderApi.js';
+import type {
+	AchievementInstanceResponse,
+	LastDartHints,
+} from '../models/achievementBuilderApi.js';
 import { RoundStatus, ScoreModifier, ThrowType } from '../models/enums.js';
 import {
 	type GameTrackerDelta,
@@ -55,6 +58,7 @@ function createState(): GameTrackerState {
 			createPlayer(secondPlayerId),
 		],
 		projectedV2AchievementsByPlayer: {},
+		lastDartHintsByPlayer:           {},
 	};
 }
 
@@ -77,6 +81,17 @@ function createInstance(id: string, renderedName: string): AchievementInstanceRe
 	};
 }
 
+function createHints(achievement: AchievementInstanceResponse): LastDartHints {
+	return {
+		roundIndex: 2,
+		totalCount: 1,
+		hints:      [ {
+			achievement,
+			winningHits: [ { hitLocation: 20, throwType: ThrowType.Triple } ],
+		} ],
+	};
+}
+
 function createDelta(rounds: Round[]): GameTrackerDelta {
 	return {
 		gameId,
@@ -91,6 +106,7 @@ function createDelta(rounds: Round[]): GameTrackerDelta {
 			rounds,
 		} ],
 		projectedV2AchievementsByPlayer: {},
+		lastDartHintsByPlayer:           {},
 	};
 }
 
@@ -208,5 +224,50 @@ describe('applyGameTrackerDelta', () => {
 			...withoutProjection,
 			projectedV2AchievementsByPlayer: { [firstPlayerId]: [ instance ] },
 		}).projectedV2AchievementsByPlayer).toEqual({ [firstPlayerId]: [ instance ] });
+	});
+
+	it('sets, replaces and clears last-dart hints and keeps unchanged players', () => {
+		const state = createState();
+		const stale = createHints(createInstance('8d3b5c6f-1e9d-4e4b-8f5a-6f7a8b9c0d14', 'Stale'));
+		const kept = createHints(createInstance('9e4c6d7a-2f0e-4f5c-9a6b-7a8b9c0d1e25', 'Kept'));
+		state.lastDartHintsByPlayer = { [firstPlayerId]: stale, [secondPlayerId]: kept };
+		const delta = createDelta([ createRound(2) ]);
+		delta.lastDartHintsByPlayer = { [firstPlayerId]: null };
+
+		const cleared = applyGameTrackerDelta(state, delta);
+
+		expect(cleared.status).toBe('applied');
+		if (cleared.status !== 'applied')
+			return;
+
+		expect(cleared.state.lastDartHintsByPlayer).toEqual({ [secondPlayerId]: kept });
+		expect(state.lastDartHintsByPlayer[firstPlayerId]).toBe(stale);
+
+		const replacement = createHints(createInstance('0f5d7e8b-3a1f-4a6d-8b7c-8b9c0d1e2f36', 'New'));
+		const next = createDelta([ createRound(2) ]);
+		next.baseRevision = 5;
+		next.revision = 6;
+		next.lastDartHintsByPlayer = { [firstPlayerId]: replacement };
+
+		const set = applyGameTrackerDelta(cleared.state, next);
+
+		expect(set.status).toBe('applied');
+		if (set.status !== 'applied')
+			return;
+
+		expect(set.state.lastDartHintsByPlayer).toEqual({
+			[firstPlayerId]:  replacement,
+			[secondPlayerId]: kept,
+		});
+	});
+
+	it('parses null hint entries as clears and defaults the field when absent', () => {
+		const { lastDartHintsByPlayer: _omitted, ...withoutHints } = createDelta([ createRound(2) ]);
+
+		expect(GameTrackerDeltaSchema.parse(withoutHints).lastDartHintsByPlayer).toEqual({});
+		expect(GameTrackerDeltaSchema.parse({
+			...withoutHints,
+			lastDartHintsByPlayer: { [firstPlayerId]: null },
+		}).lastDartHintsByPlayer).toEqual({ [firstPlayerId]: null });
 	});
 });

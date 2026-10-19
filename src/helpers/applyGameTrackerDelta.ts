@@ -1,4 +1,7 @@
-import type { AchievementInstanceResponse } from '../models/achievementBuilderApi.js';
+import type {
+	AchievementInstanceResponse,
+	LastDartHints,
+} from '../models/achievementBuilderApi.js';
 import type {
 	GameTrackerDelta,
 	PlayerRounds,
@@ -11,6 +14,7 @@ export interface GameTrackerState {
 	configuredMaximumRounds: number | null;
 	playersRounds: PlayerRounds[];
 	projectedV2AchievementsByPlayer: Record<string, AchievementInstanceResponse[]>;
+	lastDartHintsByPlayer: Record<string, LastDartHints>;
 }
 
 export type ApplyGameTrackerDeltaResult =
@@ -73,6 +77,25 @@ export function applyGameTrackerDelta(
 				...current.projectedV2AchievementsByPlayer,
 				...delta.projectedV2AchievementsByPlayer,
 			},
+			lastDartHintsByPlayer: mergeLastDartHints(
+				current.lastDartHintsByPlayer,
+				delta.lastDartHintsByPlayer,
+			),
 		},
 	};
+}
+
+function mergeLastDartHints(
+	current: Record<string, LastDartHints>,
+	changes: Record<string, LastDartHints | null>,
+): Record<string, LastDartHints> {
+	const merged = { ...current };
+	for (const [ playerId, hints ] of Object.entries(changes)) {
+		if (hints)
+			merged[playerId] = hints;
+		else
+			delete merged[playerId];
+	}
+
+	return merged;
 }

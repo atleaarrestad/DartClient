@@ -1,4 +1,5 @@
 import '../../aa-loading-state/aa-loading-state.js';
+import '../../aa-last-dart-hints/aa-last-dart-hints.js';
 
 import { html, unsafeCSS } from 'lit';
 import type { PropertyValues } from 'lit';
@@ -14,6 +15,7 @@ import {
 	applyGameTrackerDelta,
 	ApplyGameTrackerDeltaResult,
 } from '../../../helpers/applyGameTrackerDelta.js';
+import { isLastDartWindowOpen } from '../../../helpers/lastDartHints.js';
 import { sum } from '../../../helpers/sum.js';
 import { AchievementTier, RoundStatus } from '../../../models/enums.js';
 import { GameTracker, GameTrackerDelta, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../../models/schemas.js';
@@ -35,7 +37,10 @@ import {
 } from '../../../services/signalRService.js';
 import { CacheService } from '../../../services/cacheService.js';
 import { getErrorMessage } from '../../../helpers/getErrorMessage.js';
-import type { AchievementInstanceResponse } from '../../../models/achievementBuilderApi.js';
+import type {
+	AchievementInstanceResponse,
+	LastDartHints,
+} from '../../../models/achievementBuilderApi.js';
 
 export class GamePage extends LitElement {
 
@@ -52,6 +57,9 @@ export class GamePage extends LitElement {
 	@state() protected maximumRounds: number | null = null;
 	@state() protected configuredMaximumRounds: number | null = null;
 	@state() protected compactAchievementPlayers: ReadonlySet<string> = new Set();
+	@state() protected lastDartHintsByPlayer: Record<string, LastDartHints> = {};
+	// Players with a throw being saved: their hints are about to be replaced, so hide them.
+	@state() private savingThrowPlayers: ReadonlySet<string> = new Set();
 
 	protected dataService: DataService;
 	protected seasonService: SeasonService;
@@ -68,6 +76,8 @@ export class GamePage extends LitElement {
 	protected selectedCellElement?: aaDartThrow = undefined;
 	protected isActiveGame: boolean = false;
 	protected projectedV2AchievementsByPlayer: Record<string, AchievementInstanceResponse[]> = {};
+	// Breaks ties when several players have hints, for example while correcting old rounds.
+	private lastHintedPlayerId?: string;
 	protected scrollLeader: HTMLElement | null = null;
 	protected signalRService: SignalRService;
 	protected gameLiveService: GameLiveService;
@@ -383,6 +393,7 @@ export class GamePage extends LitElement {
 			this.gameRevisionId = gameTracker.id;
 			this.gameRevision = 0;
 			this.projectedV2AchievementsByPlayer = {};
+			this.lastDartHintsByPlayer = {};
 		}
 		else if (gameTracker.revision < this.gameRevision) {
 			return false;
@@ -399,6 +410,7 @@ export class GamePage extends LitElement {
 		this.projectedV2AchievementsByPlayer = {
 			...gameTracker.projectedV2AchievementsByPlayer,
 		};
+		this.lastDartHintsByPlayer = { ...gameTracker.lastDartHintsByPlayer };
 		this.reorderPlayersByMMR();
 
 		if (roundCountChanged)
@@ -420,6 +432,7 @@ export class GamePage extends LitElement {
 			configuredMaximumRounds:         this.configuredMaximumRounds,
 			playersRounds:                   this.players,
 			projectedV2AchievementsByPlayer: this.projectedV2AchievementsByPlayer,
+			lastDartHintsByPlayer:           this.lastDartHintsByPlayer,
 		}, delta);
 
 		if (result.status !== 'applied')
@@ -430,6 +443,11 @@ export class GamePage extends LitElement {
 		this.configuredMaximumRounds = result.state.configuredMaximumRounds;
 		this.players = result.state.playersRounds;
 		this.projectedV2AchievementsByPlayer = result.state.projectedV2AchievementsByPlayer;
+		this.lastDartHintsByPlayer = result.state.lastDartHintsByPlayer;
+		const hintedPlayerId = Object.entries(delta.lastDartHintsByPlayer)
+			.find(([ , hints ]) => hints !== null)?.[0];
+		if (hintedPlayerId)
+			this.lastHintedPlayerId = hintedPlayerId;
 
 		const newRoundCount = Math.max(...this.players.map(player => player.rounds.length), 0);
 		if (oldRoundCount !== newRoundCount)
@@ -717,6 +735,62 @@ export class GamePage extends LitElement {
 		return false;
 	}
 
+	/**
+	 * The player's hints, if their local rounds still match the round the server computed
+	 * them for and no throw of theirs is being saved.
+	 */
+	protected getVisibleLastDartHints(player: PlayerRounds): LastDartHints | null {
+		const hints = this.lastDartHintsByPlayer[player.playerId];
+		if (!hints || hints.hints.length === 0 || this.savingThrowPlayers.has(player.playerId))
+			return null;
+
+		return isLastDartWindowOpen(player, hints.roundIndex) ? hints : null;
+	}
+
+	/**
+	 * Normally only the player about to throw has hints. If several do, prefer the focused
+	 * player, then the one whose hints arrived last.
+	 */
+	private getLastDartDockTarget(): { playerName: string; hints: LastDartHints; } | null {
+		const candidates = this.players
+			.map((player, playerIndex) => ({
+				player,
+				playerIndex,
+				hints: this.getVisibleLastDartHints(player),
+			}))
+			.filter(candidate => candidate.hints !== null);
+		const target = candidates.find(candidate => this.isPlayerActive(candidate.playerIndex))
+			?? candidates.find(candidate => candidate.player.playerId === this.lastHintedPlayerId)
+			?? candidates[0];
+		if (!target)
+			return null;
+
+		return {
+			playerName: this.getUserFromPlayerIndex(target.playerIndex)?.alias ?? '',
+			hints:      target.hints!,
+		};
+	}
+
+	private markThrowSaving(playerId: string, isSaving: boolean): void {
+		const saving = new Set(this.savingThrowPlayers);
+		if (isSaving)
+			saving.add(playerId);
+		else
+			saving.delete(playerId);
+		this.savingThrowPlayers = saving;
+	}
+
+	protected renderLastDartHints(): unknown {
+		const target = this.getLastDartDockTarget();
+
+		return html`
+			<aa-last-dart-hints
+				.playerName=${ target?.playerName ?? '' }
+				.hints=${ target?.hints ?? null }
+			></aa-last-dart-hints>
+		`;
+	}
+
 	protected renderProjectedAchievements(playerId: string): unknown {
 		const v2Achievements = this.projectedV2AchievementsByPlayer[playerId] ?? [];
 		if (v2Achievements.length === 0)
@@ -810,6 +884,7 @@ export class GamePage extends LitElement {
 				<div class="floating-controls">
 					${this.renderTopContent()}
 					${this.renderSyncStatus()}
+					${this.renderLastDartHints()}
 				</div>
 
 				<div class="page-content">
@@ -835,6 +910,8 @@ export class GamePage extends LitElement {
 							const isAchievementCompact =
 								this.compactAchievementPlayers.has(player.playerId);
 							const isActive = this.isPlayerActive(playerIndex);
+							const lastDartHintRound =
+								this.getVisibleLastDartHints(player)?.roundIndex ?? null;
 
 							return guard([
 								player,
@@ -848,6 +925,7 @@ export class GamePage extends LitElement {
 								projectedV2Achievements,
 								isAchievementCompact,
 								isActive,
+								lastDartHintRound,
 								this.isReadOnly,
 							], () => html`
 								<article
@@ -889,6 +967,7 @@ export class GamePage extends LitElement {
 																		const previousThrow = this.players[playerIndex]?.rounds[roundIndex]?.dartThrows[throwIndex];
 
 																		cmp.isSaving = true;
+																		this.markThrowSaving(player.playerId, true);
 																		try {
 																			await this.handleThrowUpdated?.(
 																				e.detail.dartThrow,
@@ -908,6 +987,7 @@ export class GamePage extends LitElement {
 																		}
 																		finally {
 																			cmp.isSaving = false;
+																			this.markThrowSaving(player.playerId, false);
 																		}
 																	};
 
@@ -919,6 +999,10 @@ export class GamePage extends LitElement {
 																			id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
 																			.dartThrow=${dartThrow}
 																			?isDisabled=${this.isReadOnly}
+																			.hasLastDartHints=${
+																				roundIndex === lastDartHintRound
+																				&& throwIndex === 2
+																			}
 																			@throw-updated=${onThrowUpdated}
 																			@focus=${onFocus}>
 																		</aa-dart-throw>
