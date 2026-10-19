@@ -268,10 +268,9 @@ export class UserPage extends LitElement {
 		if (!seasonId)
 			return;
 
-		const [ templates, categories, catalog ] = await Promise.all([
+		const [ templates, categories ] = await Promise.all([
 			this.achievementBuilderService.getTemplates(seasonId),
 			this.achievementBuilderService.getCategories(seasonId),
-			this.achievementBuilderService.getCatalog(),
 		]);
 		const template = templates.find(candidate => candidate.id === detail.templateId);
 		const version = template?.versions.find(
@@ -289,7 +288,6 @@ export class UserPage extends LitElement {
 					.initialVersionId=${detail.templateVersionId}
 					.categories=${categories}
 					.templates=${templates}
-					.maximumGeneratedInstances=${catalog.limits.maximumGeneratedInstances}
 				></aa-achievement-builder>
 			`,
 			{

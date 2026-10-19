@@ -11,6 +11,8 @@ export class AaDialog extends LitElement {
 	@property({ type: Boolean, reflect: true }) closeOnBackdrop = true;
 	@property({ type: Boolean, reflect: true, attribute: 'fixed-height' }) fixedHeight = false;
 	@property({ type: Boolean, reflect: true }) large = false;
+	/** Return false to keep the dialog open when the user tries to dismiss it. */
+	@property({ attribute: false }) canClose?: () => boolean;
 
 	@state() private hasHeaderActions = false;
 	@state() private hasFooter = false;
@@ -69,6 +71,9 @@ export class AaDialog extends LitElement {
 	};
 
 	close(result?: unknown): void {
+		if (this.canClose && !this.canClose())
+			return;
+
 		this.dispatchEvent(
 			new CustomEvent('dialog-closed', {
 				bubbles:  true,

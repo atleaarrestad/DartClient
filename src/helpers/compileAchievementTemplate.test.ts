@@ -1016,4 +1016,64 @@ describe('compileAchievementTemplate', () => {
 			}),
 		]));
 	});
+
+	it('only counts played darts in throw-count blocks', () => {
+		const request = compileAchievementTemplate(draft(roundRule({
+			id: 'count',
+			type: 'throwCount',
+			throwType: 'any',
+			operator: 'greaterThanOrEqual',
+			count: value('constant', '2'),
+		})));
+		expect(JSON.stringify(request.definition['root'])).toContain(JSON.stringify({
+			kind: 'count',
+			collection: { kind: 'field', path: 'round.throws' },
+			predicate: { kind: 'field', path: 'throw.isPlayed' },
+		}));
+	});
+
+	it('deduplicates set parameter values', () => {
+		const request = compileAchievementTemplate(draft({ id: 'root', type: 'all', children: [] }, {
+			parameters: [ {
+				id: 'n',
+				key: 'n',
+				valueType: 'integer',
+				generatorType: 'set',
+				values: [ '1', '2', '1' ],
+			} ],
+		}));
+		expect(request.parameters[0]?.integerValues).toEqual([ 1, 2 ]);
+	});
+
+	it('keeps the stored editor tree only while it matches the executable root', () => {
+		const editorRule: AchievementRuleDraft = {
+			id: 'editor-root',
+			type: 'all',
+			children: [ {
+				id: 'editor-compare',
+				type: 'compare',
+				left: value('game.roundsPlayed', ''),
+				operator: 'lessThanOrEqual',
+				right: value('constant', '5'),
+			} ],
+		};
+		const compiled = compileAchievementTemplate(draft(editorRule)).definition;
+		const matching = version('matching', 1, 'Draft', 'Matching');
+		matching.definition = compiled;
+		expect(restoreAchievementTemplateDraft(template([ matching ]))?.rule).toEqual(editorRule);
+
+		const drifted = version('drifted', 1, 'Draft', 'Drifted');
+		drifted.definition = {
+			...compiled,
+			root: {
+				kind: 'greaterThan',
+				left: compiled['root'] && (compiled['root'] as { operands: { left: unknown; }[]; }).operands[0]!.left,
+				right: { kind: 'constant', valueType: 'integer', value: 9 },
+			},
+		};
+		const restored = restoreAchievementTemplateDraft(template([ drifted ]))?.rule;
+		expect(restored?.id).not.toBe('editor-root');
+		expect(JSON.stringify(restored)).toContain('"operator":"greaterThan"');
+		expect(JSON.stringify(restored)).toContain('"value":"9"');
+	});
 });

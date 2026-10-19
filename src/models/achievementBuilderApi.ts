@@ -59,6 +59,7 @@ export const AchievementTemplateResponseSchema = z.object({
 	id: z.string().uuid(),
 	seasonId: z.string().uuid(),
 	createdAtUtc: z.string(),
+	isBuiltIn: z.boolean().optional(),
 	versions: z.array(AchievementTemplateVersionResponseSchema),
 });
 
@@ -107,6 +108,7 @@ export const AchievementBuilderCatalogSchema = z.object({
 		maximumPredictionThrows: z.number().int().positive(),
 		maximumPredictionSearchCombinations: z.number().int().positive(),
 		maximumPredictionSequencesPerAchievement: z.number().int().positive(),
+		maximumPredictionRounds: z.number().int().positive().optional(),
 	}),
 	evaluationPhases: z.array(z.string()),
 	parameterKinds: z.array(z.string()),

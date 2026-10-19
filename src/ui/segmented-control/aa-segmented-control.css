@@ -2,6 +2,10 @@
 	display: inline-block;
 }
 
+:host([stretch]) {
+	display: block;
+}
+
 .segmented-control {
 	display: inline-grid;
 	grid-auto-flow: column;
@@ -13,7 +17,18 @@
 	box-shadow: var(--shadow-brutal-sm);
 }
 
+:host([stretch]) .segmented-control {
+	display: grid;
+	grid-auto-columns: minmax(0, 1fr);
+}
+
 button {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.2rem;
+	min-width: 0;
 	padding: 0.35rem 0.6rem;
 	background: transparent;
 	border: 0;
@@ -24,8 +39,32 @@ button {
 	cursor: pointer;
 }
 
+:host([size='medium']) button {
+	min-height: 2.5rem;
+	padding: 0.45rem 0.85rem;
+	font-size: var(--font-size-sm);
+	font-weight: 700;
+}
+
+button span {
+	overflow: hidden;
+	max-width: 100%;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+button img {
+	width: 28px;
+	height: 28px;
+	object-fit: contain;
+}
+
 button + button {
 	border-left: 2px solid var(--color-border-strong);
+}
+
+button:hover:not([aria-pressed='true']) {
+	background: var(--color-surface-cool);
 }
 
 button[aria-pressed='true'] {
@@ -37,4 +76,8 @@ button:focus-visible {
 	z-index: 1;
 	outline: var(--focus-ring);
 	outline-offset: -3px;
+}
+
+:host([icon-only]) button {
+	padding-inline: 0.5rem;
 }

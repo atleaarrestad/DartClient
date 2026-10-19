@@ -2,12 +2,16 @@ import {
 	AchievementComparisonOperator,
 	AchievementProgressionDraft,
 	AchievementRoundRuleDraft,
+	AchievementRoundStatus,
 	AchievementRuleDraft,
 	AchievementSequenceTargetDraft,
 	AchievementTemplateDraft,
 	AchievementThrowRuleDraft,
 	AchievementValueDraft,
+	AchievementValueSource,
 	createAchievementBuilderId,
+	createDefaultAchievementProgression,
+	createDefaultAchievementRule,
 } from '../models/achievementBuilder.js';
 import type {
 	AchievementParameterDefinition,
@@ -41,20 +45,76 @@ const not = (operand: AstNode): AstNode => ({ kind: 'not', operand });
 const and = (...operands: AstNode[]): AstNode => ({ kind: 'and', operands });
 const or = (...operands: AstNode[]): AstNode => ({ kind: 'or', operands });
 
-const statusNames: Record<string, string> = {
-	valid: 'Valid',
-	victory: 'Victory',
-	overshoot: 'Overshoot',
+// Draft names on the left, backend AST names on the right.
+const statusNames: Record<AchievementRoundStatus, string> = {
+	valid:              'Valid',
+	victory:            'Victory',
+	overshoot:          'Overshoot',
 	failedWinCondition: 'WinConditionFailed',
 };
 
-const throwTypeNames: Record<string, string> = {
+const throwTypeNames = {
 	single: 'Single',
 	double: 'Double',
 	triple: 'Triple',
-	rim: 'Rim',
-	miss: 'Miss',
-};
+	rim:    'Rim',
+	miss:   'Miss',
+} as const;
+
+type DraftThrowType = keyof typeof throwTypeNames;
+
+const roundStatusCountSources = {
+	valid:              'game.validRoundCount',
+	victory:            'game.victoryCount',
+	overshoot:          'game.overshootCount',
+	failedWinCondition: 'game.failedWinConditionCount',
+} as const satisfies Record<AchievementRoundStatus, AchievementValueSource>;
+
+const roundThrowCountSources = {
+	single: 'round.singleCount',
+	double: 'round.doubleCount',
+	triple: 'round.tripleCount',
+} as const satisfies Partial<Record<DraftThrowType, AchievementValueSource>>;
+
+const gameThrowCountSources = {
+	double: 'game.doubleCount',
+	triple: 'game.tripleCount',
+	rim:    'game.rimCount',
+	miss:   'game.missCount',
+} as const satisfies Partial<Record<DraftThrowType, AchievementValueSource>>;
+
+const comparisonOperators: readonly string[] = [
+	'equal',
+	'notEqual',
+	'greaterThan',
+	'greaterThanOrEqual',
+	'lessThan',
+	'lessThanOrEqual',
+] satisfies AchievementComparisonOperator[];
+
+const invert = <TKey extends string, TValue extends string>(
+	record: Record<TKey, TValue>,
+): Record<TValue, TKey> => Object.fromEntries(
+	Object.entries(record).map(([ key, value ]) => [ value, key ]),
+) as Record<TValue, TKey>;
+
+const statusByName = invert(statusNames);
+const throwTypeByName = invert(throwTypeNames);
+const statusByCountSource = invert(roundStatusCountSources);
+const throwTypeByRoundCountSource = invert(roundThrowCountSources);
+const throwTypeByGameCountSource = invert(gameThrowCountSources);
+
+/** Looks up an untrusted key without falling through to Object.prototype members. */
+const lookup = <TRecord extends object>(
+	record: TRecord,
+	key: unknown,
+): TRecord[keyof TRecord] | undefined =>
+	typeof key === 'string' && Object.hasOwn(record, key)
+		? record[key as keyof TRecord]
+		: undefined;
+
+const isComparisonOperator = (kind: string | undefined): kind is AchievementComparisonOperator =>
+	kind !== undefined && comparisonOperators.includes(kind);
 
 function compileValue(value: AchievementValueDraft): AstNode {
 	switch (value.source) {
@@ -117,19 +177,18 @@ function compileValue(value: AchievementValueDraft): AstNode {
 		};
 	case 'round.singleCount':
 	case 'round.doubleCount':
-	case 'round.tripleCount': {
-		const type = value.source.split('.')[1]?.replace('Count', '') ?? '';
+	case 'round.tripleCount':
 		return {
 			kind: 'count',
 			collection: field('round.throws'),
 			predicate: and(
 				isPlayed(),
-				equal(field('throw.throwType'), throwType(
-					type.charAt(0).toUpperCase() + type.slice(1),
-				)),
+				equal(
+					field('throw.throwType'),
+					throwType(throwTypeNames[throwTypeByRoundCountSource[value.source]]),
+				),
 			),
 		};
-	}
 	case 'game.roundsPlayed':
 		return {
 			kind: 'count',
@@ -145,30 +204,19 @@ function compileValue(value: AchievementValueDraft): AstNode {
 	case 'game.validRoundCount':
 	case 'game.victoryCount':
 	case 'game.overshootCount':
-	case 'game.failedWinConditionCount': {
-		const statusBySource = {
-			'game.validRoundCount': 'Valid',
-			'game.victoryCount': 'Victory',
-			'game.overshootCount': 'Overshoot',
-			'game.failedWinConditionCount': 'WinConditionFailed',
-		} as const;
+	case 'game.failedWinConditionCount':
 		return {
 			kind: 'count',
 			collection: field('rounds'),
-			predicate: equal(field('round.status'), status(statusBySource[value.source])),
+			predicate: equal(
+				field('round.status'),
+				status(statusNames[statusByCountSource[value.source]]),
+			),
 		};
-	}
 	case 'game.doubleCount':
 	case 'game.tripleCount':
 	case 'game.rimCount':
 	case 'game.missCount':
-		{
-			const typeBySource = {
-				'game.doubleCount': 'Double',
-				'game.tripleCount': 'Triple',
-				'game.rimCount': 'Rim',
-				'game.missCount': 'Miss',
-			} as const;
 		return {
 			kind: 'sum',
 			collection: field('rounds'),
@@ -179,12 +227,11 @@ function compileValue(value: AchievementValueDraft): AstNode {
 					isPlayed(),
 					equal(
 						field('throw.throwType'),
-						throwType(typeBySource[value.source]),
+						throwType(throwTypeNames[throwTypeByGameCountSource[value.source]]),
 					),
 				),
 			},
 		};
-		}
 	case 'round.minimumRawPoints':
 		throw new Error('Minimum raw points can only be used in a comparison.');
 	}
@@ -195,7 +242,7 @@ function compileThrowRule(rule: Extract<AchievementRuleDraft, { type: 'throw'; }
 	if (rule.throwType !== 'any') {
 		operands.push(equal(
 			field('throw.throwType'),
-			throwType(throwTypeNames[rule.throwType] ?? rule.throwType),
+			throwType(throwTypeNames[rule.throwType]),
 		));
 	}
 	if (rule.hitLocation) {
@@ -234,7 +281,7 @@ function compileThrowRule(rule: Extract<AchievementRuleDraft, { type: 'throw'; }
 function compileThrowCountRule(
 	rule: Extract<AchievementRuleDraft, { type: 'throwCount'; }>,
 ): AstNode {
-	const operands: AstNode[] = [];
+	const operands: AstNode[] = [ isPlayed() ];
 	if (rule.hitLocation) {
 		operands.push(equal(
 			field('throw.hitLocation'),
@@ -244,20 +291,15 @@ function compileThrowCountRule(
 	if (rule.throwType !== 'any') {
 		operands.push(equal(
 			field('throw.throwType'),
-			throwType(throwTypeNames[rule.throwType] ?? rule.throwType),
+			throwType(throwTypeNames[rule.throwType]),
 		));
 	}
-	const predicate = operands.length === 0
-		? undefined
-		: operands.length === 1
-			? operands[0]
-			: and(...operands);
 	return {
 		kind: rule.operator,
 		left: {
 			kind: 'count',
 			collection: field('round.throws'),
-			...(predicate ? { predicate } : {}),
+			predicate: operands.length === 1 ? operands[0]! : and(...operands),
 		},
 		right: compileValue(rule.count),
 	};
@@ -275,7 +317,7 @@ function compileWinningThrowRule(
 			)
 			: equal(
 				field('throw.throwType'),
-				throwType(throwTypeNames[rule.throwType] ?? rule.throwType),
+				throwType(throwTypeNames[rule.throwType]),
 			));
 	}
 	if (rule.hitLocation) {
@@ -353,7 +395,7 @@ function compileSequence(
 			else {
 				operands.push(equal(
 					field('throw.throwType'),
-					throwType(throwTypeNames[target.throwType] ?? target.throwType),
+					throwType(throwTypeNames[target.throwType]),
 				));
 			}
 			return operands.length === 1
@@ -373,7 +415,7 @@ function compileRule(rule: AchievementRuleDraft, scope: CompileScope): AstNode {
 		return { kind: 'not', operand: compileRule(rule.child, scope) };
 	case 'round': {
 		const statusConditions = rule.statuses.map(item =>
-			equal(field('round.status'), status(statusNames[item] ?? item)));
+			equal(field('round.status'), status(statusNames[item])));
 		const statusCondition = statusConditions.length === 1
 			? statusConditions[0]!
 			: { kind: 'or', operands: statusConditions };
@@ -422,9 +464,10 @@ function compileRule(rule: AchievementRuleDraft, scope: CompileScope): AstNode {
 }
 
 function compileParameters(draft: AchievementTemplateDraft): AchievementParameterDefinition[] {
+	const unique = <T>(values: T[]): T[] => [ ...new Set(values) ];
 	return draft.parameters.map(parameter => {
 		const common = {
-			name: parameter.key,
+			name: parameter.key.trim(),
 			minimum: null,
 			maximum: null,
 			step: parameter.step ?? 1,
@@ -444,27 +487,39 @@ function compileParameters(draft: AchievementTemplateDraft): AchievementParamete
 			return {
 				...common,
 				kind: 'IntegerSet' as const,
-				integerValues: parameter.values.map(Number),
+				integerValues: unique(parameter.values.map(Number)),
 			};
 		}
 		if (parameter.valueType === 'boolean') {
 			return {
 				...common,
 				kind: 'BooleanSet' as const,
-				booleanValues: parameter.values.map(value => value.toLowerCase() === 'true'),
+				booleanValues: unique(parameter.values.map(value => value.toLowerCase() === 'true')),
 			};
 		}
 		return {
 			...common,
 			kind: 'StringSet' as const,
-			stringValues: parameter.values,
+			stringValues: unique(parameter.values),
 		};
 	});
+}
+
+function compileProgressionRoot(progression: AchievementProgressionDraft): AstNode {
+	return {
+		kind: 'and',
+		operands: progression.targets.map(target => ({
+			kind: 'hasHitSegment',
+			hitLocation: compileValue(target.hitLocation),
+			throwType: throwType(throwTypeNames[target.throwType]),
+		})),
+	};
 }
 
 export function compileAchievementTemplate(
 	draft: AchievementTemplateDraft,
 ): UpsertAchievementTemplateRequest {
+	const progression = draft.progression ?? createDefaultAchievementProgression();
 	const definition = draft.achievementScope === 'progression'
 		? {
 			version: 1,
@@ -475,20 +530,10 @@ export function compileAchievementTemplate(
 			reducers: [
 				{
 					kind: 'collectHitSegments',
-					statuses: (draft.progression?.statuses ?? [ 'valid', 'victory' ])
-						.map(item => statusNames[item] ?? item),
+					statuses: progression.statuses.map(item => statusNames[item]),
 				},
 			],
-			root: {
-				kind: 'and',
-				operands: (draft.progression?.targets ?? []).map(target => ({
-					kind: 'hasHitSegment',
-					hitLocation: compileValue(target.hitLocation),
-					throwType: throwType(
-						throwTypeNames[target.throwType] ?? target.throwType,
-					),
-				})),
-			},
+			root: compileProgressionRoot(progression),
 		}
 		: {
 			version: 1,
@@ -530,7 +575,7 @@ function restoreParameters(
 ): AchievementTemplateDraft['parameters'] {
 	return parameters.map(parameter => {
 		const common = {
-			id: globalThis.crypto.randomUUID(),
+			id: createAchievementBuilderId(),
 			key: parameter.name,
 			values: [] as string[],
 		};
@@ -675,29 +720,10 @@ function restoreAstValue(node: AstNode | undefined): AchievementValueDraft | und
 			value: number['name'],
 		};
 	}
-	case 'field': {
-		const source = node?.['path'];
-		if (source === 'placement')
-			return { source: 'game.placement', value: '' };
-		return typeof source === 'string' && [
-			'round.throwCount',
-			'round.modifiedThrowCount',
-			'round.number',
-			'round.finalPoints',
-			'round.rawPointsDistinctCount',
-			'round.minimumRawPoints',
-			'round.singleCount',
-			'round.doubleCount',
-			'round.tripleCount',
-			'game.roundsPlayed',
-			'game.placement',
-			'game.overshootCount',
-			'game.rimCount',
-			'game.missCount',
-		].includes(source)
-			? { source: source as AchievementValueDraft['source'], value: '' }
+	case 'field':
+		return isField(node, 'placement')
+			? { source: 'game.placement', value: '' }
 			: undefined;
-	}
 	case 'count': {
 		const collection = getAstNode(node?.['collection']);
 		const predicate = getAstNode(node?.['predicate']);
@@ -712,35 +738,30 @@ function restoreAstValue(node: AstNode | undefined): AchievementValueDraft | und
 				&& getAstNode(predicate['right'])?.['value'] === 0
 			)
 				return { source: 'round.modifiedThrowCount', value: '' };
-			const typeSource: Record<string, AchievementValueDraft['source']> = {
-				Single: 'round.singleCount',
-				Double: 'round.doubleCount',
-				Triple: 'round.tripleCount',
-			};
-			const type = getThrowTypeValue(predicate);
+			const source = lookup(
+				roundThrowCountSources,
+				lookup(throwTypeByName, getThrowTypeValue(predicate)),
+			);
 			const predicateOperands = getAstKind(predicate) === 'and'
 				? getAstOperands(predicate)
 				: predicate ? [ predicate ] : [];
 			const hasHitLocation = predicateOperands.some(operand =>
 				getAstKind(operand) === 'equal'
 				&& isField(getAstNode(operand['left']), 'throw.hitLocation'));
-			return type && typeSource[type] && !hasHitLocation
-				? { source: typeSource[type], value: '' }
+			return source && !hasHitLocation
+				? { source, value: '' }
 				: undefined;
 		}
 		if (isField(collection, 'rounds')) {
+			if (
+				getAstKind(predicate) === 'notEqual'
+				&& isField(getAstNode(predicate?.['left']), 'round.status')
+				&& getAstNode(predicate?.['right'])?.['value'] === 'Unplayed'
+			)
+				return { source: 'game.roundsPlayed', value: '' };
 			const statuses = restoreStatusValues(predicate);
-			if (statuses?.length === 1) {
-				const statusSource = {
-					valid: 'game.validRoundCount',
-					victory: 'game.victoryCount',
-					overshoot: 'game.overshootCount',
-					failedWinCondition: 'game.failedWinConditionCount',
-				} as const;
-				const source = statusSource[statuses[0] as keyof typeof statusSource];
-				if (source)
-					return { source, value: '' };
-			}
+			if (statuses?.length === 1)
+				return { source: roundStatusCountSources[statuses[0]!], value: '' };
 		}
 		return undefined;
 	}
@@ -750,14 +771,10 @@ function restoreAstValue(node: AstNode | undefined): AchievementValueDraft | und
 		if (isField(collection, 'round.throws') && isField(selector, 'throw.finalPoints'))
 			return { source: 'round.finalPoints', value: '' };
 		if (isField(collection, 'rounds') && getAstKind(selector) === 'count') {
-			const type = getThrowTypeValue(getAstNode(selector?.['predicate']));
-			const typeSource = {
-				Double: 'game.doubleCount',
-				Triple: 'game.tripleCount',
-				Rim: 'game.rimCount',
-				Miss: 'game.missCount',
-			} as const;
-			const source = type ? typeSource[type as keyof typeof typeSource] : undefined;
+			const source = lookup(
+				gameThrowCountSources,
+				lookup(throwTypeByName, getThrowTypeValue(getAstNode(selector?.['predicate']))),
+			);
 			if (source)
 				return { source, value: '' };
 		}
@@ -789,16 +806,8 @@ function restoreStatusValues(node: AstNode | undefined): AchievementRoundRuleDra
 	if (!isField(left, 'round.status') || getAstKind(right) !== 'status')
 		return undefined;
 
-	const statusValue = right?.['value'];
-	const statusMap: Record<string, AchievementRoundRuleDraft['statuses'][number]> = {
-		Valid: 'valid',
-		Victory: 'victory',
-		Overshoot: 'overshoot',
-		WinConditionFailed: 'failedWinCondition',
-	};
-	return typeof statusValue === 'string' && statusMap[statusValue]
-		? [ statusMap[statusValue] ]
-		: undefined;
+	const statusValue = lookup(statusByName, right?.['value']);
+	return statusValue ? [ statusValue ] : undefined;
 }
 
 function restoreThrowMatch(
@@ -828,14 +837,7 @@ function restoreThrowMatch(
 			&& right?.['valueType'] === 'throwType'
 			&& typeof right['value'] === 'string'
 		) {
-			const throwTypeMap: Record<string, AchievementThrowRuleDraft['throwType']> = {
-				Single: 'single',
-				Double: 'double',
-				Triple: 'triple',
-				Rim: 'rim',
-				Miss: 'miss',
-			};
-			throwType = throwTypeMap[right['value']] ?? 'any';
+			throwType = lookup(throwTypeByName, right['value']) ?? 'any';
 			continue;
 		}
 		return undefined;
@@ -926,15 +928,10 @@ function restoreWinningThrowRule(
 			getAstKind(match) === 'equal'
 			&& isField(getAstNode(match['left']), 'throw.throwType')
 		) {
-			const value = getAstNode(match['right'])?.['value'];
-			const typeMap = {
-				Single: 'single',
-				Double: 'double',
-				Triple: 'triple',
-			} as const;
-			if (typeof value !== 'string' || !(value in typeMap))
+			const type = lookup(throwTypeByName, getAstNode(match['right'])?.['value']);
+			if (type !== 'single' && type !== 'double' && type !== 'triple')
 				return undefined;
-			winningThrowType = typeMap[value as keyof typeof typeMap];
+			winningThrowType = type;
 			continue;
 		}
 		if (getAstKind(match) === 'or') {
@@ -1096,14 +1093,8 @@ function restoreAstRule(
 		if (statuses.length === 0)
 			return rawRule();
 		if (conditionOperands.length === 0 && kind === 'any') {
-			const statusSources = {
-				valid: 'game.validRoundCount',
-				victory: 'game.victoryCount',
-				overshoot: 'game.overshootCount',
-				failedWinCondition: 'game.failedWinConditionCount',
-			} as const;
 			const children = statuses.map(item => comparisonRule(
-				{ source: statusSources[item], value: '' },
+				{ source: roundStatusCountSources[item], value: '' },
 				'greaterThan',
 				{ source: 'constant', value: '0' },
 			));
@@ -1153,23 +1144,17 @@ function restoreAstRule(
 				right: { source: 'constant', value: '0' },
 			};
 		}
+		const predicateKind = getAstKind(predicate);
 		if (
 			kind === 'all'
-			&& [
-				'equal',
-				'notEqual',
-				'greaterThan',
-				'greaterThanOrEqual',
-				'lessThan',
-				'lessThanOrEqual',
-			].includes(getAstKind(predicate) ?? '')
+			&& isComparisonOperator(predicateKind)
 			&& isField(getAstNode(predicate?.['left']), 'throw.rawPoints')
 		) {
 			const right = restoreAstValue(getAstNode(predicate?.['right']));
 			if (right) {
 				return comparisonRule(
 					{ source: 'round.minimumRawPoints', value: '' },
-					getAstKind(predicate) as AchievementComparisonOperator,
+					predicateKind,
 					right,
 				);
 			}
@@ -1202,14 +1187,7 @@ function restoreAstRule(
 			}
 			: rawRule();
 	}
-	if ([
-		'equal',
-		'notEqual',
-		'greaterThan',
-		'greaterThanOrEqual',
-		'lessThan',
-		'lessThanOrEqual',
-	].includes(kind ?? '')) {
+	if (isComparisonOperator(kind)) {
 		const leftNode = getAstNode(node?.['left']);
 		const rightNode = getAstNode(node?.['right']);
 		if (
@@ -1223,7 +1201,7 @@ function restoreAstRule(
 					id: createAchievementBuilderId(),
 					type: 'throwCount',
 					...match,
-					operator: kind as AchievementComparisonOperator,
+					operator: kind,
 					count,
 				};
 			}
@@ -1237,7 +1215,7 @@ function restoreAstRule(
 			) {
 				return comparisonRule(
 					{ source: 'round.number', value: '' },
-					kind as AchievementComparisonOperator,
+					kind,
 					{
 						source: 'parameter',
 						value: String(getAstNode(rightNode?.['left'])?.['name'] ?? ''),
@@ -1251,7 +1229,7 @@ function restoreAstRule(
 			) {
 				return comparisonRule(
 					{ source: 'round.number', value: '' },
-					kind as AchievementComparisonOperator,
+					kind,
 					{ source: 'constant', value: String(rightNode['value'] + 1) },
 				);
 			}
@@ -1263,7 +1241,7 @@ function restoreAstRule(
 				id: createAchievementBuilderId(),
 				type: 'compare',
 				left,
-				operator: kind as AchievementComparisonOperator,
+				operator: kind,
 				right,
 			}
 			: rawRule();
@@ -1294,20 +1272,15 @@ function getStoredAstProgression(
 			return undefined;
 		const hitLocation = restoreAstValue(getAstNode(node['hitLocation']));
 		const throwTypeNode = getAstNode(node['throwType']);
-		const throwTypeValue = getAstKind(throwTypeNode) === 'constant'
+		const type = getAstKind(throwTypeNode) === 'constant'
 			&& throwTypeNode?.['valueType'] === 'throwType'
-			? throwTypeNode['value']
+			? lookup(throwTypeByName, throwTypeNode['value'])
 			: undefined;
-		const throwTypeMap: Record<string, AchievementProgressionDraft['targets'][number]['throwType']> = {
-			Single: 'single',
-			Double: 'double',
-			Triple: 'triple',
-		};
-		return hitLocation && typeof throwTypeValue === 'string' && throwTypeMap[throwTypeValue]
+		return hitLocation && (type === 'single' || type === 'double' || type === 'triple')
 			? {
 				id: createAchievementBuilderId(),
 				hitLocation,
-				throwType: throwTypeMap[throwTypeValue],
+				throwType: type,
 			}
 			: undefined;
 	});
@@ -1319,19 +1292,83 @@ function getStoredAstProgression(
 		: [];
 	const statusValues = reducers.find(reducer =>
 		getAstKind(reducer) === 'collectHitSegments')?.['statuses'];
-	const statusMap: Record<string, AchievementProgressionDraft['statuses'][number]> = {
-		Valid: 'valid',
-		Victory: 'victory',
-	};
 	const statuses = Array.isArray(statusValues)
 		? statusValues
-			.map(status => typeof status === 'string' ? statusMap[status] : undefined)
-			.filter(status => status !== undefined)
+			.map(status => lookup(statusByName, status))
+			.filter((status): status is 'valid' | 'victory' =>
+				status === 'valid' || status === 'victory')
 		: [];
 	return {
-		statuses: statuses.length > 0 ? statuses : [ 'valid', 'victory' ],
+		statuses: statuses.length > 0 ? statuses : createDefaultAchievementProgression().statuses,
 		targets: targets as AchievementProgressionDraft['targets'],
 	};
+}
+
+function isSameAst(left: unknown, right: unknown): boolean {
+	if (Array.isArray(left) || Array.isArray(right)) {
+		return Array.isArray(left)
+			&& Array.isArray(right)
+			&& left.length === right.length
+			&& left.every((item, index) => isSameAst(item, right[index]));
+	}
+	if (left && right && typeof left === 'object' && typeof right === 'object') {
+		const leftEntries = Object.entries(left).filter(([ , value ]) => value !== undefined);
+		const rightRecord = right as Record<string, unknown>;
+		return leftEntries.length === Object.values(rightRecord).filter(value => value !== undefined).length
+			&& leftEntries.every(([ key, value ]) => isSameAst(value, rightRecord[key]));
+	}
+
+	return left === right;
+}
+
+/**
+ * The stored editor tree is only a UI convenience; it is trusted only while it still
+ * compiles to the executable root, so the editor always shows the logic that runs.
+ */
+function compilesToStoredRoot(
+	version: AchievementTemplateVersionResponse,
+	compile: () => AstNode,
+): boolean {
+	try {
+		return isSameAst(compile(), version.definition['root']);
+	}
+	catch {
+		return false;
+	}
+}
+
+function restoreRule(
+	version: AchievementTemplateVersionResponse,
+	editor: Record<string, unknown> | undefined,
+): AchievementRuleDraft {
+	const editorRule = getStoredEditorRule(editor);
+	const isSession = version.evaluationPhase !== 'Progression';
+	if (
+		editorRule
+		&& (!isSession || compilesToStoredRoot(version, () => compileRule(editorRule, 'root')))
+	)
+		return editorRule;
+
+	return (isSession ? getStoredAstRule(version) : undefined)
+		?? editorRule
+		?? createDefaultAchievementRule();
+}
+
+function restoreProgression(
+	version: AchievementTemplateVersionResponse,
+	editor: Record<string, unknown> | undefined,
+): AchievementProgressionDraft | undefined {
+	const editorProgression = editor?.['progression'] && typeof editor['progression'] === 'object'
+		? structuredClone(editor['progression']) as AchievementProgressionDraft
+		: undefined;
+	if (version.evaluationPhase !== 'Progression')
+		return editorProgression;
+
+	return editorProgression
+		&& Array.isArray(editorProgression.targets)
+		&& compilesToStoredRoot(version, () => compileProgressionRoot(editorProgression))
+		? editorProgression
+		: getStoredAstProgression(version);
 }
 
 export function restoreAchievementTemplateDraft(
@@ -1353,13 +1390,7 @@ export function restoreAchievementTemplateDraft(
 			? 'progression'
 			: 'session',
 		parameters: restoreParameters(version.parameters),
-		rule: getStoredEditorRule(editor) ?? getStoredAstRule(version) ?? {
-			id: globalThis.crypto.randomUUID(),
-			type: 'all',
-			children: [],
-		},
-		progression: editor?.['progression']
-			? structuredClone(editor['progression']) as AchievementTemplateDraft['progression']
-			: getStoredAstProgression(version),
+		rule:        restoreRule(version, editor),
+		progression: restoreProgression(version, editor),
 	};
 }

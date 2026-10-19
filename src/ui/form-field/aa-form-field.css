@@ -41,7 +41,7 @@
 .help,
 .error {
 	font-family: var(--font-family-ui);
-	font-size: var(--font-size-xs);
+	font-size: 0.75rem;
 	line-height: 1.35;
 }
 

@@ -9,6 +9,7 @@ import '../../../ui/error-state/aa-error-state.js';
 
 import { html, LitElement, nothing, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { createRef, ref } from 'lit/directives/ref.js';
 import { container } from 'tsyringe';
 
 import { getAchievementTierIcon } from '../../../helpers/achievementHelper.js';
@@ -38,7 +39,6 @@ import {
 	ScoreModifierRule,
 	Season,
 } from '../../../models/schemas.js';
-import type { AchievementTemplateDraft } from '../../../models/achievementBuilder.js';
 import type {
 	AchievementCategoryResponse,
 	AchievementTemplateResponse,
@@ -54,7 +54,11 @@ import {
 import { sharedStyles } from '../../../styles/shared-styles.js';
 import type { AaButton } from '../../../ui/button/aa-button.js';
 import type { AaMmrConfigurationEditor } from '../../aa-mmr-configuration-editor/aa-mmr-configuration-editor.js';
-import type { AaAchievementBuilder } from '../../achievement-builder/achievement-builder.js';
+import type { AaDialog } from '../../aa-dialog/aa-dialog.js';
+import type {
+	AaAchievementBuilder,
+	AchievementBuilderWorkspaceTab,
+} from '../../achievement-builder/achievement-builder.js';
 import type { AchievementCategoryActions } from '../../achievement-category-manager/achievement-category-manager.js';
 import type {
 	SeasonBasicsChangeEvent,
@@ -1123,7 +1127,7 @@ rule.executionOrder = Number(
 		}
 	}
 
-	private getAchievementBuilderV2Summary(): string {
+	private getAchievementBuilderSummary(): string {
 		const seasonId = this.draft?.id;
 		const count = seasonId
 			? (this.achievementTemplatesBySeason[seasonId]?.length ?? 0)
@@ -1133,7 +1137,66 @@ rule.executionOrder = Number(
 			: `${ count } achievement template${ count === 1 ? '' : 's' }`;
 	}
 
-	private async openAchievementBuilderV2(): Promise<void> {
+	/** Inserts or replaces a template in the season cache and returns the season's templates. */
+	private storeAchievementTemplate(
+		seasonId: string,
+		template: AchievementTemplateResponse,
+	): AchievementTemplateResponse[] {
+		const templates = this.achievementTemplatesBySeason[seasonId] ?? [];
+		const updated = templates.some(item => item.id === template.id)
+			? templates.map(item => item.id === template.id ? template : item)
+			: [ ...templates, template ];
+		this.achievementTemplatesBySeason = {
+			...this.achievementTemplatesBySeason,
+			[seasonId]: updated,
+		};
+		return updated;
+	}
+
+	/** Saves the builder draft, validates it and optionally publishes it. Returns true when done. */
+	private async saveAchievementTemplate(
+		builder: AaAchievementBuilder,
+		seasonId: string,
+		publish: boolean,
+	): Promise<boolean> {
+		const draft = builder.getValidatedDraft();
+		if (!draft)
+			return false;
+
+		const request = compileAchievementTemplate(draft);
+		const saved = draft.id
+			? await this.achievementBuilderService.updateTemplate(draft.id, request, this.adminKey)
+			: await this.achievementBuilderService.createTemplate(request, this.adminKey);
+		builder.setTemplates(this.storeAchievementTemplate(seasonId, saved), saved.id);
+
+		const validation = await this.achievementBuilderService.validateTemplate(saved.id);
+		if (!validation.isValid) {
+			this.notificationService.addNotification({
+				type:    'danger',
+				message: validation.errors[0] ?? 'Achievement template is invalid.',
+			});
+
+			return false;
+		}
+
+		if (publish) {
+			this.storeAchievementTemplate(
+				seasonId,
+				await this.achievementBuilderService.publishTemplate(saved.id, this.adminKey),
+			);
+		}
+
+		this.notificationService.addNotification({
+			type:    'success',
+			message: publish
+				? `Published ${ draft.nameTemplate }.`
+				: `Saved ${ draft.nameTemplate } as a draft.`,
+		});
+
+		return true;
+	}
+
+	private async openAchievementBuilder(): Promise<void> {
 		if (!this.draft?.id) {
 			this.notificationService.addNotification({
 				type:    'info',
@@ -1151,73 +1214,77 @@ rule.executionOrder = Number(
 		}
 
 		try {
-			let [ templates, catalog, loadedCategories ] = await Promise.all([
-				this.achievementBuilderService.getTemplates(seasonId),
+			const [ templates, catalog, categories ] = await Promise.all([
+				this.achievementBuilderService.getTemplates(seasonId, this.adminKey),
 				this.achievementBuilderService.getCatalog(),
 				this.achievementBuilderService.getCategories(seasonId),
 			]);
-			let categories = loadedCategories;
-			const refreshCategories = async (): Promise<AchievementCategoryResponse[]> => {
-				categories = await this.achievementBuilderService.getCategories(seasonId);
-				return categories;
+			const service = this.achievementBuilderService;
+			const thenRefreshCategories = async (
+				action: Promise<unknown>,
+			): Promise<AchievementCategoryResponse[]> => {
+				await action;
+				return service.getCategories(seasonId);
 			};
 			const categoryActions: AchievementCategoryActions = {
-				create: async name => {
-					await this.achievementBuilderService.createCategory(
-						{ seasonId, name },
-						this.adminKey,
-					);
-					return refreshCategories();
-				},
-				rename: async (categoryId, name) => {
-					await this.achievementBuilderService.updateCategory(
-						categoryId,
-						{ name },
-						this.adminKey,
-					);
-					return refreshCategories();
-				},
-				reorder: async orderedCategoryIds => {
-					await this.achievementBuilderService.reorderCategories(
-						{ seasonId, orderedCategoryIds },
-						this.adminKey,
-					);
-					return refreshCategories();
-				},
-				archive: async categoryId => {
-					await this.achievementBuilderService.archiveCategory(
-						categoryId,
-						this.adminKey,
-					);
-					return refreshCategories();
-				},
-				restore: async categoryId => {
-					await this.achievementBuilderService.restoreCategory(
-						categoryId,
-						this.adminKey,
-					);
-					return refreshCategories();
-				},
-				delete: async categoryId => {
-					await this.achievementBuilderService.deleteCategory(
-						categoryId,
-						this.adminKey,
-					);
-					return refreshCategories();
-				},
+				create: name => thenRefreshCategories(
+					service.createCategory({ seasonId, name }, this.adminKey),
+				),
+				rename: (categoryId, name) => thenRefreshCategories(
+					service.updateCategory(categoryId, { name }, this.adminKey),
+				),
+				reorder: orderedCategoryIds => thenRefreshCategories(
+					service.reorderCategories({ seasonId, orderedCategoryIds }, this.adminKey),
+				),
+				archive: categoryId => thenRefreshCategories(
+					service.archiveCategory(categoryId, this.adminKey),
+				),
+				restore: categoryId => thenRefreshCategories(
+					service.restoreCategory(categoryId, this.adminKey),
+				),
+				delete: categoryId => thenRefreshCategories(
+					service.deleteCategory(categoryId, this.adminKey),
+				),
 			};
 			this.achievementTemplatesBySeason = {
 				...this.achievementTemplatesBySeason,
-				[this.draft.id]: templates,
+				[seasonId]: templates,
 			};
-			let publishAfterSave = false;
-			let saveInProgress = false;
-			const setSubmitButtonsBusy = (dialog: Element | null, busy: boolean): void => {
-				dialog?.querySelectorAll<AaButton>('[data-achievement-submit]')
-					.forEach(button => {
+
+			const builderRef = createRef<AaAchievementBuilder>();
+			let saving = false;
+			const submit = async (publish: boolean): Promise<void> => {
+				const builder = builderRef.value;
+				if (saving || !builder)
+					return;
+
+				const dialog = builder.closest('aa-dialog');
+				const buttons = [ ...dialog?.querySelectorAll<AaButton>('[data-achievement-submit]') ?? [] ];
+				const setBusy = (busy: boolean): void => {
+					saving = busy;
+					buttons.forEach(button => {
 						button.loading = busy;
 						button.disabled = busy;
 					});
+				};
+
+				setBusy(true);
+				try {
+					// Close directly: the draft is saved, so the unsaved-changes guard must not ask.
+					if (await this.saveAchievementTemplate(builder, seasonId, publish))
+						dialog?.dispatchEvent(new CustomEvent('dialog-closed', { bubbles: true, composed: true }));
+				}
+				catch (error) {
+					this.notificationService.addNotification({
+						type:    'danger',
+						message: error instanceof Error
+							? error.message
+							: 'Unable to save achievement template.',
+					});
+				}
+				finally {
+					setBusy(false);
+				}
 			};
 
 			await this.dialogService.open(
@@ -1226,7 +1293,8 @@ rule.executionOrder = Number(
 						slot="footer-secondary"
 						type="button"
 						variant="secondary"
-						@click=${ this.closeDialog }
+						@click=${ (event: Event) =>
+							(event.currentTarget as HTMLElement).closest<AaDialog>('aa-dialog')?.close() }
 					>
 						Close
 					</aa-button>
@@ -1235,21 +1303,7 @@ rule.executionOrder = Number(
 						data-achievement-submit
 						type="button"
 						variant="secondary"
-						@click=${ (event: Event) => {
-							if (saveInProgress)
-								return;
-							publishAfterSave = false;
-							const dialog = (event.currentTarget as HTMLElement).closest('aa-dialog');
-							const builder = dialog?.querySelector(
-								'aa-achievement-builder',
-							) as AaAchievementBuilder | null;
-							saveInProgress = true;
-							setSubmitButtonsBusy(dialog, true);
-							if (!builder?.submit()) {
-								saveInProgress = false;
-								setSubmitButtonsBusy(dialog, false);
-							}
-						} }
+						@click=${ () => void submit(false) }
 					>
 						Save draft
 					</aa-button>
@@ -1258,125 +1312,25 @@ rule.executionOrder = Number(
 						data-achievement-submit
 						type="button"
 						variant="primary"
-						@click=${ (event: Event) => {
-							if (saveInProgress)
-								return;
-							publishAfterSave = true;
-							const dialog = (event.currentTarget as HTMLElement).closest('aa-dialog');
-							const builder = dialog?.querySelector(
-								'aa-achievement-builder',
-							) as AaAchievementBuilder | null;
-							saveInProgress = true;
-							setSubmitButtonsBusy(dialog, true);
-							if (!builder?.submit()) {
-								saveInProgress = false;
-								setSubmitButtonsBusy(dialog, false);
-							}
-						} }
+						@click=${ () => void submit(true) }
 					>
 						Publish achievement
 					</aa-button>
 					<aa-achievement-builder
+						${ ref(builderRef) }
 						seasonId=${ seasonId }
 						.categories=${ categories }
 						.templates=${ templates }
 						.categoryActions=${ categoryActions }
 						.maximumGeneratedInstances=${ catalog.limits.maximumGeneratedInstances }
 						@achievement-builder-workspace-change=${ (
-							event: CustomEvent<{ tab: string; }>,
+							event: CustomEvent<{ tab: AchievementBuilderWorkspaceTab; }>,
 						) => {
 							const dialog = (event.currentTarget as HTMLElement).closest('aa-dialog');
 							dialog?.querySelectorAll<HTMLElement>('[data-achievement-submit]')
 								.forEach(button => {
-									button.style.display = event.detail.tab === 'browse'
-										? 'none'
-										: '';
+									button.style.display = event.detail.tab === 'browse' ? 'none' : '';
 								});
-						} }
-						@achievement-builder-save=${ async (
-							event: CustomEvent<AchievementTemplateDraft>,
-						) => {
-							const builder = event.currentTarget as AaAchievementBuilder;
-							const shouldPublish = publishAfterSave;
-							try {
-								const request = compileAchievementTemplate(event.detail);
-								const saved = event.detail.id
-									? await this.achievementBuilderService.updateTemplate(
-										event.detail.id,
-										request,
-										this.adminKey,
-									)
-									: await this.achievementBuilderService.createTemplate(
-										request,
-										this.adminKey,
-									);
-								const seasonTemplates = this.achievementTemplatesBySeason[
-									event.detail.seasonId
-								] ?? [];
-								const savedIndex = seasonTemplates.findIndex(
-									template => template.id === saved.id,
-								);
-								this.achievementTemplatesBySeason = {
-									...this.achievementTemplatesBySeason,
-									[event.detail.seasonId]: savedIndex >= 0
-										? seasonTemplates.map((template, index) =>
-											index === savedIndex ? saved : template)
-										: [ ...seasonTemplates, saved ],
-								};
-								templates = this.achievementTemplatesBySeason[event.detail.seasonId] ?? [];
-								builder.setTemplates(templates, saved.id);
-								const validation = await this.achievementBuilderService
-									.validateTemplate(saved.id);
-								if (!validation.isValid) {
-									this.notificationService.addNotification({
-										type:    'danger',
-										message: validation.errors[0] ?? 'Achievement template is invalid.',
-									});
-
-									return;
-								}
-
-								const result = shouldPublish
-									? await this.achievementBuilderService.publishTemplate(
-										saved.id,
-										this.adminKey,
-									)
-									: saved;
-								const currentTemplates = this.achievementTemplatesBySeason[
-									event.detail.seasonId
-								] ?? [];
-								const existingIndex = currentTemplates.findIndex(
-									template => template.id === result.id,
-								);
-								this.achievementTemplatesBySeason = {
-									...this.achievementTemplatesBySeason,
-									[event.detail.seasonId]: existingIndex >= 0
-										? currentTemplates.map((template, index) =>
-											index === existingIndex ? result : template)
-										: [ ...currentTemplates, result ],
-								};
-								templates = this.achievementTemplatesBySeason[event.detail.seasonId] ?? [];
-								builder.setTemplates(templates, result.id);
-								this.notificationService.addNotification({
-									type: 'success',
-									message: shouldPublish
-										? `Published ${ event.detail.nameTemplate }.`
-										: `Saved ${ event.detail.nameTemplate } as a draft.`,
-								});
-								this.closeDialog(event);
-							}
-							catch (error) {
-								this.notificationService.addNotification({
-									type:    'danger',
-									message: error instanceof Error
-										? error.message
-										: 'Unable to save achievement template.',
-								});
-							}
-							finally {
-								saveInProgress = false;
-								setSubmitButtonsBusy(builder.closest('aa-dialog'), false);
-							}
 						} }
 					></aa-achievement-builder>
 				`,
@@ -1384,6 +1338,8 @@ rule.executionOrder = Number(
 					title:       'Achievement builder',
 					large:       true,
 					fixedHeight: true,
+					canClose:    () => !builderRef.value?.hasUnsavedChanges
+						|| window.confirm('Discard unsaved achievement changes?'),
 				},
 			);
 		}
@@ -1695,7 +1651,7 @@ rule.executionOrder = Number(
 			{
 				id:            'achievement-builder',
 				title:         'Achievement builder',
-				summary:       this.getAchievementBuilderV2Summary(),
+				summary:       this.getAchievementBuilderSummary(),
 				activateLabel: 'Create achievement templates',
 			},
 		];
@@ -1724,7 +1680,7 @@ rule.executionOrder = Number(
 			void this.openMmrConfiguration();
 			break;
 		case 'achievement-builder':
-			void this.openAchievementBuilderV2();
+			void this.openAchievementBuilder();
 			break;
 		}
 	}

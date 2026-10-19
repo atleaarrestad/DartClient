@@ -17,8 +17,8 @@ export class AchievementBuilderService {
 		return this.dataService.getAchievementBuilderCatalog();
 	}
 
-	getTemplates(seasonId: string) {
-		return this.dataService.getAchievementBuilderTemplates(seasonId);
+	getTemplates(seasonId: string, adminKey?: string) {
+		return this.dataService.getAchievementBuilderTemplates(seasonId, adminKey);
 	}
 
 	getCategories(seasonId: string) {

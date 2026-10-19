@@ -81,7 +81,44 @@ describe('achievement rule presentation', () => {
 				kind: 'all',
 				collection: { kind: 'field', path: 'round.throws' },
 			},
-		})).toBe('Every item matches an advanced condition');
+		})).toBe('every(round.throws)');
+
+		expect(formatAchievementRule({
+			id: 'raw-count',
+			type: 'raw',
+			ast: {
+				kind: 'greaterThanOrEqual',
+				left: {
+					kind: 'count',
+					collection: { kind: 'field', path: 'round.throws' },
+					predicate: {
+						kind: 'and',
+						operands: [
+							{ kind: 'field', path: 'throw.isPlayed' },
+							{
+								kind: 'or',
+								operands: [
+									{
+										kind: 'equal',
+										left: { kind: 'field', path: 'throw.throwType' },
+										right: { kind: 'constant', valueType: 'throwType', value: 'Double' },
+									},
+									{
+										kind: 'equal',
+										left: { kind: 'field', path: 'throw.hitLocation' },
+										right: { kind: 'parameter', name: 'n' },
+									},
+								],
+							},
+						],
+					},
+				},
+				right: { kind: 'constant', valueType: 'integer', value: 3 },
+			},
+		})).toBe(
+			'count(round.throws where throw.isPlayed and '
+			+ '(throw.throwType = Double or throw.hitLocation = {n})) >= 3',
+		);
 
 		expect(formatAchievementRule({
 			id: 'raw-no-modifiers',

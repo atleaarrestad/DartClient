@@ -27,7 +27,7 @@ const valueSourceLabels: Partial<Record<AchievementValueSource, string>> = {
 	'game.missCount':               'Misses',
 };
 
-const operatorLabels: Record<AchievementComparisonOperator, string> = {
+export const operatorLabels: Record<AchievementComparisonOperator, string> = {
 	equal:              '=',
 	notEqual:           '!=',
 	greaterThan:        '>',
@@ -45,6 +45,91 @@ const throwTypeLabels = {
 	rim:        'rim hit',
 	miss:       'miss',
 } as const;
+
+type ExpressionNode = Record<string, unknown>;
+
+const expressionOperators: Record<string, string> = {
+	...operatorLabels,
+	add:      '+',
+	subtract: '-',
+};
+
+const asExpressionNode = (value: unknown): ExpressionNode | undefined =>
+	value && typeof value === 'object' && !Array.isArray(value)
+		? value as ExpressionNode
+		: undefined;
+
+/**
+ * Writes a compiled condition back out as a readable expression, so logic the
+ * visual blocks cannot represent can still be checked.
+ */
+export const formatAchievementExpression = (value: unknown): string => {
+	const node = asExpressionNode(value);
+	if (!node)
+		return String(value);
+
+	const kind = String(node['kind']);
+	const format = formatAchievementExpression;
+	const nested = (child: unknown): string => {
+		const childKind = asExpressionNode(child)?.['kind'];
+
+		return childKind === 'and' || childKind === 'or'
+			? `(${ format(child) })`
+			: format(child);
+	};
+	const where = node['predicate'] === undefined ? '' : ` where ${ format(node['predicate']) }`;
+
+	switch (kind) {
+	case 'field':
+		return String(node['path']);
+	case 'constant':
+	case 'status':
+		return String(node['value']);
+	case 'parameter':
+		return `{${ String(node['name']) }}`;
+	case 'and':
+	case 'or':
+		return (Array.isArray(node['operands']) ? node['operands'] : [])
+			.map(nested)
+			.join(` ${ kind } `);
+	case 'not':
+		return `not ${ nested(node['operand']) }`;
+	case 'all':
+	case 'any':
+		return `${ kind === 'all' ? 'every' : 'any' }(${ format(node['collection']) }${
+			node['predicate'] === undefined ? '' : `: ${ format(node['predicate']) }`
+		})`;
+	case 'count':
+		return `count(${ format(node['collection']) }${ where })`;
+	case 'sum':
+	case 'distinctCount':
+		return `${ kind === 'sum' ? 'sum' : 'distinct' }(${ format(node['selector']) } of ${
+			format(node['collection'])
+		}${ where })`;
+	case 'sequence':
+		return `sequence(${ format(node['collection']) }: ${
+			(Array.isArray(node['items']) ? node['items'] : [])
+				.map(item => `[${ format(item) }]`)
+				.join(' then ')
+		})`;
+	case 'boardNeighbor': {
+		const offset = Number(node['offset']);
+		const side = offset < 0 ? 'left' : 'right';
+
+		return Math.abs(offset) === 1
+			? `${ side } of ${ format(node['number']) }`
+			: `${ Math.abs(offset) } ${ side } of ${ format(node['number']) }`;
+	}
+	case 'hasHitSegment':
+		return `hit ${ format(node['throwType']) } ${ format(node['hitLocation']) }`;
+	}
+
+	const operator = expressionOperators[kind];
+	if (operator && 'left' in node && 'right' in node)
+		return `${ nested(node['left']) } ${ operator } ${ nested(node['right']) }`;
+
+	return JSON.stringify(node);
+};
 
 export const formatAchievementValue = (value: AchievementValueDraft): string => {
 	switch (value.source) {
@@ -157,17 +242,7 @@ export const formatAchievementRule = (rule: AchievementRuleDraft): string => {
 				return 'No throws use seasonal modifiers';
 		}
 
-		const kind = typeof rule.ast['kind'] === 'string'
-			? rule.ast['kind']
-			: 'custom';
-		const descriptions: Record<string, string> = {
-			all: 'Every item matches an advanced condition',
-			any: 'At least one item matches an advanced condition',
-			count: 'Advanced count expression',
-			sum: 'Advanced sum expression',
-			sequence: 'Advanced sequence condition',
-		};
-		return descriptions[kind] ?? `Advanced ${ kind } condition`;
+		return formatAchievementExpression(rule.ast);
 	}
 	}
 };

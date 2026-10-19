@@ -8,7 +8,12 @@ export class DialogService {
 
 	open<T = void>(
 		content: HTMLElement | string | TemplateResult,
-		options?: { title?: string; fixedHeight?: boolean; large?: boolean; },
+		options?: {
+			title?: string;
+			fixedHeight?: boolean;
+			large?: boolean;
+			canClose?: () => boolean;
+		},
 	): Promise<T | undefined> {
 		return new Promise((resolve, reject) => {
 			if (document.querySelector('aa-dialog')) {
@@ -24,6 +29,8 @@ export class DialogService {
 				dialog.fixedHeight = true;
 			if (options?.large)
 				dialog.large = true;
+			if (options?.canClose)
+				dialog.canClose = options.canClose;
 
 			if (typeof content === 'string') {
 				dialog.innerHTML += content;

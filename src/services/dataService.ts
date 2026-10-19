@@ -307,11 +307,14 @@ export class DataService {
 		);
 	}
 
+	/** Draft versions are only included when a season admin key is sent. */
 	async getAchievementBuilderTemplates(
 		seasonId: string,
+		adminKey?: string,
 	): Promise<AchievementTemplateResponse[]> {
 		const response = await this.get<unknown>(
 			`achievement-builder/templates?seasonId=${ encodeURIComponent(seasonId) }`,
+			adminKey ? this.getSeasonAdminHeaders(adminKey) : undefined,
 		);
 		if (!response.ok)
 			throw this.createApiError('Failed to load achievement templates', response);

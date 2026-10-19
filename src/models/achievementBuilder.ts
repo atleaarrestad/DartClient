@@ -48,6 +48,8 @@ export type AchievementValueSource =
 	| 'game.rimCount'
 	| 'game.missCount';
 
+export type AchievementRoundStatus = 'valid' | 'victory' | 'overshoot' | 'failedWinCondition';
+
 export interface AchievementValueDraft {
 	source: AchievementValueSource;
 	value: string;
@@ -70,7 +72,7 @@ export interface AchievementRoundRuleDraft {
 	id: string;
 	type: 'round';
 	quantifier: 'any' | 'all';
-	statuses: ('valid' | 'victory' | 'overshoot' | 'failedWinCondition')[];
+	statuses: AchievementRoundStatus[];
 	condition: AchievementRuleDraft;
 }
 
@@ -175,6 +177,11 @@ export const createDefaultAchievementRule = (): AchievementGroupRuleDraft => ({
 	id: createAchievementBuilderId(),
 	type: 'all',
 	children: [],
+});
+
+export const createDefaultAchievementProgression = (): AchievementProgressionDraft => ({
+	statuses: [ 'valid', 'victory' ],
+	targets:  [],
 });
 
 export const createEmptyAchievementTemplate = (
