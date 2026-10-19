@@ -8,6 +8,7 @@ import { UserQueryOptions } from '../../../api/users.requests.js';
 import type { AchievementInstanceResponse } from '../../../models/achievementBuilderApi.js';
 import { Season, SeasonStatistics, User } from '../../../models/schemas.js';
 import { DialogService } from '../../../services/dialogService.js';
+import { NotificationService } from '../../../services/notificationService.js';
 import { SeasonService } from '../../../services/seasonService.js';
 import { UserService } from '../../../services/userService.js';
 import { sharedStyles } from '../../../styles/shared-styles.js';
@@ -48,6 +49,7 @@ export class UserPage extends LitElement {
 	@state() private seasons?: Season[];
 	@state() private selectedSeason?: Season;
 	@state() private v2AchievementInstances: AchievementInstanceResponse[] = [];
+	@state() private achievementsUnavailable = false;
 	@state() private isLoadingSeasonStats = false;
 	@state() private hitDistributionView: HitDistributionView = 'bars';
 
@@ -56,6 +58,7 @@ export class UserPage extends LitElement {
 	private user?: User;
 	private achievementBuilderService: AchievementBuilderService;
 	private dialogService: DialogService;
+	private notificationService: NotificationService;
 	private seasonStatsRequestId = 0;
 
 	constructor() {
@@ -64,6 +67,7 @@ export class UserPage extends LitElement {
 		this.seasonService = container.resolve(SeasonService);
 		this.achievementBuilderService = container.resolve(AchievementBuilderService);
 		this.dialogService = container.resolve(DialogService);
+		this.notificationService = container.resolve(NotificationService);
 	}
 
 	onBeforeEnter(location: RouterLocation): void {
@@ -111,7 +115,8 @@ export class UserPage extends LitElement {
 
 		try {
 			const options = this.getSeasonScopedUserQueryOptions(seasonId);
-			const [ user, v2AchievementInstances ] = await Promise.all([
+			// The statistics are still worth showing when only the achievement catalog fails.
+			const [ user, instances ] = await Promise.allSettled([
 				this.userService.getUserById(this.userId, options),
 				this.achievementBuilderService.getInstances(seasonId),
 			]);
@@ -120,8 +125,25 @@ export class UserPage extends LitElement {
 				return;
 			}
 
-			this.user = user ?? undefined;
-			this.v2AchievementInstances = v2AchievementInstances;
+			if (user.status === 'fulfilled') {
+				this.user = user.value ?? undefined;
+			}
+			else {
+				console.error('Unable to load player statistics.', user.reason);
+				this.notificationService.addNotification({
+					type:    'danger',
+					message: 'Unable to load player statistics.',
+				});
+			}
+
+			this.achievementsUnavailable = instances.status === 'rejected';
+			if (instances.status === 'fulfilled') {
+				this.v2AchievementInstances = instances.value;
+			}
+			else {
+				console.error('Unable to load achievements.', instances.reason);
+				this.v2AchievementInstances = [];
+			}
 		}
 		finally {
 			if (requestId === this.seasonStatsRequestId) {
@@ -258,6 +280,10 @@ export class UserPage extends LitElement {
 		}
 		catch (error) {
 			console.error('Unable to open achievements dialog.', error);
+			this.notificationService.addNotification({
+				type:    'danger',
+				message: error instanceof Error ? error.message : 'Unable to open the achievement.',
+			});
 		}
 	}
 
@@ -318,6 +344,27 @@ export class UserPage extends LitElement {
 	}
 
 	private renderAchievementSummary(stats: SeasonStatistics): TemplateResult {
+		if (this.achievementsUnavailable) {
+			return html`
+				<section class="achievement-summary">
+					<div class="achievement-summary__copy">
+						<h3>Achievements</h3>
+						<p>Achievements are unavailable right now.</p>
+					</div>
+					<div class="achievement-summary__actions">
+						<aa-button
+							type="button"
+							variant="secondary"
+							size="small"
+							@click=${() => this.selectedSeason && this.loadUserForSeason(this.selectedSeason.id)}
+						>
+							Try again
+						</aa-button>
+					</div>
+				</section>
+			`;
+		}
+
 		const {
 			earned,
 			total,

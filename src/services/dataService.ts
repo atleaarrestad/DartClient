@@ -50,6 +50,8 @@ export type ApiResponse<T> =
 export class DataService {
 	private backendURL = import.meta.env.VITE_SERVER_URL;
 	private abortTimeout = 500000;
+	private submitAttempts = 3;
+	private submitRetryDelayMs = 750;
 	private addThrowQueue: Promise<unknown> = Promise.resolve();
 	private addThrowFailure?: unknown;
 
@@ -568,21 +570,45 @@ export class DataService {
 			throw failure;
 		}
 
-		const response = await this.post<undefined, GameResult>(
-			`games/sessions/${gameId}`,
-			undefined,
-		);
+		// A repeated submit returns the stored result instead of saving the game twice, so a
+		// server error or a lost connection (e.g. a finalize that lost a race) is retried.
+		for (let attempt = 1; ; attempt++) {
+			const isLastAttempt = attempt >= this.submitAttempts;
+			let response: ApiResponse<GameResult>;
+			try {
+				response = await this.post<undefined, GameResult>(
+					`games/sessions/${gameId}`,
+					undefined,
+				);
+			}
+			catch (error) {
+				if (isLastAttempt)
+					throw error;
 
-		if (!response.ok) {
-			throw this.createApiError('Failed to submit game', response);
-		}
+				await this.delay(this.submitRetryDelayMs * attempt);
+				continue;
+			}
 
-		try {
-			return GameResultSchema.parse(response.data);
+			if (!response.ok && response.status >= 500 && !isLastAttempt) {
+				await this.delay(this.submitRetryDelayMs * attempt);
+				continue;
+			}
+
+			if (!response.ok) {
+				throw this.createApiError('Failed to submit game', response);
+			}
+
+			try {
+				return GameResultSchema.parse(response.data);
+			}
+			catch {
+				throw new Error('Unable to parse game result from server');
+			}
 		}
-		catch {
-			throw new Error('Unable to parse game result from server');
-		}
+	}
+
+	private delay(milliseconds: number): Promise<void> {
+		return new Promise(resolve => setTimeout(resolve, milliseconds));
 	}
 
 	async addUser(name: string, alias: string): Promise<void> {

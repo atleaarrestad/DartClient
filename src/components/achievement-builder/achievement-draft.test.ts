@@ -1,23 +1,29 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+	AchievementComparisonOperator,
 	AchievementParameterDraft,
 	AchievementRuleDraft,
 	AchievementTemplateDraft,
+	AchievementValueDraft,
 	createEmptyAchievementTemplate,
 } from '../../models/achievementBuilder.js';
 import type {
 	AchievementCategoryResponse,
 	AchievementParameterDefinition,
+	AchievementTemplateResponse,
+	AchievementTemplateVersionResponse,
 } from '../../models/achievementBuilderApi.js';
 import {
 	appendChildRule,
 	countDefinitionInstances,
 	countGeneratedInstances,
 	createRule,
+	defaultAchievementDraftLimits,
 	findRule,
 	getAddableRuleTypes,
 	getAvailableValueSources,
+	getConflictingDraftVersion,
 	getDefaultCategoryId,
 	getParameterValues,
 	getPreviews,
@@ -87,8 +93,32 @@ const validDraft = (overrides: Partial<AchievementTemplateDraft> = {}): Achievem
 	...overrides,
 });
 
-const validate = (draft: AchievementTemplateDraft, maximumGeneratedInstances = 1000) =>
-	validateDraft(draft, { categories, maximumGeneratedInstances });
+const validate = (
+	draft: AchievementTemplateDraft,
+	maximumGeneratedInstances = 1000,
+	limits: Partial<typeof defaultAchievementDraftLimits> = {},
+) =>
+	validateDraft(draft, {
+		categories,
+		limits: { ...defaultAchievementDraftLimits, maximumGeneratedInstances, ...limits },
+	});
+
+const compareDraft = (
+	left: AchievementValueDraft,
+	right: AchievementValueDraft,
+	operator: AchievementComparisonOperator = 'equal',
+	parameters: AchievementParameterDraft[] = [ parameter('n') ],
+): AchievementTemplateDraft => validDraft({
+	parameters,
+	rule: {
+		id:       'root',
+		type:     'all',
+		children: [ { id: 'compare', type: 'compare', left, operator, right } ],
+	},
+});
+
+const messages = (draft: AchievementTemplateDraft, limits: Partial<typeof defaultAchievementDraftLimits> = {}) =>
+	validate(draft, 1000, limits).map(error => error.message);
 
 describe('rule tree helpers', () => {
 	const tree = (): AchievementRuleDraft => ({
@@ -310,6 +340,93 @@ describe('validateDraft', () => {
 		expect(validate(validDraft(), 2).map(error => error.tab)).toEqual([ 'parameters' ]);
 	});
 
+	it('rejects unknown parameter tokens and stray braces in the text', () => {
+		expect(validate(validDraft({
+			nameTemplate:        'Hit {n} {missing}',
+			descriptionTemplate: 'Hit {n} in a round }',
+		}))).toEqual([
+			{ tab: 'details', message: 'The name uses unknown parameters: {missing}.' },
+			{ tab: 'details', message: 'The description has a { or } that is not part of a {parameter}.' },
+		]);
+	});
+
+	it('limits the length of every generated name and description', () => {
+		const errors = messages(validDraft({ descriptionTemplate: `Hit {n} ${ 'x'.repeat(495) }` }));
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toMatch(/^Generated names and descriptions must be at most 500 characters/);
+		expect(messages(validDraft({ descriptionTemplate: `Hit {n} ${ 'x'.repeat(490) }` }))).toEqual([]);
+	});
+
+	it('requires a number parameter where the logic needs a number', () => {
+		const text = parameter('n', { valueType: 'string', generatorType: 'set', values: [ 'a' ] });
+		const draft = validDraft({ parameters: [ text ] });
+		expect(messages(draft)).toEqual([ 'Logic 1 round condition hit location needs a number, but {n} is text.' ]);
+	});
+
+	it('requires both sides of a comparison to have the same type', () => {
+		const text = parameter('label', { valueType: 'string', generatorType: 'set', values: [ 'a' ] });
+		const flag = parameter('flag', { valueType: 'boolean', generatorType: 'set', values: [ 'true' ] });
+		const parameters = [ parameter('n'), text, flag ];
+
+		expect(messages(compareDraft(
+			{ source: 'game.roundsPlayed', value: '' },
+			{ source: 'parameter', value: 'label' },
+			'equal',
+			parameters,
+		))).toEqual([ 'Logic 1 compares a number with text; both sides must have the same type.' ]);
+		expect(messages(compareDraft(
+			{ source: 'parameter', value: 'label' },
+			{ source: 'parameter', value: 'label' },
+			'greaterThan',
+			parameters,
+		))).toEqual([]);
+		expect(messages(compareDraft(
+			{ source: 'parameter', value: 'flag' },
+			{ source: 'parameter', value: 'flag' },
+			'greaterThan',
+			parameters,
+		))).toEqual([ 'Logic 1 can only check yes/no values with "equal" or "not equal".' ]);
+	});
+
+	it('keeps constants and parameter values inside the 32-bit integer range', () => {
+		expect(messages(compareDraft(
+			{ source: 'game.roundsPlayed', value: '' },
+			{ source: 'constant', value: '2147483648' },
+		))).toEqual([ 'Logic 1 right value must be between -2147483648 and 2147483647.' ]);
+		expect(messages(compareDraft(
+			{ source: 'game.roundsPlayed', value: '' },
+			{ source: 'constant', value: '-2147483648' },
+		))).toEqual([]);
+		expect(messages(validDraft({
+			parameters: [ parameter('n', { generatorType: 'set', values: [ '1', '99999999999' ] }) ],
+		}))).toEqual([ 'Parameter n values must be between -2147483648 and 2147483647.' ]);
+		expect(messages(validDraft({
+			parameters: [ parameter('n', { maximum: 2 ** 31 }) ],
+		}))).toContain('Parameter n range values must be between -2147483648 and 2147483647.');
+	});
+
+	it('enforces the AST node, depth and quantifier limits on the compiled logic', () => {
+		const tooManyNodes = /^The logic has \d+ nodes; the limit is 4\.$/;
+		const tooDeep = /^The logic is nested \d+ levels deep; the limit is 3\.$/;
+		const tooManyQuantifiers = 'The logic nests 2 round, throw or count blocks; the limit is 1.';
+
+		expect(messages(validDraft(), { maximumAstNodes: 4 })).toEqual([ expect.stringMatching(tooManyNodes) ]);
+		expect(messages(validDraft(), { maximumAstDepth: 3 })).toEqual([ expect.stringMatching(tooDeep) ]);
+		expect(messages(validDraft(), { maximumQuantifierDepth: 1 })).toEqual([ tooManyQuantifiers ]);
+		expect(messages(validDraft(), { maximumQuantifierDepth: 2 })).toEqual([]);
+	});
+
+	it('accepts stored progression logic that is kept verbatim', () => {
+		expect(validate(validDraft({
+			achievementScope: 'progression',
+			progression:      {
+				statuses: [ 'valid' ],
+				targets:  [],
+				raw:      { root: { kind: 'constant', valueType: 'boolean', value: true }, reducers: [] },
+			},
+		}))).toEqual([]);
+	});
+
 	it('requires at least one progression target', () => {
 		expect(validate(validDraft({
 			achievementScope: 'progression',
@@ -328,5 +445,54 @@ describe('getDefaultCategoryId', () => {
 			category('archived', 'Custom', { isArchived: true }),
 			category('first', 'First'),
 		])).toBe('first');
+	});
+});
+
+const templateVersion = (
+	versionNumber: number,
+	status: AchievementTemplateVersionResponse['status'],
+): AchievementTemplateVersionResponse => ({
+	id:                  `v${ versionNumber }`,
+	versionNumber,
+	status,
+	evaluationPhase:     'Live',
+	nameTemplate:        'Name',
+	descriptionTemplate: 'Description',
+	categoryId:          'custom',
+	categoryName:        'Custom',
+	categoryIsArchived:  false,
+	achievementTier:     1,
+	parameters:          [],
+	definition:          {},
+	createdAtUtc:        '2026-01-01T00:00:00Z',
+});
+
+const template = (...versions: AchievementTemplateVersionResponse[]): AchievementTemplateResponse => ({
+	id:           'template',
+	seasonId:     'season',
+	createdAtUtc: '2026-01-01T00:00:00Z',
+	versions,
+});
+
+describe('getConflictingDraftVersion', () => {
+	it('returns the newer draft when editing starts from a published version', () => {
+		const draft = templateVersion(2, 'Draft');
+
+		expect(getConflictingDraftVersion(template(templateVersion(1, 'Published'), draft), 'v1'))
+			.toBe(draft);
+	});
+
+	it('has no conflict when the template has no draft', () => {
+		expect(getConflictingDraftVersion(
+			template(templateVersion(1, 'Published'), templateVersion(2, 'Published')),
+			'v1',
+		)).toBeUndefined();
+	});
+
+	it('has no conflict when the shown version is the draft itself', () => {
+		expect(getConflictingDraftVersion(
+			template(templateVersion(1, 'Published'), templateVersion(2, 'Draft')),
+			'v2',
+		)).toBeUndefined();
 	});
 });

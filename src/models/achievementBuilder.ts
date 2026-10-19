@@ -167,6 +167,11 @@ export interface AchievementProgressionTargetDraft {
 export interface AchievementProgressionDraft {
 	statuses: ('valid' | 'victory')[];
 	targets: AchievementProgressionTargetDraft[];
+	/**
+	 * Stored progression logic the target editor cannot represent. It is saved back
+	 * verbatim, so opening and saving such a template never replaces its logic.
+	 */
+	raw?: { root: unknown; reducers: unknown; };
 }
 
 export const createAchievementBuilderId = (): string =>

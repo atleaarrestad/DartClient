@@ -1,4 +1,8 @@
 import {
+	compileAchievementTemplate,
+	measureAchievementAst,
+} from '../../helpers/compileAchievementTemplate.js';
+import {
 	AchievementGroupRuleDraft,
 	AchievementParameterDraft,
 	AchievementRoundStatus,
@@ -13,6 +17,8 @@ import {
 import type {
 	AchievementCategoryResponse,
 	AchievementParameterDefinition,
+	AchievementTemplateResponse,
+	AchievementTemplateVersionResponse,
 } from '../../models/achievementBuilderApi.js';
 import { AchievementTier } from '../../models/enums.js';
 
@@ -455,15 +461,70 @@ export const getDefaultCategoryId = (categories: AchievementCategoryResponse[]):
 		?? '';
 };
 
+/**
+ * The draft that saving would overwrite when editing starts from another version. The
+ * backend keeps at most one Draft per template and writes every save into it, so editing
+ * an older version must not silently replace that draft.
+ */
+export const getConflictingDraftVersion = (
+	template: AchievementTemplateResponse,
+	versionId: string,
+): AchievementTemplateVersionResponse | undefined =>
+	template.versions.find(version => version.status === 'Draft' && version.id !== versionId);
+
 export interface DraftValidationError {
 	tab:     BuilderTab;
 	message: string;
 }
 
-export interface DraftValidationContext {
-	categories:                AchievementCategoryResponse[];
+/** The server's builder limits (see the catalog endpoint). */
+export interface AchievementDraftLimits {
 	maximumGeneratedInstances: number;
+	maximumRenderedTextLength: number;
+	maximumAstDepth:           number;
+	maximumAstNodes:           number;
+	maximumQuantifierDepth:    number;
 }
+
+/** Mirrors the backend defaults in AchievementBuilderLimits. */
+export const defaultAchievementDraftLimits: AchievementDraftLimits = {
+	maximumGeneratedInstances: 1000,
+	maximumRenderedTextLength: 500,
+	maximumAstDepth:           32,
+	maximumAstNodes:           2000,
+	maximumQuantifierDepth:    8,
+};
+
+export interface DraftValidationContext {
+	categories: AchievementCategoryResponse[];
+	limits:     AchievementDraftLimits;
+}
+
+const int32Minimum = -2147483648;
+const int32Maximum = 2147483647;
+const int32RangeText = `between ${ int32Minimum } and ${ int32Maximum }`;
+const isInt32 = (value: number): boolean =>
+	Number.isInteger(value) && value >= int32Minimum && value <= int32Maximum;
+const isWholeNumberText = (value: string): boolean => /^-?\d+$/.test(value.trim());
+
+const templateTokenPattern = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+
+type DraftValueType = AchievementParameterDraft['valueType'];
+
+const valueTypeLabels: Record<DraftValueType, string> = {
+	integer: 'a number',
+	string:  'text',
+	boolean: 'a yes/no value',
+};
+
+/** Every value source is an integer except a text or yes/no parameter used directly. */
+const getValueType = (
+	value: AchievementValueDraft,
+	parameters: AchievementParameterDraft[],
+): DraftValueType =>
+	value.source === 'parameter'
+		? parameters.find(parameter => parameter.key === value.value)?.valueType ?? 'integer'
+		: 'integer';
 
 const getValueErrors = (
 	value: AchievementValueDraft,
@@ -471,6 +532,7 @@ const getValueErrors = (
 	scope: BuilderScope,
 	role: ValueEditorRole,
 	parameters: AchievementParameterDraft[],
+	requiresInteger = true,
 ): string[] => {
 	const errors: string[] = [];
 	if (!getAvailableValueSources(scope, role).includes(value.source))
@@ -480,16 +542,37 @@ const getValueErrors = (
 		const parameter = parameters.find(item => item.key === value.value);
 		if (!parameter)
 			errors.push(`${ path } references a missing parameter.`);
-		else if (value.source !== 'parameter' && parameter.valueType !== 'integer')
-			errors.push(`${ path } needs an integer parameter.`);
-		else if (value.source === 'parameter.offset' && !Number.isInteger(value.offset))
-			errors.push(`${ path } needs an integer offset.`);
+		else if ((value.source !== 'parameter' || requiresInteger) && parameter.valueType !== 'integer')
+			errors.push(`${ path } needs a number, but {${ parameter.key }} is ${ valueTypeLabels[parameter.valueType] }.`);
+		else if (value.source === 'parameter.offset' && !isInt32(value.offset ?? Number.NaN))
+			errors.push(`${ path } needs a whole-number offset ${ int32RangeText }.`);
 	}
-	else if (value.source === 'constant' && !/^-?\d+$/.test(value.value.trim())) {
-		errors.push(`${ path } needs a whole-number constant.`);
+	else if (value.source === 'constant') {
+		if (!isWholeNumberText(value.value))
+			errors.push(`${ path } needs a whole-number constant.`);
+		else if (!isInt32(Number(value.value)))
+			errors.push(`${ path } must be ${ int32RangeText }.`);
 	}
 
 	return errors;
+};
+
+const getComparisonTypeErrors = (
+	rule: Extract<AchievementRuleDraft, { type: 'compare'; }>,
+	path: string,
+	parameters: AchievementParameterDraft[],
+): string[] => {
+	const leftType = getValueType(rule.left, parameters);
+	const rightType = getValueType(rule.right, parameters);
+	if (leftType !== rightType) {
+		const types = `${ valueTypeLabels[leftType] } with ${ valueTypeLabels[rightType] }`;
+
+		return [ `${ path } compares ${ types }; both sides must have the same type.` ];
+	}
+	if (leftType === 'boolean' && rule.operator !== 'equal' && rule.operator !== 'notEqual')
+		return [ `${ path } can only check yes/no values with "equal" or "not equal".` ];
+
+	return [];
 };
 
 const getRuleErrors = (
@@ -502,8 +585,9 @@ const getRuleErrors = (
 		value: AchievementValueDraft | undefined,
 		valuePath: string,
 		role: ValueEditorRole = 'hit-location',
+		requiresInteger = true,
 	): string[] => value
-		? getValueErrors(value, `${ path } ${ valuePath }`, scope, role, parameters)
+		? getValueErrors(value, `${ path } ${ valuePath }`, scope, role, parameters, requiresInteger)
 		: [];
 
 	switch (rule.type) {
@@ -534,8 +618,9 @@ const getRuleErrors = (
 		];
 	case 'compare':
 		return [
-			...valueErrors(rule.left, 'left value', 'comparison-left'),
-			...valueErrors(rule.right, 'right value', 'comparison-right'),
+			...valueErrors(rule.left, 'left value', 'comparison-left', false),
+			...valueErrors(rule.right, 'right value', 'comparison-right', false),
+			...getComparisonTypeErrors(rule, path, parameters),
 		];
 	case 'sequence':
 		return [
@@ -562,6 +647,8 @@ const getParameterErrors = (parameter: AchievementParameterDraft): string[] => {
 			return [ `${ label } needs a complete range.` ];
 		if (![ minimum, maximum, step ].every(Number.isInteger))
 			return [ `${ label } range values must be whole numbers.` ];
+		if (![ minimum, maximum, step ].every(isInt32))
+			return [ `${ label } range values must be ${ int32RangeText }.` ];
 		if (minimum > maximum || step <= 0)
 			return [ `${ label } has an invalid range.` ];
 
@@ -570,13 +657,79 @@ const getParameterErrors = (parameter: AchievementParameterDraft): string[] => {
 
 	if (parameter.values.length === 0)
 		return [ `${ label } needs at least one value.` ];
-	if (
-		parameter.valueType === 'integer'
-		&& parameter.values.some(value => !/^-?\d+$/.test(value.trim()))
-	)
-		return [ `${ label } values must be whole numbers.` ];
+	if (parameter.valueType === 'integer') {
+		if (parameter.values.some(value => !isWholeNumberText(value)))
+			return [ `${ label } values must be whole numbers.` ];
+		if (parameter.values.some(value => !isInt32(Number(value))))
+			return [ `${ label } values must be ${ int32RangeText }.` ];
+	}
 
 	return [];
+};
+
+const getTemplateTextErrors = (
+	draft: AchievementTemplateDraft,
+	limits: AchievementDraftLimits,
+	generatedCount: number,
+): string[] => {
+	const errors: string[] = [];
+	const keys = new Set(draft.parameters.map(parameter => parameter.key));
+	const fields = [
+		[ 'name', draft.nameTemplate ],
+		[ 'description', draft.descriptionTemplate ],
+	] as const;
+	for (const [ field, template ] of fields) {
+		const unknownKeys = [ ...template.matchAll(templateTokenPattern) ]
+			.map(match => match[1]!)
+			.filter(key => !keys.has(key));
+		if (unknownKeys.length > 0)
+			errors.push(`The ${ field } uses unknown parameters: ${ unknownKeys.map(key => `{${ key }}`).join(', ') }.`);
+		if (/[{}]/.test(template.replace(templateTokenPattern, '')))
+			errors.push(`The ${ field } has a { or } that is not part of a {parameter}.`);
+	}
+
+	if (generatedCount <= limits.maximumGeneratedInstances) {
+		const tooLong = getPreviews({
+			...draft,
+			nameTemplate:        draft.nameTemplate.trim(),
+			descriptionTemplate: draft.descriptionTemplate.trim(),
+		}).find(preview =>
+			preview.name.length > limits.maximumRenderedTextLength
+			|| preview.description.length > limits.maximumRenderedTextLength);
+		if (tooLong) {
+			errors.push(`Generated names and descriptions must be at most ${
+				limits.maximumRenderedTextLength
+			} characters ("${ tooLong.name.slice(0, 40) }…" is too long).`);
+		}
+	}
+
+	return errors;
+};
+
+const getAstLimitErrors = (
+	draft: AchievementTemplateDraft,
+	limits: AchievementDraftLimits,
+): string[] => {
+	let root: unknown;
+	try {
+		root = compileAchievementTemplate(draft).definition['root'];
+	}
+	catch (error) {
+		return [ error instanceof Error ? error.message : 'The logic cannot be compiled.' ];
+	}
+
+	const measure = measureAchievementAst(root);
+	const errors: string[] = [];
+	if (measure.nodeCount > limits.maximumAstNodes)
+		errors.push(`The logic has ${ measure.nodeCount } nodes; the limit is ${ limits.maximumAstNodes }.`);
+	if (measure.maximumDepth > limits.maximumAstDepth)
+		errors.push(`The logic is nested ${ measure.maximumDepth } levels deep; the limit is ${ limits.maximumAstDepth }.`);
+	if (measure.maximumQuantifierDepth > limits.maximumQuantifierDepth) {
+		errors.push(`The logic nests ${ measure.maximumQuantifierDepth } round, throw or count blocks; `
+			+ `the limit is ${ limits.maximumQuantifierDepth }.`);
+	}
+
+	return errors;
 };
 
 export const validateDraft = (
@@ -609,11 +762,12 @@ export const validateDraft = (
 
 	add('parameters', draft.parameters.flatMap(getParameterErrors));
 
+	const { limits } = context;
 	const generatedCount = countGeneratedInstances(draft.parameters);
-	if (generatedCount > context.maximumGeneratedInstances) {
+	if (generatedCount > limits.maximumGeneratedInstances) {
 		add('parameters', [
 			`This template generates ${ generatedCount } achievements; the limit is ${
-				context.maximumGeneratedInstances
+				limits.maximumGeneratedInstances
 			}.`,
 		]);
 	}
@@ -625,8 +779,10 @@ export const validateDraft = (
 	if (missingNameKeys.length > 0)
 		add('details', [ `Name must include ${ missingNameKeys.join(', ') } so every generated achievement has a distinct name.` ]);
 
+	add('details', getTemplateTextErrors(draft, limits, generatedCount));
 
-	if (draft.achievementScope === 'progression') {
+	// Raw progression logic is kept verbatim; the server validates it on save.
+	if (draft.achievementScope === 'progression' && !draft.progression?.raw) {
 		const targets = draft.progression?.targets ?? [];
 		if (targets.length === 0)
 			add('logic', [ 'Progression achievements need at least one target segment.' ]);
@@ -639,9 +795,13 @@ export const validateDraft = (
 			draft.parameters,
 		)));
 	}
-	else {
+	else if (draft.achievementScope !== 'progression') {
 		add('logic', getRuleErrors(draft.rule, 'Logic', 'root', draft.parameters));
 	}
+
+	// The size limits apply to the compiled AST, which only exists for an otherwise valid draft.
+	if (!errors.some(error => error.tab !== 'details'))
+		add('logic', getAstLimitErrors(draft, limits));
 
 	return errors;
 };

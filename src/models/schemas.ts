@@ -89,6 +89,11 @@ export const GameTrackerDeltaSchema = z.object({
 	maximumRounds:                        z.number().int().nullable(),
 	configuredMaximumRounds:              z.number().int().nullable(),
 	playerRoundDeltas:                    z.array(PlayerRoundDeltaSchema),
+	// Only players whose projection changed; an empty list clears the projection.
+	projectedV2AchievementsByPlayer: z.record(
+		z.string().uuid(),
+		z.array(AchievementInstanceResponseSchema),
+	).default({}),
 }).superRefine((delta, context) => {
 	if (delta.revision !== delta.baseRevision + 1) {
 		context.addIssue({

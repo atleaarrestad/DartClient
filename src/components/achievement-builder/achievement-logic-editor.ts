@@ -284,7 +284,7 @@ export class AaAchievementLogicEditor extends LitElement {
 					<button
 						type="button"
 						class="logic-node__summary-button"
-						aria-label=${ `Edit ${ formatAchievementRule(rule) }` }
+						aria-label=${ `${ this.readOnly ? 'View' : 'Edit' } ${ formatAchievementRule(rule) }` }
 						@click=${ () => void this.setExpandedRule(rule.id) }
 					>
 						<strong class="logic-node__type">${ getRuleTypeLabel(rule) }</strong>
@@ -337,7 +337,7 @@ export class AaAchievementLogicEditor extends LitElement {
 							: nothing }
 					</div>
 				</header>
-				<div class="logic-node__body">
+				<div class="logic-node__body" ?inert=${ this.readOnly }>
 					${ this.renderRuleBody(rule, scope) }
 				</div>
 			</article>
@@ -797,8 +797,47 @@ export class AaAchievementLogicEditor extends LitElement {
 		`;
 	}
 
+	private renderRawProgressionLogic(raw: NonNullable<AchievementProgressionDraft['raw']>): TemplateResult {
+		return html`
+			<section class="builder-panel">
+				<div class="panel-intro panel-intro--actions">
+					<div>
+						<h3>Progression logic</h3>
+						<p>
+							This progression logic can't be shown as a target set. Saving keeps it
+							unchanged.
+						</p>
+					</div>
+					${ this.readOnly
+						? nothing
+						: html`
+							<aa-button
+								type="button"
+								size="small"
+								variant="danger"
+								@click=${ () => {
+									if (window.confirm('Replace the stored progression logic with an empty target set?'))
+										this.emitChange({ progression: createDefaultAchievementProgression() });
+								} }
+							>
+								Replace with target set
+							</aa-button>
+						` }
+				</div>
+				<div class="raw-rule">
+					<details>
+						<summary>View progression definition</summary>
+						<pre>${ JSON.stringify(raw, null, 2) }</pre>
+					</details>
+				</div>
+			</section>
+		`;
+	}
+
 	private renderProgressionLogic(): TemplateResult {
-		const { targets } = this.currentProgression;
+		const { targets, raw } = this.currentProgression;
+		if (raw)
+			return this.renderRawProgressionLogic(raw);
 
 		return html`
 			<section class="builder-panel">
@@ -911,7 +950,7 @@ export class AaAchievementLogicEditor extends LitElement {
 					@lostpointercapture=${ this.canvas.handlePointerUp }
 				>
 					<div class="logic-canvas__stage" style="transform: ${ this.canvas.transform };">
-						<div class="logic-canvas__graph" ?inert=${ this.readOnly }>
+						<div class="logic-canvas__graph">
 							${ this.renderRuleBranch(this.rule) }
 						</div>
 					</div>

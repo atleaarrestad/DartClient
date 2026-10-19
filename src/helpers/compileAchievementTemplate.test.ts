@@ -11,6 +11,7 @@ import type {
 } from '../models/achievementBuilderApi.js';
 import {
 	compileAchievementTemplate,
+	measureAchievementAst,
 	restoreAchievementTemplateDraft,
 } from './compileAchievementTemplate.js';
 
@@ -335,6 +336,29 @@ describe('compileAchievementTemplate', () => {
 				} ],
 			},
 		});
+	});
+
+	it('keeps progression logic the target editor cannot represent and saves it verbatim', () => {
+		const root = {
+			kind: 'or',
+			operands: [ {
+				kind: 'progressionCounter',
+				name: 'wins',
+			} ],
+		};
+		const reducers = [ { kind: 'incrementCounter', name: 'wins', statuses: [ 'Victory' ] } ];
+		const stored: AchievementTemplateVersionResponse = {
+			...version('00000000-0000-0000-0000-000000000021', 1, 'Draft', 'Counter'),
+			evaluationPhase: 'Progression',
+			definition: { version: 1, reducers, root },
+		};
+
+		const restored = restoreAchievementTemplateDraft(template([ stored ]));
+
+		expect(restored?.progression?.raw).toEqual({ root, reducers });
+		const saved = compileAchievementTemplate(restored!);
+		expect(saved.definition['root']).toEqual(root);
+		expect(saved.definition['reducers']).toEqual(reducers);
 	});
 
 	it('restores the highest draft version regardless of API ordering', () => {
@@ -1075,5 +1099,49 @@ describe('compileAchievementTemplate', () => {
 		expect(restored?.id).not.toBe('editor-root');
 		expect(JSON.stringify(restored)).toContain('"operator":"greaterThan"');
 		expect(JSON.stringify(restored)).toContain('"value":"9"');
+	});
+});
+
+describe('measureAchievementAst', () => {
+	// Same accounting as the backend parser: compiling this draft there reports 21 nodes and
+	// depth 7, and it fails with a quantifier limit of 1 but passes with 2.
+	it('counts nodes, depth and quantifier nesting like the backend parser', () => {
+		const request = compileAchievementTemplate(draft(roundRule({
+			id:          'throw',
+			type:        'throw',
+			quantifier:  'any',
+			scope:       'currentRound',
+			hitLocation: value('parameter', 'n'),
+			throwType:   'triple',
+		}), {
+			parameters: [ {
+				id:            'n',
+				key:           'n',
+				valueType:     'integer',
+				generatorType: 'range',
+				minimum:       1,
+				maximum:       20,
+				step:          1,
+				values:        [],
+			} ],
+		}));
+
+		expect(measureAchievementAst(request.definition['root'])).toEqual({
+			nodeCount:              21,
+			maximumDepth:           7,
+			maximumQuantifierDepth: 2,
+		});
+	});
+
+	it('does not raise the quantifier level for the collection itself', () => {
+		expect(measureAchievementAst({
+			kind:       'any',
+			collection: { kind: 'field', path: 'game.rounds' },
+			predicate:  {
+				kind:       'all',
+				collection: { kind: 'field', path: 'round.throws' },
+				predicate:  { kind: 'constant', value: true },
+			},
+		})).toEqual({ nodeCount: 5, maximumDepth: 3, maximumQuantifierDepth: 2 });
 	});
 });

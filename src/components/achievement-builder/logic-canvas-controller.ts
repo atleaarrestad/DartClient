@@ -1,4 +1,4 @@
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 
 const minimumScale = 0.35;
 const maximumScale = 1.5;
@@ -19,8 +19,8 @@ interface CanvasElements {
 	graph:    HTMLElement;
 }
 
-/** Pan and zoom state for the logic canvas viewport. */
-export class LogicCanvasController implements ReactiveController {
+/** Pan and zoom state for the logic canvas viewport. Needs no host lifecycle hooks. */
+export class LogicCanvasController {
 
 	scale = 1;
 	x = defaultOffset;
@@ -32,11 +32,7 @@ export class LogicCanvasController implements ReactiveController {
 	constructor(
 		private readonly host: ReactiveControllerHost,
 		private readonly getElements: () => Partial<CanvasElements>,
-	) {
-		host.addController(this);
-	}
-
-	hostConnected(): void {}
+	) {}
 
 	get transform(): string {
 		return `translate(${ this.x }px, ${ this.y }px) scale(${ this.scale })`;

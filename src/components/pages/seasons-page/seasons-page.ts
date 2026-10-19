@@ -57,7 +57,7 @@ import type { AaMmrConfigurationEditor } from '../../aa-mmr-configuration-editor
 import type { AaDialog } from '../../aa-dialog/aa-dialog.js';
 import type {
 	AaAchievementBuilder,
-	AchievementBuilderWorkspaceTab,
+	AchievementBuilderWorkspaceChangeDetail,
 } from '../../achievement-builder/achievement-builder.js';
 import type { AchievementCategoryActions } from '../../achievement-category-manager/achievement-category-manager.js';
 import type {
@@ -1171,9 +1171,13 @@ rule.executionOrder = Number(
 
 		const validation = await this.achievementBuilderService.validateTemplate(saved.id);
 		if (!validation.isValid) {
+			// The draft is already saved; the builder lists every reason it cannot be published.
+			builder.showServerValidationErrors(validation.errors.length > 0
+				? validation.errors
+				: [ 'Achievement template is invalid.' ]);
 			this.notificationService.addNotification({
-				type:    'danger',
-				message: validation.errors[0] ?? 'Achievement template is invalid.',
+				type:    'info',
+				message: `Saved ${ draft.nameTemplate } as a draft, but it is not valid yet.`,
 			});
 
 			return false;
@@ -1253,19 +1257,33 @@ rule.executionOrder = Number(
 
 			const builderRef = createRef<AaAchievementBuilder>();
 			let saving = false;
+			let workspace: AchievementBuilderWorkspaceChangeDetail = {
+				tab:            'editor',
+				readOnlyReason: undefined,
+			};
+			const getSubmitButtons = (): AaButton[] => [
+				...builderRef.value?.closest('aa-dialog')
+					?.querySelectorAll<AaButton>('[data-achievement-submit]') ?? [],
+			];
+			// Save and Publish are hidden while browsing and disabled, with the reason as a
+			// tooltip, while a read-only version is shown.
+			const syncSubmitButtons = (): void => {
+				getSubmitButtons().forEach(button => {
+					button.style.display = workspace.tab === 'browse' ? 'none' : '';
+					button.loading = saving;
+					button.disabled = saving || !!workspace.readOnlyReason;
+					button.title = workspace.readOnlyReason ?? '';
+				});
+			};
 			const submit = async (publish: boolean): Promise<void> => {
 				const builder = builderRef.value;
 				if (saving || !builder)
 					return;
 
 				const dialog = builder.closest('aa-dialog');
-				const buttons = [ ...dialog?.querySelectorAll<AaButton>('[data-achievement-submit]') ?? [] ];
 				const setBusy = (busy: boolean): void => {
 					saving = busy;
-					buttons.forEach(button => {
-						button.loading = busy;
-						button.disabled = busy;
-					});
+					syncSubmitButtons();
 				};
 
 				setBusy(true);
@@ -1322,15 +1340,12 @@ rule.executionOrder = Number(
 						.categories=${ categories }
 						.templates=${ templates }
 						.categoryActions=${ categoryActions }
-						.maximumGeneratedInstances=${ catalog.limits.maximumGeneratedInstances }
+						.limits=${ catalog.limits }
 						@achievement-builder-workspace-change=${ (
-							event: CustomEvent<{ tab: AchievementBuilderWorkspaceTab; }>,
+							event: CustomEvent<AchievementBuilderWorkspaceChangeDetail>,
 						) => {
-							const dialog = (event.currentTarget as HTMLElement).closest('aa-dialog');
-							dialog?.querySelectorAll<HTMLElement>('[data-achievement-submit]')
-								.forEach(button => {
-									button.style.display = event.detail.tab === 'browse' ? 'none' : '';
-								});
+							workspace = event.detail;
+							syncSubmitButtons();
 						} }
 					></aa-achievement-builder>
 				`,

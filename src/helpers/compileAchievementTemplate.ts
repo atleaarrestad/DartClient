@@ -527,13 +527,17 @@ export function compileAchievementTemplate(
 				rule: draft.rule,
 				progression: draft.progression,
 			},
-			reducers: [
-				{
-					kind: 'collectHitSegments',
-					statuses: progression.statuses.map(item => statusNames[item]),
-				},
-			],
-			root: compileProgressionRoot(progression),
+			reducers: progression.raw
+				? structuredClone(progression.raw.reducers)
+				: [
+					{
+						kind: 'collectHitSegments',
+						statuses: progression.statuses.map(item => statusNames[item]),
+					},
+				],
+			root: progression.raw
+				? structuredClone(progression.raw.root)
+				: compileProgressionRoot(progression),
 		}
 		: {
 			version: 1,
@@ -558,7 +562,50 @@ export function compileAchievementTemplate(
 	};
 }
 
-function getEditableVersion(
+export interface AchievementAstMeasure {
+	nodeCount: number;
+	maximumDepth: number;
+	maximumQuantifierDepth: number;
+}
+
+const quantifierKinds = new Set([ 'any', 'all', 'count', 'sequence', 'sum', 'distinctCount' ]);
+
+const isAstNode = (value: unknown): value is AstNode =>
+	!!value && typeof value === 'object' && !Array.isArray(value)
+	&& typeof (value as AstNode)['kind'] === 'string';
+
+/**
+ * Measures a compiled AST the way the backend parser does: the root is at depth 1, every
+ * nested node is one level deeper, and everything a quantifier evaluates per item (all
+ * but its collection) is one quantifier level deeper.
+ */
+export function measureAchievementAst(root: unknown): AchievementAstMeasure {
+	const measure: AchievementAstMeasure = { nodeCount: 0, maximumDepth: 0, maximumQuantifierDepth: 0 };
+	const visit = (node: unknown, depth: number, quantifierDepth: number): void => {
+		if (!isAstNode(node))
+			return;
+
+		measure.nodeCount++;
+		measure.maximumDepth = Math.max(measure.maximumDepth, depth);
+		const isQuantifier = quantifierKinds.has(node['kind'] as string);
+		if (isQuantifier)
+			measure.maximumQuantifierDepth = Math.max(measure.maximumQuantifierDepth, quantifierDepth + 1);
+
+		for (const [ key, value ] of Object.entries(node)) {
+			const childQuantifierDepth = isQuantifier && key !== 'collection'
+				? quantifierDepth + 1
+				: quantifierDepth;
+			for (const child of Array.isArray(value) ? value : [ value ])
+				visit(child, depth + 1, childQuantifierDepth);
+		}
+	};
+	visit(root, 1, 0);
+
+	return measure;
+}
+
+/** The requested version, or else the draft, or else the latest version. */
+export function getEditableVersion(
 	template: AchievementTemplateResponse,
 	versionId?: string,
 ): AchievementTemplateVersionResponse | undefined {
@@ -1364,11 +1411,21 @@ function restoreProgression(
 	if (version.evaluationPhase !== 'Progression')
 		return editorProgression;
 
-	return editorProgression
+	if (
+		editorProgression
+		&& !editorProgression.raw
 		&& Array.isArray(editorProgression.targets)
 		&& compilesToStoredRoot(version, () => compileProgressionRoot(editorProgression))
-		? editorProgression
-		: getStoredAstProgression(version);
+	)
+		return editorProgression;
+
+	return getStoredAstProgression(version) ?? {
+		...createDefaultAchievementProgression(),
+		raw: {
+			root:     structuredClone(version.definition['root']),
+			reducers: structuredClone(version.definition['reducers'] ?? []),
+		},
+	};
 }
 
 export function restoreAchievementTemplateDraft(

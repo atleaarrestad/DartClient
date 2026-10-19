@@ -415,10 +415,11 @@ export class GamePage extends LitElement {
 		const oldRoundCount = Math.max(...this.players.map(player => player.rounds.length), 0);
 		const result = applyGameTrackerDelta({
 			gameId,
-			revision:                this.gameRevision,
-			maximumRounds:           this.maximumRounds,
-			configuredMaximumRounds: this.configuredMaximumRounds,
-			playersRounds:           this.players,
+			revision:                        this.gameRevision,
+			maximumRounds:                   this.maximumRounds,
+			configuredMaximumRounds:         this.configuredMaximumRounds,
+			playersRounds:                   this.players,
+			projectedV2AchievementsByPlayer: this.projectedV2AchievementsByPlayer,
 		}, delta);
 
 		if (result.status !== 'applied')
@@ -428,6 +429,7 @@ export class GamePage extends LitElement {
 		this.maximumRounds = result.state.maximumRounds;
 		this.configuredMaximumRounds = result.state.configuredMaximumRounds;
 		this.players = result.state.playersRounds;
+		this.projectedV2AchievementsByPlayer = result.state.projectedV2AchievementsByPlayer;
 
 		const newRoundCount = Math.max(...this.players.map(player => player.rounds.length), 0);
 		if (oldRoundCount !== newRoundCount)

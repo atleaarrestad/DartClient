@@ -1,3 +1,4 @@
+import type { AchievementInstanceResponse } from '../models/achievementBuilderApi.js';
 import type {
 	GameTrackerDelta,
 	PlayerRounds,
@@ -9,6 +10,7 @@ export interface GameTrackerState {
 	maximumRounds: number | null;
 	configuredMaximumRounds: number | null;
 	playersRounds: PlayerRounds[];
+	projectedV2AchievementsByPlayer: Record<string, AchievementInstanceResponse[]>;
 }
 
 export type ApplyGameTrackerDeltaResult =
@@ -62,11 +64,15 @@ export function applyGameTrackerDelta(
 	return {
 		status: 'applied',
 		state: {
-			gameId:                  current.gameId,
-			revision:                delta.revision,
-			maximumRounds:           delta.maximumRounds,
-			configuredMaximumRounds: delta.configuredMaximumRounds,
-			playersRounds:           playersRounds as PlayerRounds[],
+			gameId:                          current.gameId,
+			revision:                        delta.revision,
+			maximumRounds:                   delta.maximumRounds,
+			configuredMaximumRounds:         delta.configuredMaximumRounds,
+			playersRounds:                   playersRounds as PlayerRounds[],
+			projectedV2AchievementsByPlayer: {
+				...current.projectedV2AchievementsByPlayer,
+				...delta.projectedV2AchievementsByPlayer,
+			},
 		},
 	};
 }

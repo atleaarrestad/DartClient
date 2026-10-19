@@ -106,7 +106,7 @@ export class AaDialog extends LitElement {
 				<button
 					aria-label="Close dialog"
 					class="btn close-btn"
-					@click=${ this.close }
+					@click=${ () => this.close() }
 				>
 					x
 				</button>

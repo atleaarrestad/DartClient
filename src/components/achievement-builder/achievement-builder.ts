@@ -10,10 +10,14 @@ import './achievement-template-library.js';
 
 import { html, LitElement, nothing, PropertyValues, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { container } from 'tsyringe';
 
 import { faIcons } from '../../faIcons.js';
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
-import { restoreAchievementTemplateDraft } from '../../helpers/compileAchievementTemplate.js';
+import {
+	getEditableVersion,
+	restoreAchievementTemplateDraft,
+} from '../../helpers/compileAchievementTemplate.js';
 import {
 	AchievementParameterDraft,
 	AchievementTemplateDraft,
@@ -24,9 +28,9 @@ import {
 import type {
 	AchievementCategoryResponse,
 	AchievementTemplateResponse,
-	AchievementTemplateVersionResponse,
 } from '../../models/achievementBuilderApi.js';
 import { AchievementTier } from '../../models/enums.js';
+import { DialogService } from '../../services/dialogService.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
 import type {
 	SegmentedControlChangeEvent,
@@ -40,9 +44,12 @@ import type {
 import achievementBuilderStyles from './achievement-builder.css?inline';
 import formStyles from './achievement-builder-form.css?inline';
 import {
+	AchievementDraftLimits,
 	BuilderTab,
 	countGeneratedInstances,
 	countParameterValues,
+	defaultAchievementDraftLimits,
+	getConflictingDraftVersion,
 	getDefaultCategoryId,
 	getPreviews,
 	parameterKeyPattern,
@@ -55,6 +62,12 @@ import type { AchievementTemplateOpenDetail } from './achievement-template-libra
 export const achievementBuilderWorkspaceChangeEventName = 'achievement-builder-workspace-change';
 
 export type AchievementBuilderWorkspaceTab = 'browse' | 'editor';
+
+export interface AchievementBuilderWorkspaceChangeDetail {
+	tab:            AchievementBuilderWorkspaceTab;
+	/** Why saving is impossible for the shown version, or undefined when it is editable. */
+	readOnlyReason: string | undefined;
+}
 
 const tabs: AaTabItem[] = [
 	{ id: 'details', label: 'Details' },
@@ -106,7 +119,7 @@ export class AaAchievementBuilder extends LitElement {
 	@property({ attribute: false }) categories:       AchievementCategoryResponse[] = [];
 	@property({ attribute: false }) templates:        AchievementTemplateResponse[] = [];
 	@property({ attribute: false }) categoryActions?: AchievementCategoryActions;
-	@property({ type: Number }) maximumGeneratedInstances = 1000;
+	@property({ attribute: false }) limits:           AchievementDraftLimits = defaultAchievementDraftLimits;
 	@property({ type: Boolean }) viewOnly = false;
 	@property({ type: String }) initialTemplateId = '';
 	@property({ type: String }) initialVersionId = '';
@@ -115,6 +128,7 @@ export class AaAchievementBuilder extends LitElement {
 	@state() private selectedTab:          BuilderTab = 'details';
 	@state() private draft:                AchievementTemplateDraft = createEmptyAchievementTemplate('');
 	@state() private errors:               string[] = [];
+	@state() private serverErrors:         string[] = [];
 	@state() private categoryList:         AchievementCategoryResponse[] = [];
 	@state() private showCategoryManager = false;
 	@state() private activeTemplateField:  TemplateField = 'nameTemplate';
@@ -123,11 +137,17 @@ export class AaAchievementBuilder extends LitElement {
 	@state() private readOnlyVersion = false;
 
 	private baselineDraft = '';
+	private dialogService = container.resolve(DialogService);
 
 	protected override willUpdate(changed: PropertyValues<this>): void {
 		// The category manager edits categories in place, so keep a local copy.
 		if (changed.has('categories'))
 			this.categoryList = this.categories;
+	}
+
+	protected override updated(changed: PropertyValues): void {
+		if ([ 'selectedWorkspaceTab', 'readOnlyVersion', 'selectedTemplateId' ].some(key => changed.has(key)))
+			this.dispatchWorkspaceChange();
 	}
 
 	override firstUpdated(): void {
@@ -148,8 +168,19 @@ export class AaAchievementBuilder extends LitElement {
 		selectedTemplateId?: string,
 	): void {
 		this.templates = templates;
-		if (selectedTemplateId)
-			this.loadTemplateVersion(selectedTemplateId, undefined, false);
+		if (!selectedTemplateId)
+			return;
+
+		// Reloading the template just saved keeps the user on the tab they were editing.
+		const selectedTab = this.selectedTab;
+		const isSameTemplate = !this.selectedTemplateId || selectedTemplateId === this.selectedTemplateId;
+		if (this.loadTemplateVersion(selectedTemplateId, undefined, false) && isSameTemplate)
+			this.selectedTab = selectedTab;
+	}
+
+	/** Shows the server's validation errors for a draft that was saved but cannot be published. */
+	showServerValidationErrors(errors: string[]): void {
+		this.serverErrors = errors;
 	}
 
 	viewTemplateVersion(templateId: string, versionId?: string): boolean {
@@ -167,12 +198,16 @@ export class AaAchievementBuilder extends LitElement {
 	 * showing the validation errors.
 	 */
 	getValidatedDraft(): AchievementTemplateDraft | undefined {
-		if (this.readOnlyVersion)
+		const readOnlyReason = this.readOnlyReason;
+		if (readOnlyReason) {
+			this.errors = [ readOnlyReason ];
+
 			return undefined;
+		}
 
 		const errors = validateDraft(this.draft, {
-			categories:                this.categoryList,
-			maximumGeneratedInstances: this.maximumGeneratedInstances,
+			categories: this.categoryList,
+			limits:     this.limits,
 		});
 		this.errors = errors.map(error => error.message);
 		if (errors.length > 0) {
@@ -193,17 +228,9 @@ export class AaAchievementBuilder extends LitElement {
 		this.baselineDraft = JSON.stringify(draft);
 		this.selectedTab = 'details';
 		this.errors = [];
+		this.serverErrors = [];
 		this.showCategoryManager = false;
 		this.activeTemplateField = 'nameTemplate';
-	}
-
-	private getDefaultVersion(
-		template: AchievementTemplateResponse,
-	): AchievementTemplateVersionResponse | undefined {
-		const versions = [ ...template.versions ]
-			.sort((left, right) => right.versionNumber - left.versionNumber);
-
-		return versions.find(version => version.status === 'Draft') ?? versions[0];
 	}
 
 	private loadTemplateVersion(
@@ -228,11 +255,7 @@ export class AaAchievementBuilder extends LitElement {
 		}
 
 		const template = this.templates.find(item => item.id === templateId);
-		const version = template && (
-			versionId
-				? template.versions.find(item => item.id === versionId)
-				: this.getDefaultVersion(template)
-		);
+		const version = template && getEditableVersion(template, versionId);
 		const restored = template && version
 			? restoreAchievementTemplateDraft(template, version.id)
 			: undefined;
@@ -247,16 +270,87 @@ export class AaAchievementBuilder extends LitElement {
 		return true;
 	}
 
+	/**
+	 * Unlocks the shown version for editing. Saving writes into the template's single
+	 * Draft, so when another draft exists the user picks between opening it and
+	 * replacing it with this version.
+	 */
+	private async createEditableDraft(): Promise<void> {
+		const template = this.templates.find(item => item.id === this.selectedTemplateId);
+		const version = template?.versions.find(item => item.id === this.selectedVersionId);
+		const existingDraft = template && getConflictingDraftVersion(template, this.selectedVersionId);
+		if (!template || !version || !existingDraft) {
+			this.readOnlyVersion = false;
+
+			return;
+		}
+
+		const closeWith = (choice: 'open' | 'replace') => (event: Event): void => {
+			(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
+				new CustomEvent('dialog-closed', { bubbles: true, composed: true, detail: { result: choice } }),
+			);
+		};
+		const choice = await this.dialogService.open<'open' | 'replace'>(html`
+			<p>
+				Version ${ existingDraft.versionNumber } is already a draft. Saving an edit of
+				version ${ version.versionNumber } replaces everything in that draft.
+			</p>
+			<aa-button
+				slot="footer-secondary"
+				type="button"
+				variant="danger"
+				@click=${ closeWith('replace') }
+			>
+				Replace draft with v${ version.versionNumber }
+			</aa-button>
+			<aa-button
+				slot="footer-primary"
+				type="button"
+				variant="primary"
+				data-autofocus
+				@click=${ closeWith('open') }
+			>
+				Open existing draft
+			</aa-button>
+		`, { title: 'This achievement already has a draft' }).catch(() => undefined);
+
+		if (choice === 'open')
+			this.loadTemplateVersion(template.id, existingDraft.id, false);
+		else if (choice === 'replace')
+			this.readOnlyVersion = false;
+	}
+
 	private updateDraft(patch: Partial<AchievementTemplateDraft>): void {
 		this.draft = { ...this.draft, ...patch };
 		this.errors = [];
+		this.serverErrors = [];
+	}
+
+	private get readOnlyReason(): string | undefined {
+		if (!this.readOnlyVersion)
+			return undefined;
+
+		const template = this.templates.find(item => item.id === this.selectedTemplateId);
+		if (this.viewOnly)
+			return 'Achievements are view-only here.';
+		if (template?.isBuiltIn)
+			return 'Built-in achievements are read-only.';
+
+		return 'Published versions are read-only. Use "Create editable draft" to change it.';
 	}
 
 	private setWorkspaceTab(tab: AchievementBuilderWorkspaceTab): void {
 		this.selectedWorkspaceTab = tab;
-		this.dispatchEvent(new CustomEvent<{ tab: AchievementBuilderWorkspaceTab; }>(
+	}
+
+	private dispatchWorkspaceChange(): void {
+		this.dispatchEvent(new CustomEvent<AchievementBuilderWorkspaceChangeDetail>(
 			achievementBuilderWorkspaceChangeEventName,
-			{ detail: { tab }, bubbles: true, composed: true },
+			{
+				detail:   { tab: this.selectedWorkspaceTab, readOnlyReason: this.readOnlyReason },
+				bubbles:  true,
+				composed: true,
+			},
 		));
 	}
 
@@ -522,7 +616,7 @@ export class AaAchievementBuilder extends LitElement {
 						'Achievement tier',
 						tier => this.updateDraft({ tier: Number(tier) }),
 						true,
-					)) }
+					), 'The tier also sets the MMR reward and the MMR cap increase this achievement gives.') }
 					${ this.renderField('Type', this.renderSegmented(
 						achievementScopeItems,
 						this.draft.achievementScope,
@@ -820,9 +914,7 @@ export class AaAchievementBuilder extends LitElement {
 					type="button"
 					size="small"
 					variant="secondary"
-					@click=${ () => {
-						this.readOnlyVersion = false;
-					} }
+					@click=${ () => void this.createEditableDraft() }
 				>
 					Create editable draft
 				</aa-button>
@@ -853,6 +945,14 @@ export class AaAchievementBuilder extends LitElement {
 						? html`
 							<div class="error-list" role="alert">
 								${ this.errors.map(error => html`<p>${ error }</p>`) }
+							</div>
+						`
+						: nothing }
+					${ this.errors.length === 0 && this.serverErrors.length > 0
+						? html`
+							<div class="error-list" role="alert">
+								<p>Saved as a draft, but it can't be published yet:</p>
+								${ this.serverErrors.map(error => html`<p>${ error }</p>`) }
 							</div>
 						`
 						: nothing }
@@ -889,6 +989,7 @@ export class AaAchievementBuilder extends LitElement {
 								.selectedTemplateId=${ this.selectedTemplateId }
 								.selectedVersionId=${ this.selectedVersionId }
 								.dirty=${ this.hasUnsavedChanges }
+								.readOnly=${ this.viewOnly }
 								@achievement-template-open=${ this.handleTemplateOpen }
 							></aa-achievement-template-library>
 						</div>

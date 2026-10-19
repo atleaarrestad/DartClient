@@ -44,6 +44,8 @@ export class AaAchievementTemplateLibrary extends LitElement {
 	@property({ type: String }) selectedTemplateId = '';
 	@property({ type: String }) selectedVersionId = '';
 	@property({ type: Boolean }) dirty = false;
+	/** Every version opens read-only, e.g. when a player inspects an achievement. */
+	@property({ type: Boolean }) readOnly = false;
 
 	@state() private filter = '';
 	@state() private sortColumn:    TemplateSortColumn = 'achievement';
@@ -143,7 +145,7 @@ export class AaAchievementTemplateLibrary extends LitElement {
 						class="template-table__open"
 						@click=${ () => this.openTemplate({ templateId: template.id, versionId: version.id }) }
 					>
-						${ version.status === 'Draft' ? 'Edit' : 'View' }
+						${ version.status === 'Draft' && !template.isBuiltIn && !this.readOnly ? 'Edit' : 'View' }
 					</button>
 				</td>
 			</tr>
