@@ -88,6 +88,10 @@ export class AchievementBuilderService {
 		return this.dataService.publishAchievementBuilderTemplate(templateId, adminKey);
 	}
 
+	setTemplateDisabled(templateId: string, disabled: boolean, adminKey: string) {
+		return this.dataService.setAchievementTemplateDisabled(templateId, disabled, adminKey);
+	}
+
 	/** Not called yet; kept for the last-dart hints work (docs/last-dart-hints-plan.md). */
 	predictRemainingThrows(request: PredictAchievementThrowsRequest) {
 		return this.dataService.predictAchievementThrows(request);

@@ -1,5 +1,4 @@
 import '../../aa-loading-state/aa-loading-state.js';
-import '../../achievement-builder/achievement-builder.js';
 import '../../rank-display/aa-rank-display.js';
 import '../../season-basics-editor/season-basics-editor.js';
 import '../../season-configuration-list/season-configuration-list.js';
@@ -7,20 +6,19 @@ import './seasons-page-dialogs.css';
 import '../../../ui/button/aa-button.js';
 import '../../../ui/error-state/aa-error-state.js';
 
+import { Router } from '@vaadin/router';
 import { html, LitElement, nothing, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { createRef, ref } from 'lit/directives/ref.js';
 import { container } from 'tsyringe';
 
+import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
 import { getAchievementTierIcon } from '../../../helpers/achievementHelper.js';
-import {
-	compileAchievementTemplate,
-} from '../../../helpers/compileAchievementTemplate.js';
 import { getErrorMessage } from '../../../helpers/getErrorMessage.js';
 import {
 	createDraftFromSeason,
 	createNewSeasonDraft,
 	findCurrentSeason,
+	type GameConstraintRuleDraft,
 	getAchievementRewardErrors,
 	getGameConstraintErrors,
 	getGameConstraintSummary,
@@ -28,11 +26,10 @@ import {
 	getScoreModifierErrors,
 	getThresholdErrors,
 	isManagementAccessError,
+	type SeasonDraft,
 	serializeDraft,
 	sortSeasons,
 	validateSeasonDraft,
-	type GameConstraintRuleDraft,
-	type SeasonDraft,
 } from '../../../helpers/seasonDraft.js';
 import {
 	AchievementTier,
@@ -49,24 +46,18 @@ import {
 	RuleDefinitionsResponse,
 	Season,
 } from '../../../models/schemas.js';
-import type {
-	AchievementCategoryResponse,
-	AchievementTemplateResponse,
-} from '../../../models/achievementBuilderApi.js';
-import { AchievementBuilderService } from '../../../services/achievementBuilderService.js';
 import { DialogService } from '../../../services/dialogService.js';
 import { NotificationService } from '../../../services/notificationService.js';
 import { RuleService } from '../../../services/ruleService.js';
 import { SeasonService } from '../../../services/seasonService.js';
 import { sharedStyles } from '../../../styles/shared-styles.js';
-import type { AaButton } from '../../../ui/button/aa-button.js';
-import type { AaMmrConfigurationEditor } from '../../aa-mmr-configuration-editor/aa-mmr-configuration-editor.js';
 import type { AaDialog } from '../../aa-dialog/aa-dialog.js';
-import type {
-	AaAchievementBuilder,
-	AchievementBuilderStateChangeDetail,
-} from '../../achievement-builder/achievement-builder.js';
-import type { AchievementCategoryActions } from '../../achievement-category-manager/achievement-category-manager.js';
+import type { AaMmrConfigurationEditor } from '../../aa-mmr-configuration-editor/aa-mmr-configuration-editor.js';
+import {
+	clearStoredManagementKey,
+	openManagementUnlockDialog,
+	restoreManagementAccess,
+} from '../../management-access/management-access.js';
 import type {
 	SeasonBasicsChangeEvent,
 	SeasonBasicsValue,
@@ -77,14 +68,12 @@ import type {
 } from '../../season-configuration-list/season-configuration-list.js';
 import seasonsPageStyles from './seasons-page.css?inline';
 
-const managementKeyStorage = 'season-management-key';
 
 @customElement('seasons-page')
 export class SeasonsPage extends LitElement {
 
 	private seasonService = container.resolve(SeasonService);
 	private ruleService = container.resolve(RuleService);
-	private achievementBuilderService = container.resolve(AchievementBuilderService);
 	private dialogService = container.resolve(DialogService);
 	private notificationService = container.resolve(NotificationService);
 
@@ -98,7 +87,6 @@ export class SeasonsPage extends LitElement {
 	@state() private saving = false;
 	@state() private loadError = '';
 	@state() private validationErrors: string[] = [];
-	@state() private achievementTemplatesBySeason: Record<string, AchievementTemplateResponse[]> = {};
 
 	override connectedCallback(): void {
 		super.connectedCallback();
@@ -114,7 +102,6 @@ export class SeasonsPage extends LitElement {
 	private async initialize(): Promise<void> {
 		this.loading = true;
 		this.loadError = '';
-		const storedKey = sessionStorage.getItem(managementKeyStorage);
 
 		try {
 			await this.loadConfiguration();
@@ -126,24 +113,13 @@ export class SeasonsPage extends LitElement {
 			return;
 		}
 
-		if (storedKey) {
-			this.adminKey = storedKey;
-			try {
-				await this.seasonService.verifyManagementAccess(storedKey);
-				this.accessGranted = true;
-			}
-			catch {
-				sessionStorage.removeItem(managementKeyStorage);
-				this.adminKey = '';
-				this.accessGranted = false;
-			}
-		}
-
+		this.adminKey = await restoreManagementAccess(key => this.seasonService.verifyManagementAccess(key));
+		this.accessGranted = !!this.adminKey;
 		this.loading = false;
 	}
 
 	private lock(): void {
-		sessionStorage.removeItem(managementKeyStorage);
+		clearStoredManagementKey();
 		this.adminKey = '';
 		this.accessGranted = false;
 	}
@@ -467,7 +443,7 @@ export class SeasonsPage extends LitElement {
 							this.updateDraft({
 								gameConstraintRules: rules.map(rule => ({
 									gameConstraint: rule.gameConstraint,
-									value: rule.value,
+									value:          rule.value,
 								})),
 							});
 							this.closeDialog(event);
@@ -824,81 +800,10 @@ export class SeasonsPage extends LitElement {
 		}
 	}
 
-	private getAchievementBuilderSummary(): string {
+	/** The builder has its own page; unsaved season changes would be lost on the way. */
+	private openAchievementBuilder(): void {
 		const seasonId = this.draft?.id;
-		const count = seasonId
-			? (this.achievementTemplatesBySeason[seasonId]?.length ?? 0)
-			: 0;
-		return count === 0
-			? 'Create visual, executable achievement templates'
-			: `${ count } achievement template${ count === 1 ? '' : 's' }`;
-	}
-
-	/** Inserts or replaces a template in the season cache and returns the season's templates. */
-	private storeAchievementTemplate(
-		seasonId: string,
-		template: AchievementTemplateResponse,
-	): AchievementTemplateResponse[] {
-		const templates = this.achievementTemplatesBySeason[seasonId] ?? [];
-		const updated = templates.some(item => item.id === template.id)
-			? templates.map(item => item.id === template.id ? template : item)
-			: [ ...templates, template ];
-		this.achievementTemplatesBySeason = {
-			...this.achievementTemplatesBySeason,
-			[seasonId]: updated,
-		};
-		return updated;
-	}
-
-	/** Saves the builder draft, validates it and optionally publishes it. Returns true when done. */
-	private async saveAchievementTemplate(
-		builder: AaAchievementBuilder,
-		seasonId: string,
-		publish: boolean,
-	): Promise<boolean> {
-		const draft = builder.getValidatedDraft();
-		if (!draft)
-			return false;
-
-		const request = compileAchievementTemplate(draft);
-		const saved = draft.id
-			? await this.achievementBuilderService.updateTemplate(draft.id, request, this.adminKey)
-			: await this.achievementBuilderService.createTemplate(request, this.adminKey);
-		builder.setTemplates(this.storeAchievementTemplate(seasonId, saved), saved.id);
-
-		const validation = await this.achievementBuilderService.validateTemplate(saved.id, this.adminKey);
-		if (!validation.isValid) {
-			// The draft is already saved; the builder lists every reason it cannot be published.
-			builder.showServerValidationErrors(validation.errors.length > 0
-				? validation.errors
-				: [ 'Achievement template is invalid.' ]);
-			this.notificationService.addNotification({
-				type:    'info',
-				message: `Saved ${ draft.nameTemplate } as a draft, but it is not valid yet.`,
-			});
-
-			return false;
-		}
-
-		if (publish) {
-			this.storeAchievementTemplate(
-				seasonId,
-				await this.achievementBuilderService.publishTemplate(saved.id, this.adminKey),
-			);
-		}
-
-		this.notificationService.addNotification({
-			type:    'success',
-			message: publish
-				? `Published ${ draft.nameTemplate }.`
-				: `Saved ${ draft.nameTemplate } as a draft.`,
-		});
-
-		return true;
-	}
-
-	private async openAchievementBuilder(): Promise<void> {
-		if (!this.draft?.id) {
+		if (!seasonId) {
 			this.notificationService.addNotification({
 				type:    'info',
 				message: 'Save the season before creating its achievement templates.',
@@ -906,155 +811,11 @@ export class SeasonsPage extends LitElement {
 
 			return;
 		}
-		const seasonId = this.draft.id;
 
-		if (!this.accessGranted) {
-			const unlocked = await this.openUnlockSavingDialog();
-			if (!unlocked)
-				return;
-		}
+		if (this.isDirty && !window.confirm('Leave without saving your season changes?'))
+			return;
 
-		try {
-			const [ templates, catalog, categories ] = await Promise.all([
-				this.achievementBuilderService.getTemplates(seasonId, this.adminKey),
-				this.achievementBuilderService.getCatalog(),
-				this.achievementBuilderService.getCategories(seasonId),
-			]);
-			const service = this.achievementBuilderService;
-			const thenRefreshCategories = async (
-				action: Promise<unknown>,
-			): Promise<AchievementCategoryResponse[]> => {
-				await action;
-				return service.getCategories(seasonId);
-			};
-			const categoryActions: AchievementCategoryActions = {
-				create: name => thenRefreshCategories(
-					service.createCategory({ seasonId, name }, this.adminKey),
-				),
-				rename: (categoryId, name) => thenRefreshCategories(
-					service.updateCategory(categoryId, { name }, this.adminKey),
-				),
-				reorder: orderedCategoryIds => thenRefreshCategories(
-					service.reorderCategories({ seasonId, orderedCategoryIds }, this.adminKey),
-				),
-				archive: categoryId => thenRefreshCategories(
-					service.archiveCategory(categoryId, this.adminKey),
-				),
-				restore: categoryId => thenRefreshCategories(
-					service.restoreCategory(categoryId, this.adminKey),
-				),
-				delete: categoryId => thenRefreshCategories(
-					service.deleteCategory(categoryId, this.adminKey),
-				),
-			};
-			this.achievementTemplatesBySeason = {
-				...this.achievementTemplatesBySeason,
-				[seasonId]: templates,
-			};
-
-			const builderRef = createRef<AaAchievementBuilder>();
-			let saving = false;
-			let builderState: AchievementBuilderStateChangeDetail = { readOnlyReason: undefined };
-			const getSubmitButtons = (): AaButton[] => [
-				...builderRef.value?.closest('aa-dialog')
-					?.querySelectorAll<AaButton>('[data-achievement-submit]') ?? [],
-			];
-			// Save and Publish are disabled, with the reason as a tooltip, while a read-only
-			// version is shown.
-			const syncSubmitButtons = (): void => {
-				getSubmitButtons().forEach(button => {
-					button.loading = saving;
-					button.disabled = saving || !!builderState.readOnlyReason;
-					button.title = builderState.readOnlyReason ?? '';
-				});
-			};
-			const submit = async (publish: boolean): Promise<void> => {
-				const builder = builderRef.value;
-				if (saving || !builder)
-					return;
-
-				const dialog = builder.closest('aa-dialog');
-				const setBusy = (busy: boolean): void => {
-					saving = busy;
-					syncSubmitButtons();
-				};
-
-				setBusy(true);
-				try {
-					// Close directly: the draft is saved, so the unsaved-changes guard must not ask.
-					if (await this.saveAchievementTemplate(builder, seasonId, publish))
-						dialog?.dispatchEvent(new CustomEvent('dialog-closed', { bubbles: true, composed: true }));
-				}
-				catch (error) {
-					this.notificationService.addNotification({
-						type:    'danger',
-						message: getErrorMessage(error, 'Unable to save achievement template.'),
-					});
-				}
-				finally {
-					setBusy(false);
-				}
-			};
-
-			await this.dialogService.open(
-				html`
-					<aa-button
-						slot="footer-secondary"
-						type="button"
-						variant="secondary"
-						@click=${ (event: Event) =>
-							(event.currentTarget as HTMLElement).closest<AaDialog>('aa-dialog')?.close() }
-					>
-						Close
-					</aa-button>
-					<aa-button
-						slot="footer-tertiary"
-						data-achievement-submit
-						type="button"
-						variant="secondary"
-						@click=${ () => void submit(false) }
-					>
-						Save draft
-					</aa-button>
-					<aa-button
-						slot="footer-primary"
-						data-achievement-submit
-						type="button"
-						variant="primary"
-						@click=${ () => void submit(true) }
-					>
-						Publish achievement
-					</aa-button>
-					<aa-achievement-builder
-						${ ref(builderRef) }
-						seasonId=${ seasonId }
-						.categories=${ categories }
-						.templates=${ templates }
-						.categoryActions=${ categoryActions }
-						.limits=${ catalog.limits }
-						@achievement-builder-state-change=${ (
-							event: CustomEvent<AchievementBuilderStateChangeDetail>,
-						) => {
-							builderState = event.detail;
-							syncSubmitButtons();
-						} }
-					></aa-achievement-builder>
-				`,
-				{
-					title:       'Achievement builder',
-					large:       true,
-					fixedHeight: true,
-					canClose:    () => !builderRef.value?.hasUnsavedChanges
-						|| window.confirm('Discard unsaved achievement changes?'),
-				},
-			);
-		}
-		catch (error) {
-			this.notificationService.addNotification({
-				type:    'danger',
-				message: getErrorMessage(error, 'Unable to open achievement builder.'),
-			});
-		}
+		Router.go(`${ getAbsoluteBase() }seasons/${ encodeURIComponent(seasonId) }/achievements`);
 	}
 
 	private validateDraft(): string[] {
@@ -1144,100 +905,28 @@ export class SeasonsPage extends LitElement {
 	}
 
 	private async openUnlockSavingDialog(): Promise<boolean> {
-		const formId = 'season-unlock-saving-form';
-		const result = await this.dialogService.open<boolean>(
-			html`
-				<aa-button
-					slot="footer-secondary"
-					type="button"
-					variant="secondary"
-					@click=${ this.closeDialog }
-				>
-					Cancel
-				</aa-button>
-				<aa-button
-					slot="footer-primary"
-					type="submit"
-					variant="primary"
-					form=${ formId }
-				>
-					Unlock & save
-				</aa-button>
-				<form
-					id=${ formId }
-					class="unlock-dialog"
-					@submit=${ async (event: SubmitEvent) => {
-						event.preventDefault();
-						const form = event.currentTarget as HTMLFormElement;
-						const dialog = form.closest<AaDialog>('aa-dialog');
-						const input = form.elements.namedItem('management-key') as HTMLInputElement;
-						const errorElement = form.querySelector<HTMLElement>('.error');
-						const submitButton = dialog?.querySelector<AaButton>(
-							`aa-button[form="${ formId }"]`,
-						);
-						const key = input.value;
-
-						input.disabled = true;
-						if (submitButton) {
-							submitButton.disabled = true;
-							submitButton.loading = true;
-						}
-						if (errorElement)
-							errorElement.textContent = '';
-
-						try {
-							await this.seasonService.verifyManagementAccess(key);
-							if (!dialog?.isConnected)
-								return;
-
-							this.adminKey = key;
-							this.accessGranted = true;
-							sessionStorage.setItem(managementKeyStorage, key);
-							dialog?.close(true);
-						}
-						catch (error) {
-							this.accessGranted = false;
-							sessionStorage.removeItem(managementKeyStorage);
-							if (errorElement)
-								errorElement.textContent = getErrorMessage(error, 'Unable to unlock season saving.');
-
-							input.disabled = false;
-							input.select();
-							if (submitButton) {
-								submitButton.disabled = false;
-								submitButton.loading = false;
-							}
-						}
-					} }
-				>
-					<p>Enter the management code to save these sandbox changes.</p>
-					<p>Your draft stays unchanged if the code is incorrect.</p>
-					<label>
-						<span>Management code</span>
-						<input
-							name="management-key"
-							type="password"
-							autocomplete="current-password"
-							.value=${ this.adminKey }
-							data-autofocus
-							required
-						/>
-					</label>
-					<p class="error" aria-live="polite"></p>
-				</form>
-			`,
-			{ title: 'Unlock saving' },
-		).catch((error: unknown) => {
-			// Saving and the achievement builder stay locked; tell the user why nothing opened.
+		const key = await openManagementUnlockDialog({
+			dialogService: this.dialogService,
+			verify:        key => this.seasonService.verifyManagementAccess(key),
+			description:   'Enter the management code to save these sandbox changes. Your draft stays unchanged if the code is incorrect.',
+			submitLabel:   'Unlock & save',
+			initialKey:    this.adminKey,
+		}).catch((error: unknown) => {
+			// Saving stays locked; tell the user why nothing opened.
 			this.notificationService.addNotification({
 				type:    'danger',
 				message: getErrorMessage(error, 'Unable to open the unlock dialog.'),
 			});
 
-			return false;
+			return undefined;
 		});
+		if (!key)
+			return false;
 
-		return result === true;
+		this.adminKey = key;
+		this.accessGranted = true;
+
+		return true;
 	}
 
 	private handleBasicsChange(event: SeasonBasicsChangeEvent): void {
@@ -1328,8 +1017,8 @@ export class SeasonsPage extends LitElement {
 			{
 				id:            'achievement-builder',
 				title:         'Achievement builder',
-				summary:       this.getAchievementBuilderSummary(),
-				activateLabel: 'Create achievement templates',
+				summary:       'Achievements for this season, on their own page',
+				activateLabel: 'Open the achievement builder',
 			},
 		];
 	}
@@ -1357,7 +1046,7 @@ export class SeasonsPage extends LitElement {
 			void this.openMmrConfiguration();
 			break;
 		case 'achievement-builder':
-			void this.openAchievementBuilder();
+			this.openAchievementBuilder();
 			break;
 		}
 	}

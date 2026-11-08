@@ -13,6 +13,7 @@ router.setRoutes([
 	{ path: '/user/:id', component: 'user-page' },
 	{ path: '/season/:id', component: 'season-page' },
 	{ path: '/seasons', component: 'seasons-page' },
+	{ path: '/seasons/:seasonId/achievements', component: 'achievement-builder-page' },
 	{ path: '/sessions', component: 'sessions-page' },
 	{ path: '/spectate/:id', component: 'spectate-game-page' },
 ]);

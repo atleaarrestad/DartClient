@@ -1,6 +1,6 @@
 # Achievement builder: workbench layout
 
-Status: implemented 2026-11-08, unstaged.
+Status: implemented 2026-11-08. The builder later moved to its own page and the node editor was replaced; see `achievement-rule-editor-plan.md`.
 
 ## Goal
 

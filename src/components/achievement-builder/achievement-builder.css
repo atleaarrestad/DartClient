@@ -5,7 +5,7 @@
 }
 
 /* ── Workbench frame ─────────────────────────────────────────────────────
-   bar / errors / body. The body holds library | canvas | inspector. */
+   errors / body. The body holds library | canvas | inspector. */
 
 .workbench {
 	display: flex;
@@ -61,56 +61,6 @@ textarea:focus-visible {
 .icon-button:hover,
 .icon-button[aria-expanded='true'] {
 	background: var(--color-status-info);
-}
-
-/* ── Bar ──────────────────────────────────────────────────────────────── */
-
-/* Fixed height: badges and the unlock action come and go without moving the panes. */
-.bar {
-	display: flex;
-	align-items: center;
-	gap: 0.6rem;
-	height: 2.5rem;
-	min-width: 0;
-	padding: 0 0.15rem;
-}
-
-.bar__tier {
-	flex: none;
-	width: 30px;
-	height: 30px;
-	object-fit: contain;
-}
-
-.bar__title {
-	min-width: 0;
-	margin: 0;
-	overflow: hidden;
-	font-family: var(--font-family-body);
-	font-size: var(--font-size-lg);
-	font-weight: 800;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.bar__badges {
-	display: flex;
-	flex: none;
-	align-items: center;
-	gap: 0.35rem;
-}
-
-.bar__readonly {
-	font-family: var(--font-family-ui);
-	font-size: 0.75rem;
-	font-weight: 700;
-	opacity: 0.75;
-	white-space: nowrap;
-}
-
-.bar__action {
-	flex: none;
-	margin-left: auto;
 }
 
 /* ── Errors ─────────────────────────────────────────────────────────── */
@@ -237,32 +187,8 @@ textarea:focus-visible {
 	padding: 0.75rem;
 }
 
-.canvas-pane--progression {
-	overflow-y: auto;
-}
-
 .canvas-pane--error {
 	box-shadow: inset 0 0 0 3px var(--color-status-danger);
-}
-
-.canvas-pane__title {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	gap: 0.3rem 0.65rem;
-	min-width: 0;
-	font-family: var(--font-family-ui);
-}
-
-.canvas-pane__title h3 {
-	margin: 0;
-	font-size: 1rem;
-	font-weight: 700;
-}
-
-.canvas-pane__title > span {
-	font-size: 0.75rem;
-	opacity: 0.65;
 }
 
 .canvas-pane__overlay {
@@ -277,6 +203,38 @@ textarea:focus-visible {
 .canvas-pane__overlay aa-achievement-category-manager {
 	max-width: 720px;
 	margin: 0 auto;
+}
+
+/* ── Status section ─────────────────────────────────────────────────── */
+
+.status-line {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.4rem;
+	margin: 0;
+	font-family: var(--font-family-ui);
+	font-size: 0.85rem;
+}
+
+.status-state {
+	padding: 0.05rem 0.5rem;
+	background: var(--color-surface-success-subtle);
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	font-size: 0.72rem;
+	font-weight: 700;
+}
+
+.status-state--disabled {
+	background: var(--color-status-danger);
+}
+
+.status-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
 }
 
 /* ── Inspector ────────────────────────────────────────────────────────── */
@@ -626,10 +584,6 @@ code {
 	border-left: 0;
 }
 
-.workbench--compact .bar__readonly-label,
-.workbench--compact .bar__action-label {
-	display: none;
-}
 
 @media (prefers-reduced-motion: reduce) {
 	* {

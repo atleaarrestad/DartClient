@@ -1,32 +1,12 @@
 import { html, LitElement, type PropertyValues, svg, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
+import { dartboardNumbers } from '../../helpers/dartboard.js';
 import { ThrowType } from '../../models/enums.js';
 import type { HitCount } from '../../models/schemas.js';
 import dartboardHeatmapStyles from './aa-dartboard-heatmap.css?inline';
 
-const boardNumbers = [
-	20,
-	1,
-	18,
-	4,
-	13,
-	6,
-	10,
-	15,
-	2,
-	17,
-	3,
-	19,
-	7,
-	16,
-	8,
-	11,
-	14,
-	9,
-	12,
-	5,
-];
+const boardNumbers = dartboardNumbers;
 
 @customElement('aa-dartboard-heatmap')
 export class AaDartboardHeatmap extends LitElement {

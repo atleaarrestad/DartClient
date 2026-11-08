@@ -97,6 +97,8 @@ export class AaAchievementTemplateLibrary extends LitElement {
 	}
 
 	private renderStatus(template: AchievementTemplateResponse, version: AchievementTemplateVersionResponse): TemplateResult {
+		if (template.isDisabled)
+			return html`<span class="status status--disabled" title="Disabled: not checked and doesn't count">Disabled</span>`;
 		if (template.isBuiltIn)
 			return html`<span class="status status--locked" title="Built-in, read-only">Built-in</span>`;
 		if (version.status === 'Draft')
@@ -145,7 +147,7 @@ export class AaAchievementTemplateLibrary extends LitElement {
 		const count = countDefinitionInstances(shownVersion.parameters);
 
 		return html`
-			<li class="entry ${ selected ? 'entry--selected' : '' }">
+			<li class="entry ${ selected ? 'entry--selected' : '' } ${ template.isDisabled ? 'entry--disabled' : '' }">
 				<button
 					type="button"
 					class="row"

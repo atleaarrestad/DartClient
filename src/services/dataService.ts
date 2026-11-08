@@ -409,6 +409,22 @@ export class DataService {
 		});
 	}
 
+	/** Disabling stops evaluation and rewards; enabling restores them. Built-ins can be disabled too. */
+	setAchievementTemplateDisabled(
+		templateId: string,
+		disabled: boolean,
+		adminKey: string,
+	): Promise<AchievementTemplateResponse> {
+		const action = disabled ? 'disable' : 'enable';
+
+		return this.send('POST', path`achievement-builder/templates/${ templateId }/${ action }`, {
+			error:   `Failed to ${ action } the achievement template`,
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  AchievementTemplateResponseSchema,
+			invalid: 'Invalid achievement template received from the API',
+		});
+	}
+
 	predictAchievementThrows(
 		request: PredictAchievementThrowsRequest,
 	): Promise<PredictAchievementThrowsResponse> {

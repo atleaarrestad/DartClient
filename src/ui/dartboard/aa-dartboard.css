@@ -1,0 +1,78 @@
+:host {
+	display: block;
+	aspect-ratio: 1;
+	--dartboard-rim: #1f1d1d;
+	--dartboard-dark: #1f1d1d;
+	--dartboard-light: #efe3c2;
+	--dartboard-red: #c0392b;
+	--dartboard-green: #2e8b57;
+	--dartboard-primary: var(--color-status-info, #7df9ff);
+	--dartboard-secondary: var(--color-status-success, #dff362);
+	--dartboard-tertiary: var(--color-medal-gold, #f2d14e);
+	--dartboard-soft: #a9e7ea;
+}
+
+svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.rim { fill: var(--dartboard-rim); }
+.wedge-0 { fill: var(--dartboard-dark); }
+.wedge-1 { fill: var(--dartboard-light); }
+.ring-0 { fill: var(--dartboard-red); }
+.ring-1 { fill: var(--dartboard-green); }
+.bull { fill: var(--dartboard-green); }
+.double-bull { fill: var(--dartboard-red); }
+
+.tone-primary,
+.tone-secondary,
+.tone-tertiary,
+.tone-soft {
+	stroke: #000;
+	stroke-width: 1.2;
+}
+
+.tone-primary { fill: var(--dartboard-primary); }
+.tone-secondary { fill: var(--dartboard-secondary); }
+.tone-tertiary { fill: var(--dartboard-tertiary); }
+.tone-soft { fill: var(--dartboard-soft); stroke-width: 0.6; }
+
+:host([interactive]) .area {
+	cursor: pointer;
+}
+
+:host([interactive]) .area:hover {
+	fill: var(--color-accent-primary-hover, #ff8c00);
+}
+
+.number {
+	fill: #fff;
+	font-family: var(--font-family-ui, sans-serif);
+	font-size: 8.5px;
+	font-weight: 700;
+	text-anchor: middle;
+	pointer-events: none;
+}
+
+.number--custom {
+	font-size: 10.5px;
+	fill: var(--dartboard-primary);
+}
+
+.marker {
+	fill: #fff;
+	stroke: #000;
+	stroke-width: 1.6;
+	pointer-events: none;
+}
+
+.marker-label {
+	fill: #000;
+	font-family: var(--font-family-ui, sans-serif);
+	font-size: 8.5px;
+	font-weight: 800;
+	text-anchor: middle;
+	pointer-events: none;
+}

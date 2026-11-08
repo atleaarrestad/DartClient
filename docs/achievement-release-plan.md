@@ -75,7 +75,7 @@ All further work happens on client `main` and backend `master`.
 - `GameTrackerDelta.ProjectedV2AchievementsByPlayer` (`List<AchievementInstanceResponse>` per player) replaces the legacy field. It only carries changed players, comparing by instance-id sequence; an empty list clears a projection. `ISignalRClient` has `OnActiveGamesChanged`, `OnGameDelta` and `OnV2AchievementProjectionAdded`, and no `OnSessionAchievementUnlocked`.
 - Tests: the branch's `GameTrackerDeltaTests` were ported, with new tests for projection revoke, swap and unchanged-is-omitted, the projection carried by a real throw, and a 409 on a finalized tracker. `RuntimeCutoverTests.RecordingProjectionClient` now counts delta broadcasts as state broadcasts, so the "failed projection does not broadcast" test still means something. Backend: 302/302.
 - Client: `GameTrackerDeltaSchema.projectedV2AchievementsByPlayer` (defaults to `{}`), merged in `applyGameTrackerDelta`, stored by `GamePage.applyGameDelta`. New tests cover the merge/clear and schema parsing. Client: 65/65.
-- Not changed: `GameService.AddPlayerToSession`/`RemovePlayerFromSession` (sync, no gate) are still there from both sides. Only tests use them now; delete them in U6/R4 cleanup.
+- Not changed: `GameService.AddPlayerToSession`/`RemovePlayerFromSession` (sync, no gate) are still there from both sides. Only tests use them now; delete them in U6/R4 cleanup. **Update 2026-10-19 (maintenance pass):** outdated, because only the gated async versions exist, and the controller and client use them. See `docs/maintenance-plan.md`.
 
 ### B2. Seven score achievements have the wrong tier, which changes MMR
 

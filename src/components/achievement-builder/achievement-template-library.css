@@ -178,6 +178,25 @@ button:focus-visible {
 	background: var(--color-surface-cool);
 }
 
+.status--disabled {
+	background: var(--color-surface-plain);
+	border-style: dashed;
+}
+
+/* Disabled achievements stay listed (so they can be enabled again) but step back visually. */
+.entry--disabled .row {
+	opacity: 0.55;
+}
+
+.entry--disabled .row__name {
+	text-decoration: line-through;
+	text-decoration-thickness: 1.5px;
+}
+
+.entry--disabled .row[aria-current='true'] {
+	opacity: 0.85;
+}
+
 .versions {
 	margin: 0.25rem 0 0.35rem 1.4rem;
 	padding-left: 0.5rem;

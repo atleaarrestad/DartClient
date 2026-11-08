@@ -1,0 +1,62 @@
+:host {
+	display: inline-block;
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 1px 8px;
+	background: var(--color-surface-highlight, #fff3cf);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control-sm);
+	font: 600 12.5px/1.4 var(--font-family-ui);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.chip:hover {
+	background: var(--color-status-info);
+}
+
+.chip:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.icon {
+	box-sizing: border-box;
+	width: 11px;
+	height: 11px;
+	border: 2px solid var(--color-border-strong);
+	border-radius: 50%;
+	background: radial-gradient(circle, #000 0 1.6px, #fff 2px 3px, #000 3.4px);
+}
+
+[popover] {
+	padding: 10px 12px;
+	background: var(--color-surface-card);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	box-shadow: var(--shadow-brutal-md);
+	color: inherit;
+}
+
+.preview {
+	display: none;
+	width: 216px;
+	padding: 8px;
+	font-family: var(--font-family-ui);
+	font-size: 14px;
+	pointer-events: none;
+}
+
+.preview:popover-open {
+	display: grid;
+	gap: 4px;
+	justify-items: center;
+}
+
+.preview aa-dartboard {
+	width: 200px;
+}

@@ -1,0 +1,84 @@
+:host {
+	display: block;
+}
+
+.readout {
+	display: grid;
+	gap: 6px;
+	max-height: 220px;
+	overflow-y: auto;
+	padding: 10px 14px;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	box-shadow: var(--shadow-brutal-sm);
+}
+
+.top {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 14px;
+}
+
+p {
+	margin: 0;
+}
+
+.lead {
+	font-family: var(--font-family-body);
+	font-size: 15px;
+}
+
+.muted {
+	font-family: var(--font-family-ui);
+	font-size: 0.8rem;
+	opacity: 0.7;
+}
+
+ul {
+	display: grid;
+	gap: 2px;
+	margin: 0;
+	padding-left: 1.2em;
+	font-family: var(--font-family-body);
+	font-size: 14px;
+	line-height: 1.45;
+}
+
+li span {
+	border-radius: 4px;
+	padding: 0 3px;
+}
+
+.lit {
+	background: var(--color-surface-highlight);
+	box-shadow: inset 0 -3px 0 var(--color-accent-primary-hover);
+}
+
+.picker {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.picker button,
+.picker select {
+	padding: 1px 8px;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-control-sm);
+	font: 600 12.5px/1.4 var(--font-family-ui);
+	cursor: pointer;
+}
+
+.picker select {
+	max-width: 220px;
+}
+
+button:focus-visible,
+select:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}

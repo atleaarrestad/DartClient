@@ -4,7 +4,7 @@ import '../../ui/button/aa-button.js';
 import '../../ui/empty-state/aa-empty-state.js';
 import '../../ui/form-field/aa-form-field.js';
 import '../../ui/segmented-control/aa-segmented-control.js';
-import './achievement-logic-editor.js';
+import './rule-workspace/aa-rule-workspace.js';
 import './achievement-template-library.js';
 
 import { html, LitElement, nothing, PropertyValues, TemplateResult, unsafeCSS } from 'lit';
@@ -55,20 +55,33 @@ import {
 	sortCategories,
 	validateDraft,
 } from './achievement-draft.js';
-import type { AchievementLogicChangeDetail } from './achievement-logic-editor.js';
 import type { AchievementTemplateOpenDetail } from './achievement-template-library.js';
+import { duplicateDraft } from './duplicate-draft.js';
+import type { AchievementLogicChangeDetail } from './rule-events.js';
+import type { AaRuleWorkspace } from './rule-workspace/aa-rule-workspace.js';
 
 export const achievementBuilderStateChangeEventName = 'achievement-builder-state-change';
+
+/** Asks the host to disable or enable a template; that is a server action, not a draft edit. */
+export const achievementTemplateDisabledChangeEventName = 'achievement-template-disabled-change';
+
+export interface AchievementTemplateDisabledChangeDetail {
+	templateId: string;
+	disabled:   boolean;
+}
 
 export interface AchievementBuilderStateChangeDetail {
 	/** Why saving is impossible for the shown version, or undefined when it is editable. */
 	readOnlyReason: string | undefined;
+	/** The open template and version; empty for a new, unsaved achievement. */
+	templateId:     string;
+	versionId:      string;
 }
 
 type TemplateField = 'nameTemplate' | 'descriptionTemplate';
 
 /** The collapsible sections of the inspector on the right. */
-type InspectorSection = 'card' | 'tier' | 'variants' | 'preview';
+type InspectorSection = 'status' | 'card' | 'tier' | 'variants' | 'preview';
 
 /** Where an error can be fixed: an inspector section or the logic canvas. */
 type ErrorArea = InspectorSection | 'logic';
@@ -93,7 +106,7 @@ const errorAreaByTab: Record<BuilderTab, ErrorArea> = {
 	logic:      'logic',
 };
 
-const inspectorSections: InspectorSection[] = [ 'card', 'tier', 'variants', 'preview' ];
+const inspectorSections: InspectorSection[] = [ 'status', 'card', 'tier', 'variants', 'preview' ];
 
 const narrowWidth = 1100;
 const compactWidth = 760;
@@ -172,6 +185,8 @@ export class AaAchievementBuilder extends LitElement {
 	@property({ attribute: false }) categoryActions?: AchievementCategoryActions;
 	@property({ attribute: false }) limits:           AchievementDraftLimits = defaultAchievementDraftLimits;
 	@property({ type: Boolean }) viewOnly = false;
+	/** Browsing works, but nothing can be edited until the management code is entered. */
+	@property({ type: Boolean }) locked = false;
 	@property({ type: String }) initialTemplateId = '';
 	@property({ type: String }) initialVersionId = '';
 
@@ -226,10 +241,14 @@ export class AaAchievementBuilder extends LitElement {
 		// new categories from the host replace it.
 		if (changed.has('categories'))
 			this.categoryList = this.categories;
+		// Locking or unlocking re-evaluates the open version, including on the first render.
+		if (changed.has('locked') || changed.has('viewOnly'))
+			this.readOnlyVersion = this.isReadOnly(this.selectedTemplate, this.selectedVersion);
 	}
 
 	protected override updated(changed: PropertyValues): void {
-		if ([ 'readOnlyVersion', 'selectedTemplateId', 'viewOnly' ].some(key => changed.has(key)))
+		if ([ 'readOnlyVersion', 'selectedTemplateId', 'selectedVersionId', 'viewOnly', 'locked' ]
+			.some(key => changed.has(key)))
 			this.dispatchStateChange();
 	}
 
@@ -258,6 +277,11 @@ export class AaAchievementBuilder extends LitElement {
 	/** Shows the server's validation errors for a draft that was saved but cannot be published. */
 	showServerValidationErrors(errors: string[]): void {
 		this.serverErrors = errors;
+	}
+
+	/** Opens a template version without asking about unsaved changes, e.g. from the URL. */
+	openTemplate(templateId: string, versionId?: string): boolean {
+		return this.loadTemplateVersion(templateId, versionId, false);
 	}
 
 	viewTemplateVersion(templateId: string, versionId?: string): boolean {
@@ -324,7 +348,7 @@ export class AaAchievementBuilder extends LitElement {
 		if (!templateId) {
 			this.selectedTemplateId = '';
 			this.selectedVersionId = '';
-			this.readOnlyVersion = false;
+			this.readOnlyVersion = this.isReadOnly(undefined, undefined);
 			this.draftConflict = undefined;
 			this.canvasKey++;
 			this.resetDraft();
@@ -346,7 +370,7 @@ export class AaAchievementBuilder extends LitElement {
 
 		this.selectedTemplateId = template.id;
 		this.selectedVersionId = version.id;
-		this.readOnlyVersion = this.viewOnly || version.status === 'Published' || !!template.isBuiltIn;
+		this.readOnlyVersion = this.isReadOnly(template, version);
 		this.draftConflict = undefined;
 		this.resetDraft(restored);
 
@@ -374,6 +398,25 @@ export class AaAchievementBuilder extends LitElement {
 			this.shadowRoot?.querySelector<HTMLElement>('[data-draft-conflict-default]')?.focus());
 	}
 
+	/**
+	 * Starts a new, unsaved achievement from a copy of the open one. This is how a built-in
+	 * achievement is replaced: duplicate it, fix the copy, and disable the original.
+	 */
+	private duplicateAsNew(): void {
+		if (this.hasUnsavedChanges && !window.confirm('Discard unsaved achievement changes?'))
+			return;
+
+		const copy = duplicateDraft(this.draft, this.categoryList);
+		this.selectedTemplateId = '';
+		this.selectedVersionId = '';
+		this.draftConflict = undefined;
+		this.readOnlyVersion = this.isReadOnly(undefined, undefined);
+		this.canvasKey++;
+		this.resetDraft(copy);
+		// The copy only exists in the editor until it is saved.
+		this.baselineDraft = '';
+	}
+
 	private resolveDraftConflict(choice: 'open' | 'replace' | 'cancel'): void {
 		const conflict = this.draftConflict;
 		this.draftConflict = undefined;
@@ -396,12 +439,29 @@ export class AaAchievementBuilder extends LitElement {
 		return this.templates.find(item => item.id === this.selectedTemplateId);
 	}
 
+	private get selectedVersion(): AchievementTemplateVersionResponse | undefined {
+		return this.selectedTemplate?.versions.find(item => item.id === this.selectedVersionId);
+	}
+
+	/** Published and built-in versions are read-only, and so is everything while locked. */
+	private isReadOnly(
+		template: AchievementTemplateResponse | undefined,
+		version: AchievementTemplateVersionResponse | undefined,
+	): boolean {
+		return this.viewOnly
+			|| this.locked
+			|| version?.status === 'Published'
+			|| !!template?.isBuiltIn;
+	}
+
 	private get readOnlyReason(): string | undefined {
 		if (!this.readOnlyVersion)
 			return undefined;
 
 		if (this.viewOnly)
 			return 'Achievements are view-only here.';
+		if (this.locked)
+			return 'Unlock editing with the management code to change achievements.';
 		if (this.selectedTemplate?.isBuiltIn)
 			return 'Built-in achievements are read-only.';
 
@@ -412,7 +472,11 @@ export class AaAchievementBuilder extends LitElement {
 		this.dispatchEvent(new CustomEvent<AchievementBuilderStateChangeDetail>(
 			achievementBuilderStateChangeEventName,
 			{
-				detail:   { readOnlyReason: this.readOnlyReason },
+				detail: {
+					readOnlyReason: this.readOnlyReason,
+					templateId:     this.selectedTemplateId,
+					versionId:      this.selectedVersionId,
+				},
 				bubbles:  true,
 				composed: true,
 			},
@@ -473,13 +537,10 @@ export class AaAchievementBuilder extends LitElement {
 			? this.shadowRoot?.querySelector<HTMLElement>('.canvas-pane')
 			: this.shadowRoot?.querySelector<HTMLElement>(`[data-section="${ area }"]`);
 		target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-		if (moveFocus) {
-			const focusTarget = area === 'logic'
-				? target?.querySelector<HTMLElement>('aa-achievement-logic-editor')
-					?.shadowRoot?.querySelector<HTMLElement>('.logic-canvas__viewport')
-				: target?.querySelector<HTMLElement>('.section__toggle');
-			focusTarget?.focus({ preventScroll: true });
-		}
+		if (moveFocus && area === 'logic')
+			target?.querySelector<AaRuleWorkspace>('aa-rule-workspace')?.focusEditor();
+		else if (moveFocus)
+			target?.querySelector<HTMLElement>('.section__toggle')?.focus({ preventScroll: true });
 	}
 
 	private countErrors(area: ErrorArea): number {
@@ -634,6 +695,8 @@ export class AaAchievementBuilder extends LitElement {
 		title: string,
 		summary: TemplateResult | string,
 		body: () => TemplateResult,
+		/** Sections that act on the template itself stay usable on read-only versions. */
+		editsDraft = true,
 	): TemplateResult {
 		const collapsed = this.collapsedSections.has(section);
 		const errorCount = this.countErrors(section);
@@ -656,13 +719,17 @@ export class AaAchievementBuilder extends LitElement {
 						<span class="section__title">${ title }</span>
 						${ errorCount
 							? html`<aa-badge pill variant="danger">${ formatCount(errorCount, 'error') }</aa-badge>`
-							: html`<span class="section__summary">${ summary }</span>` }
+							: nothing }
+						${ !errorCount && collapsed
+							// An open section shows its contents, so the summary would only repeat them.
+							? html`<span class="section__summary">${ summary }</span>`
+							: nothing }
 					</button>
 				</h3>
 				${ collapsed
 					? nothing
 					: html`
-						<div class="section__body" id=${ bodyId } ?inert=${ this.readOnlyVersion }>
+						<div class="section__body" id=${ bodyId } ?inert=${ editsDraft && this.readOnlyVersion }>
 							${ body() }
 						</div>
 					` }
@@ -1013,8 +1080,17 @@ export class AaAchievementBuilder extends LitElement {
 		const category = this.categoryList.find(item => item.id === this.draft.categoryId);
 		const parameterKeys = this.draft.parameters.map(parameter => `{${ parameter.key }}`).join(' ');
 
+		const template = this.selectedTemplate;
+
 		return html`
 			<aside class="inspector" aria-label="Achievement settings">
+				${ this.renderSection(
+					'status',
+					'Status',
+					`${ this.versionLabel }${ template?.isDisabled ? ' · Disabled' : '' }`,
+					() => this.renderStatusSection(),
+					false,
+				) }
 				${ this.renderSection(
 					'card',
 					'Card',
@@ -1046,33 +1122,118 @@ export class AaAchievementBuilder extends LitElement {
 		`;
 	}
 
+	/** Which version is open: "Draft v2", "Built-in v1", "New draft from v1" or a new one. */
+	private get versionLabel(): string {
+		const template = this.selectedTemplate;
+		const version = this.selectedVersion;
+		if (!template || !version)
+			return 'New, not saved yet';
+		if (template.isBuiltIn)
+			return `Built-in v${ version.versionNumber }`;
+		if (version.status === 'Draft')
+			return `Draft v${ version.versionNumber }`;
+		// An unlocked published version: saving creates a new draft from it.
+		if (!this.readOnlyVersion)
+			return `New draft from v${ version.versionNumber }`;
+
+		return `Published v${ version.versionNumber }`;
+	}
+
+	/**
+	 * The open version's state and what can be done with the template: unlock a published
+	 * version, duplicate it, enable or disable it. These act on the saved template, not the
+	 * draft, so the section works on read-only versions too.
+	 */
+	private renderStatusSection(): TemplateResult {
+		const template = this.selectedTemplate;
+		const disabled = !!template?.isDisabled;
+		const canManage = !this.viewOnly && !this.locked && !!template;
+		const details = [
+			this.versionLabel,
+			...this.readOnlyVersion ? [ 'read-only' ] : [],
+			...this.hasUnsavedChanges ? [ 'unsaved changes' ] : [],
+		];
+
+		return html`
+			<p class="status-line">
+				<b>${ details.join(' · ') }</b>
+				${ template
+					? html`
+						<span class="status-state ${ disabled ? 'status-state--disabled' : '' }">
+							${ disabled ? 'Disabled' : 'Enabled' }
+						</span>
+					`
+					: nothing }
+			</p>
+			${ disabled
+				? html`
+					<p class="section__intro">
+						Not checked in games, and it doesn’t count toward statistics or MMR cap.
+						Players keep what they unlocked, and it counts again when enabled.
+					</p>
+				`
+				: nothing }
+			${ canManage ? this.renderStatusActions(template!, disabled) : nothing }
+		`;
+	}
+
+	private renderStatusActions(template: AchievementTemplateResponse, disabled: boolean): TemplateResult {
+		return html`
+			<div class="status-actions">
+				${ this.readOnlyVersion && !template.isBuiltIn
+					? html`
+						<aa-button size="small" variant="primary" @click=${ () => this.createEditableDraft() }>
+							<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+							Create editable draft
+						</aa-button>
+					`
+					: nothing }
+				<aa-button size="small" variant="secondary" @click=${ () => this.duplicateAsNew() }>
+					<i class="fa-solid fa-copy" aria-hidden="true"></i>
+					Duplicate as new
+				</aa-button>
+				<aa-button
+					size="small"
+					variant=${ disabled ? 'primary' : 'ghost' }
+					@click=${ () => this.requestDisabledChange(template.id, !disabled) }
+				>
+					<i class="fa-solid ${ disabled ? 'fa-toggle-on' : 'fa-toggle-off' }" aria-hidden="true"></i>
+					${ disabled ? 'Enable' : 'Disable' }
+				</aa-button>
+			</div>
+		`;
+	}
+
+	private requestDisabledChange(templateId: string, disabled: boolean): void {
+		if (disabled && !window.confirm('Disable this achievement? It stops counting for every player until you enable it again.'))
+			return;
+
+		this.dispatchEvent(new CustomEvent<AchievementTemplateDisabledChangeDetail>(
+			achievementTemplateDisabledChangeEventName,
+			{ detail: { templateId, disabled }, bubbles: true, composed: true },
+		));
+	}
+
 	private renderCanvasPane(): TemplateResult {
-		const isProgression = this.draft.achievementScope === 'progression';
 		const logicErrors = this.countErrors('logic');
 
 		return html`
 			<main
-				class="canvas-pane ${ logicErrors ? 'canvas-pane--error' : '' } ${ isProgression ? 'canvas-pane--progression' : '' }"
+				class="canvas-pane ${ logicErrors ? 'canvas-pane--error' : '' }"
 				aria-label="Unlock rule"
 			>
 				${ keyed(this.canvasKey, html`
-					<aa-achievement-logic-editor
+					<aa-rule-workspace
 						.rule=${ this.draft.rule }
 						.progression=${ this.draft.progression }
 						.parameters=${ this.draft.parameters }
+						.previews=${ getPreviews(this.draft, previewLimit) }
 						.achievementScope=${ this.draft.achievementScope }
 						.readOnly=${ this.readOnlyVersion }
 						@achievement-logic-change=${ (
 							event: CustomEvent<AchievementLogicChangeDetail>,
 						) => this.updateDraft(event.detail) }
-					>
-						<div class="canvas-pane__title" slot="toolbar-start">
-							<h3>Unlock rule</h3>
-							${ logicErrors
-								? html`<aa-badge pill variant="danger">${ formatCount(logicErrors, 'error') }</aa-badge>`
-								: html`<span>Drag to pan, scroll to zoom</span>` }
-						</div>
-					</aa-achievement-logic-editor>
+					>${ this.renderLibraryToggle() }</aa-rule-workspace>
 				`) }
 				${ this.showCategoryManager && !this.readOnlyVersion
 					? html`
@@ -1117,7 +1278,7 @@ export class AaAchievementBuilder extends LitElement {
 				.selectedVersionId=${ this.selectedVersionId }
 				.dirty=${ this.hasUnsavedChanges }
 				.newDraftName=${ this.draft.nameTemplate }
-				.readOnly=${ this.viewOnly }
+				.readOnly=${ this.viewOnly || this.locked }
 				@achievement-template-open=${ this.handleTemplateOpen }
 				@keydown=${ (event: KeyboardEvent) => {
 					if (event.key === 'Escape' && this.layout !== 'wide')
@@ -1127,86 +1288,25 @@ export class AaAchievementBuilder extends LitElement {
 		`;
 	}
 
-	// ── Bar and errors ──────────────────────────────────────────────────────
+	// ── Library toggle and errors ───────────────────────────────────────────
 
-	private renderStatusBadges(): TemplateResult {
-		const template = this.selectedTemplate;
-		const version = template?.versions.find(item => item.id === this.selectedVersionId);
-
-		let status: TemplateResult;
-		if (!template || !version)
-			status = html`<aa-badge pill variant="info">New</aa-badge>`;
-		else if (template.isBuiltIn)
-			status = html`<aa-badge pill>Built-in v${ version.versionNumber }</aa-badge>`;
-		else if (version.status === 'Draft')
-			status = html`<aa-badge pill variant="warning">Draft v${ version.versionNumber }</aa-badge>`;
-		else if (!this.readOnlyVersion)
-			// An unlocked published version: saving creates a new draft from it.
-			status = html`<aa-badge pill variant="warning">New draft from v${ version.versionNumber }</aa-badge>`;
-		else
-			status = html`<aa-badge pill variant="success">${ version.status } v${ version.versionNumber }</aa-badge>`;
-
-		return html`
-			${ status }
-			${ this.hasUnsavedChanges ? html`<aa-badge pill variant="warning">Unsaved</aa-badge>` : nothing }
-			${ this.readOnlyVersion
-				? html`
-					<span class="bar__readonly" title=${ this.readOnlyReason ?? '' }>
-						<i class="fa-solid fa-lock" aria-hidden="true"></i>
-						<span class="bar__readonly-label">Read-only</span>
-					</span>
-				`
-				: nothing }
-		`;
-	}
-
-	private renderBar(): TemplateResult {
-		return html`
-			<header class="bar">
-				${ this.viewOnly
-					? nothing
-					: html`
-						<button
-							type="button"
-							class="icon-button bar__library-toggle"
-							aria-expanded=${ String(this.showLibrary) }
-							aria-controls="achievement-library"
-							aria-label=${ this.showLibrary ? 'Hide achievement library' : 'Show achievement library' }
-							title=${ this.showLibrary ? 'Hide library' : 'Show library' }
-							@click=${ this.toggleLibrary }
-						>
-							<i class="fa-solid fa-list" aria-hidden="true"></i>
-						</button>
-					` }
-				<img class="bar__tier" src=${ getAchievementTierIcon(this.draft.tier) } alt="" />
-				<h2 class="bar__title">${ this.draft.nameTemplate.trim() || 'Untitled achievement' }</h2>
-				<div class="bar__badges">${ this.renderStatusBadges() }</div>
-				${ this.renderUnlockAction() }
-			</header>
-		`;
-	}
-
-	/**
-	 * Published versions are unlocked from the bar, so switching between achievements
-	 * never adds or removes a row above the workbench.
-	 */
-	private renderUnlockAction(): TemplateResult | typeof nothing {
-		if (!this.readOnlyVersion || this.viewOnly || this.selectedTemplate?.isBuiltIn)
+	private renderLibraryToggle(): TemplateResult | typeof nothing {
+		if (this.viewOnly)
 			return nothing;
 
 		return html`
-			<aa-button
-				class="bar__action"
+			<button
+				slot="toolbar-start"
 				type="button"
-				size="small"
-				variant="secondary"
-				aria-label="Create editable draft"
-				title="Create editable draft"
-				@click=${ () => this.createEditableDraft() }
+				class="icon-button library-toggle"
+				aria-expanded=${ String(this.showLibrary) }
+				aria-controls="achievement-library"
+				aria-label=${ this.showLibrary ? 'Hide achievement library' : 'Show achievement library' }
+				title=${ this.showLibrary ? 'Hide library' : 'Show library' }
+				@click=${ this.toggleLibrary }
 			>
-				<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
-				<span class="bar__action-label">Create editable draft</span>
-			</aa-button>
+				<i class="fa-solid fa-list" aria-hidden="true"></i>
+			</button>
 		`;
 	}
 
@@ -1317,7 +1417,6 @@ export class AaAchievementBuilder extends LitElement {
 
 		return html`
 			<div class=${ classes }>
-				${ this.renderBar() }
 				${ this.renderErrors() }
 				<div class="workbench__body">
 					${ this.renderLibrary() }
@@ -1341,5 +1440,10 @@ export class AaAchievementBuilder extends LitElement {
 declare global {
 	interface HTMLElementTagNameMap {
 		'aa-achievement-builder': AaAchievementBuilder;
+	}
+
+	interface HTMLElementEventMap {
+		[achievementBuilderStateChangeEventName]:     CustomEvent<AchievementBuilderStateChangeDetail>;
+		[achievementTemplateDisabledChangeEventName]: CustomEvent<AchievementTemplateDisabledChangeDetail>;
 	}
 }

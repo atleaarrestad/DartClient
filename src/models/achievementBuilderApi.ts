@@ -60,6 +60,9 @@ export const AchievementTemplateResponseSchema = z.object({
 	seasonId: z.string().uuid(),
 	createdAtUtc: z.string(),
 	isBuiltIn: z.boolean().optional(),
+	/** A disabled template is not evaluated and its unlocks don't count; unlocks are kept. */
+	isDisabled: z.boolean().optional(),
+	disabledAtUtc: z.string().nullable().optional(),
 	versions: z.array(AchievementTemplateVersionResponseSchema),
 });
 

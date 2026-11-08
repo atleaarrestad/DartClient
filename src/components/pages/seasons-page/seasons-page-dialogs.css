@@ -271,29 +271,3 @@
 		grid-column: 2;
 	}
 }
-
-.unlock-dialog {
-	display: grid;
-	gap: 0.8rem;
-}
-.unlock-dialog p {
-	margin: 0;
-}
-.unlock-dialog label {
-	display: grid;
-	gap: 0.35rem;
-	font-weight: 900;
-}
-.unlock-dialog input {
-	padding: 0.6rem 0.7rem;
-	background: var(--color-surface-plain);
-	border: 2px solid var(--color-border-strong);
-	border-radius: 9px;
-	font: inherit;
-}
-.unlock-dialog .error {
-	min-height: 1em;
-	color: #9b1c31;
-	font-size: 0.78rem;
-	font-weight: 900;
-}

@@ -1,0 +1,30 @@
+/* Rendered into aa-dialog's light DOM, so these rules are global. */
+.management-unlock {
+	display: grid;
+	gap: 0.8rem;
+}
+
+.management-unlock p {
+	margin: 0;
+}
+
+.management-unlock label {
+	display: grid;
+	gap: 0.35rem;
+	font-weight: 900;
+}
+
+.management-unlock input {
+	padding: 0.6rem 0.7rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: 9px;
+	font: inherit;
+}
+
+.management-unlock__error {
+	min-height: 1em;
+	color: #9b1c31;
+	font-size: 0.78rem;
+	font-weight: 900;
+}

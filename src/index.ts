@@ -17,6 +17,7 @@ import './components/pages/index-page/index-page.js';
 import './components/pages/changelog-page/changelog-page.js';
 import './components/pages/users-page/users-page.js';
 import './components/pages/user-page/user-page.js';
+import './components/pages/achievement-builder-page/achievement-builder-page.js';
 import './components/pages/season-page/season-page.js';
 import './components/pages/seasons-page/seasons-page.js';
 import './components/pages/sessions-page/sessions-page.js';

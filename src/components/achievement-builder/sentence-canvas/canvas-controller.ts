@@ -19,8 +19,8 @@ interface CanvasElements {
 	graph:    HTMLElement;
 }
 
-/** Pan and zoom state for the logic canvas viewport. Needs no host lifecycle hooks. */
-export class LogicCanvasController {
+/** Pan and zoom state for the rule canvas viewport. Needs no host lifecycle hooks. */
+export class CanvasController {
 
 	scale = 1;
 	x = defaultOffset;
