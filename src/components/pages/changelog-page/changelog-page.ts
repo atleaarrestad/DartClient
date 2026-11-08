@@ -14,6 +14,16 @@ interface ChangelogEntry {
 
 const changelogEntries: ChangelogEntry[] = [
 	{
+		date:  '2026-11-08',
+		title: 'Achievement builder and throw suggestions',
+		tag:   'feature',
+		changes: [
+			'New achievement builder for making and editing a season\'s achievements',
+			'Last dart suggestions: see which throws unlock achievements and the best throw to go for',
+			'New Master and Glenn Master ranks',
+		],
+	},
+	{
 		date:  '2026-08-25',
 		title: 'Live games and spectating',
 		tag:   'improvement',
