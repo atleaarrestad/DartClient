@@ -79,6 +79,7 @@ const parameterForms = (parameters: readonly AchievementParameterDraft[]): RuleT
 		...parameter.valueType === 'integer'
 			? [
 				{ label: `{${ parameter.key }+1}`, type: 'parameter' as const, detail: 'parameter plus one' },
+				{ label: `{ladder ${ parameter.key }+1}`, type: 'parameter' as const, detail: 'next on 1–20, 25, 50' },
 				{ label: `{left ${ parameter.key }}`, type: 'parameter' as const, detail: 'board neighbour' },
 				{ label: `{right ${ parameter.key }}`, type: 'parameter' as const, detail: 'board neighbour' },
 			]
@@ -278,6 +279,8 @@ export const getRuleTextCompletions = (
 				? [
 					{ label: `left ${ parameter.key }`, type: 'parameter' as const, detail: 'left neighbour' },
 					{ label: `right ${ parameter.key }`, type: 'parameter' as const, detail: 'right neighbour' },
+					{ label: `ladder ${ parameter.key }+1`, type: 'parameter' as const, detail: 'next on 1–20, 25, 50' },
+					{ label: `ladder ${ parameter.key }-1`, type: 'parameter' as const, detail: 'previous on 1–20, 25, 50' },
 				]
 				: [],
 		]);

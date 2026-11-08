@@ -44,6 +44,17 @@ import type {
 	AchievementTemplateVersionResponse,
 } from '../../models/achievementBuilderApi.js';
 import { achievementTiersAscending } from '../../models/enums.js';
+import {
+	getLadderStepError,
+	getTemplateTokenProblem,
+	hasMalformedTokens,
+	isParameterFormSource,
+	parameterFormSources,
+	readTemplateTokens,
+	renameTemplateParameter,
+	renderTemplate,
+	templateUsesParameter,
+} from './parameter-forms.js';
 
 export type BuilderScope = AchievementRuleScope;
 export type BuilderTab = 'details' | 'parameters' | 'logic';
@@ -79,15 +90,10 @@ export const valueSources = toOptions<AchievementValueSource>(achievementValueSo
 
 export const roundStatusOptions = toOptions<AchievementRoundStatus>(achievementRoundStatusLabels);
 
-const parameterValueSources: AchievementValueSource[] = [
-	'parameter',
-	'parameter.offset',
-	'board.leftNeighbor',
-	'board.rightNeighbor',
-];
+const parameterValueSources: readonly AchievementValueSource[] = parameterFormSources;
 
 export const isParameterValueSource = (source: AchievementValueSource): boolean =>
-	parameterValueSources.includes(source);
+	isParameterFormSource(source);
 
 /**
  * Whether a parameter can fill a value slot. Offsets and board neighbors need a number;
@@ -397,10 +403,7 @@ export const countDefinitionInstances = (
 }, 1);
 
 const renderTemplateText = (template: string, binding: ParameterBinding): string =>
-	Object.entries(binding).reduce(
-		(result, [ key, value ]) => result.replaceAll(`{${ key }}`, String(value)),
-		template,
-	);
+	renderTemplate(template, binding).text;
 
 const createPreview = (
 	draft: AchievementTemplateDraft,
@@ -591,7 +594,7 @@ export const renameParameterReferences = (
 			? { ...value, value: newKey }
 			: value;
 	const mapAst = (ast: unknown): unknown => renameAstParameters(ast, oldKey, newKey);
-	const renameToken = (text: string): string => text.replaceAll(`{${ oldKey }}`, `{${ newKey }}`);
+	const renameToken = (text: string): string => renameTemplateParameter(text, oldKey, newKey);
 	const renameConditions = (when: AchievementVariantConditionDraft[]): AchievementVariantConditionDraft[] =>
 		when.map(condition => condition.parameter === oldKey ? { ...condition, parameter: newKey } : condition);
 	const { progression } = draft;
@@ -652,8 +655,6 @@ const isInt32 = (value: number): boolean =>
 	Number.isInteger(value) && value >= int32Minimum && value <= int32Maximum;
 const isWholeNumberText = (value: string): boolean => /^-?\d+$/.test(value.trim());
 
-const templateTokenPattern = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
-
 type DraftValueType = AchievementParameterDraft['valueType'];
 
 const valueTypeLabels: Record<DraftValueType, string> = {
@@ -685,12 +686,18 @@ const getValueErrors = (
 
 	if (isParameterValueSource(value.source)) {
 		const parameter = parameters.find(item => item.key === value.value);
+		// The server rejects a ladder step that leaves the ladder for any of the parameter's values.
+		const ladderError = parameter && value.source === 'parameter.ladder'
+			? getLadderStepError(value, getParameterValues(parameter))
+			: undefined;
 		if (!parameter)
 			errors.push(`${ path } references a missing parameter.`);
 		else if (!canUseParameterAs(parameter, value.source, requiresInteger))
 			errors.push(`${ path } needs a number, but {${ parameter.key }} is ${ valueTypeLabels[parameter.valueType] }.`);
 		else if (value.source === 'parameter.offset' && !isInt32(value.offset ?? Number.NaN))
 			errors.push(`${ path } needs a whole-number offset ${ int32RangeText }.`);
+		else if (ladderError)
+			errors.push(`${ path }: ${ ladderError }`);
 	}
 	else if (value.source === 'constant') {
 		if (!isWholeNumberText(value.value))
@@ -828,21 +835,36 @@ const getTemplateTextErrors = (
 		[ 'description', draft.descriptionTemplate ],
 	] as const;
 	for (const [ field, template ] of fields) {
-		const unknownKeys = [ ...template.matchAll(templateTokenPattern) ]
-			.map(match => match[1]!)
-			.filter(key => !keys.has(key));
+		const tokens = readTemplateTokens(template);
+		const unknownKeys = [ ...new Set(tokens.map(token => token.key).filter(key => !keys.has(key))) ];
 		if (unknownKeys.length > 0)
 			errors.push(`The ${ field } uses unknown parameters: ${ unknownKeys.map(key => `{${ key }}`).join(', ') }.`);
-		if (/[{}]/.test(template.replace(templateTokenPattern, '')))
+
+		tokens.forEach(token => {
+			const parameter = draft.parameters.find(item => item.key === token.key);
+			const problem = parameter && getTemplateTokenProblem(token, parameter);
+			if (problem)
+				errors.push(`The ${ field }\u2019s ${ problem }.`);
+		});
+		if (hasMalformedTokens(template))
 			errors.push(`The ${ field } has a { or } that is not part of a {parameter}.`);
 	}
 
 	if (generatedCount <= limits.maximumGeneratedInstances) {
-		const tooLong = getPreviews({
+		const previews = getPreviews({
 			...draft,
 			nameTemplate:        draft.nameTemplate.trim(),
 			descriptionTemplate: draft.descriptionTemplate.trim(),
-		}).find(preview =>
+		});
+		// E.g. {ladder n+1} for n = 50: the server can't render that achievement's text.
+		for (const [ field, template ] of fields) {
+			const problem = previews
+				.map(preview => renderTemplate(template, preview.bindings).problems[0])
+				.find(Boolean);
+			if (problem)
+				errors.push(`The ${ field }\u2019s ${ problem }.`);
+		}
+		const tooLong = previews.find(preview =>
 			preview.name.length > limits.maximumRenderedTextLength
 			|| preview.description.length > limits.maximumRenderedTextLength);
 		if (tooLong) {
@@ -972,8 +994,8 @@ export const validateDraft = (
 
 	const missingNameKeys = draft.parameters
 		.filter(parameter => countParameterValues(parameter) > 1)
-		.map(parameter => `{${ parameter.key }}`)
-		.filter(token => !draft.nameTemplate.includes(token));
+		.filter(parameter => !templateUsesParameter(draft.nameTemplate, parameter.key))
+		.map(parameter => `{${ parameter.key }}`);
 	if (missingNameKeys.length > 0)
 		add('details', [ `Name must include ${ missingNameKeys.join(', ') } so every generated achievement has a distinct name.` ]);
 

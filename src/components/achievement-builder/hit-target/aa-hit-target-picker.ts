@@ -26,7 +26,7 @@ export const hitTargetChangeEventName = 'hit-target-change';
 export const hitTargetRemoveEventName = 'hit-target-remove';
 export const hitTargetDoneEventName = 'hit-target-done';
 
-type SourceMode = 'none' | 'fixed' | 'parameter' | 'neighbour' | 'offset';
+type SourceMode = 'none' | 'fixed' | 'parameter' | 'neighbour' | 'offset' | 'ladder';
 
 const sourceLabels: Record<SourceMode, string> = {
 	none:      'Any segment',
@@ -34,6 +34,7 @@ const sourceLabels: Record<SourceMode, string> = {
 	parameter: 'Parameter',
 	neighbour: 'Neighbour',
 	offset:    'Offset',
+	ladder:    'Ladder',
 };
 
 const typeLabels: Record<TargetThrowType, string> = {
@@ -54,6 +55,8 @@ const sourceModeOf = (location: AchievementValueDraft | undefined): SourceMode =
 		return 'parameter';
 	case 'parameter.offset':
 		return 'offset';
+	case 'parameter.ladder':
+		return 'ladder';
 	case 'board.leftNeighbor':
 	case 'board.rightNeighbor':
 		return 'neighbour';
@@ -111,6 +114,7 @@ export class AaHitTargetPicker extends LitElement {
 			parameter: { source: 'parameter', value: parameter },
 			neighbour: { source: 'board.leftNeighbor', value: parameter },
 			offset:    { source: 'parameter.offset', value: parameter, offset: 1 },
+			ladder:    { source: 'parameter.ladder', value: parameter, offset: 1 },
 		};
 		this.emit({ ...this.target, hitLocation: locations[mode] });
 	}
@@ -178,7 +182,7 @@ export class AaHitTargetPicker extends LitElement {
 		const modes: SourceMode[] = [
 			...context.locationRequired ? [] : [ 'none' as const ],
 			'fixed',
-			...this.numberParameters.length > 0 ? [ 'parameter', 'neighbour', 'offset' ] as const : [],
+			...this.numberParameters.length > 0 ? [ 'parameter', 'neighbour', 'offset', 'ladder' ] as const : [],
 		];
 		const current = sourceModeOf(this.target.hitLocation);
 
@@ -230,10 +234,10 @@ export class AaHitTargetPicker extends LitElement {
 					</label>
 				`
 				: nothing }
-			${ location.source === 'parameter.offset'
+			${ location.source === 'parameter.offset' || location.source === 'parameter.ladder'
 				? html`
-					<label>
-						<span>Offset</span>
+					<label title=${ location.source === 'parameter.ladder' ? 'Steps along 1–20, 25, 50' : '' }>
+						<span>${ location.source === 'parameter.ladder' ? 'Steps' : 'Offset' }</span>
 						<input
 							type="number"
 							step="1"

@@ -126,6 +126,12 @@ function compileValue(value: AchievementValueDraft): AstNode {
 			right: integer(Math.abs(offset)),
 		};
 	}
+	case 'parameter.ladder':
+		return {
+			kind: 'ladderStep',
+			number: { kind: 'parameter', name: value.value },
+			offset: Math.trunc(value.offset ?? 0),
+		};
 	case 'board.leftNeighbor':
 	case 'board.rightNeighbor':
 		return {
@@ -1057,6 +1063,18 @@ function restoreAstValue(node: AstNode | undefined): AchievementValueDraft | und
 			source: offset === -1 ? 'board.leftNeighbor' : 'board.rightNeighbor',
 			value: number['name'],
 		};
+	}
+	case 'ladderStep': {
+		const number = getAstNode(node?.['number']);
+		const offset = node?.['offset'];
+		if (
+			getAstKind(number) !== 'parameter'
+			|| typeof number?.['name'] !== 'string'
+			|| typeof offset !== 'number'
+			|| !Number.isInteger(offset)
+		)
+			return undefined;
+		return { source: 'parameter.ladder', value: number['name'], offset };
 	}
 	case 'field':
 		return isField(node, 'placement')

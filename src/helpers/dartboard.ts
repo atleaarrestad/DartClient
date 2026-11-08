@@ -49,3 +49,23 @@ export const getBoardNeighbor = (number: number, side: BoardSide): number | unde
 
 	return dartboardNumbers[(index + offset + count) % count];
 };
+
+/**
+ * The dart ladder: board numbers in counting order, 1–20, then the bull and the double bull.
+ * Matches the backend's AchievementLadder: one up from 20 is 25, one down from 25 is 20.
+ */
+export const dartLadder: readonly number[] = [
+	...Array.from({ length: 20 }, (_, index) => index + 1),
+	bullLocation,
+	doubleBullLocation,
+];
+
+/** "1–20, 25, 50", for messages. */
+export const dartLadderDescription = '1–20, 25, 50';
+
+/** The number `offset` steps along the ladder from `number`, or undefined off the ladder. */
+export const getLadderStep = (number: number, offset: number): number | undefined => {
+	const index = dartLadder.indexOf(number);
+
+	return index < 0 || !Number.isInteger(offset) ? undefined : dartLadder[index + offset];
+};

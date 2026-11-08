@@ -218,17 +218,66 @@ textarea:focus-visible {
 	font-size: 0.85rem;
 }
 
-.status-state {
-	padding: 0.05rem 0.5rem;
-	background: var(--color-surface-success-subtle);
-	border: 1.5px solid var(--color-border-strong);
-	border-radius: var(--radius-pill);
-	font-size: 0.72rem;
+/* An on/off switch: the track shows the state, the text says it. */
+.switch {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	margin-left: auto;
 	font-weight: 700;
+	cursor: pointer;
 }
 
-.status-state--disabled {
+.switch input {
+	position: absolute;
+	opacity: 0;
+	inset: 0;
+	margin: 0;
+	cursor: inherit;
+}
+
+.switch__track {
+	position: relative;
+	flex: none;
+	width: 2.4rem;
+	height: 1.3rem;
 	background: var(--color-status-danger);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	transition: background-color 0.15s ease;
+}
+
+.switch__track::after {
+	position: absolute;
+	top: 50%;
+	left: 0.15rem;
+	width: 0.8rem;
+	height: 0.8rem;
+	background: var(--color-surface-plain);
+	border: 2px solid var(--color-border-strong);
+	border-radius: 50%;
+	content: '';
+	transform: translateY(-50%);
+	transition: left 0.15s ease;
+}
+
+.switch input:checked + .switch__track {
+	background: var(--color-surface-success-subtle);
+}
+
+.switch input:checked + .switch__track::after {
+	left: calc(100% - 0.15rem - 0.8rem - 4px);
+}
+
+.switch input:focus-visible + .switch__track {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.switch:has(input:disabled) {
+	cursor: default;
+	opacity: 0.7;
 }
 
 .status-actions {

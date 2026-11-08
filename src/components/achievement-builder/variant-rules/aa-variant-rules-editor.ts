@@ -1,5 +1,3 @@
-import '../../../ui/segmented-control/aa-segmented-control.js';
-
 import { html, LitElement, nothing, PropertyValues, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
@@ -14,7 +12,6 @@ import {
 	AchievementVariantConditionDraft,
 } from '../../../models/achievementBuilder.js';
 import { achievementTiersAscending } from '../../../models/enums.js';
-import type { SegmentedControlChangeEvent, SegmentedControlItem } from '../../../ui/segmented-control/aa-segmented-control.js';
 import { getVariantSummary } from '../achievement-draft.js';
 import { AchievementLogicChangeDetail, ruleChangeEventName } from '../rule-events.js';
 import variantRulesEditorStyles from './aa-variant-rules-editor.css?inline';
@@ -38,12 +35,6 @@ const operatorLabels: Readonly<Record<AchievementComparisonOperator, string>> = 
 	lessThan:           '<',
 	lessThanOrEqual:    '≤',
 };
-
-const tierItems: SegmentedControlItem[] = achievementTiersAscending.map(tier => ({
-	value: String(tier),
-	label: formatTierLabel(tier),
-	icon:  getAchievementTierIcon(tier),
-}));
 
 const openStorageKey = 'aa-variant-rules-editor:open';
 
@@ -70,7 +61,8 @@ type RuleList = 'tierRules' | 'skipRules';
 /**
  * The tiers of the generated achievements and which ones are skipped, as rows that mirror the
  * `skip` and `tier` lines of the rule text: skip rules, tier rules checked top to bottom, and
- * the tier everything else gets. Each row shows how many achievements it decides.
+ * the "otherwise" tier everything else gets. Each row shows how many achievements it decides;
+ * the totals are in the inspector's preview.
  */
 @customElement('aa-variant-rules-editor')
 export class AaVariantRulesEditor extends LitElement {
@@ -326,22 +318,27 @@ export class AaVariantRulesEditor extends LitElement {
 		`;
 	}
 
+	private renderTierPick(tier: number, label: string, onChange: (tier: number) => void): TemplateResult {
+		return html`
+			<label class="lead tier-pick">
+				<img src=${ getAchievementTierIcon(tier) } alt="" />
+				<select
+					aria-label=${ label }
+					@change=${ (event: Event) => onChange(Number((event.currentTarget as HTMLSelectElement).value)) }
+				>
+					${ achievementTiersAscending.map(item => html`
+						<option value=${ item } ?selected=${ item === tier }>${ formatTierLabel(item) }</option>
+					`) }
+				</select>
+			</label>
+		`;
+	}
+
 	private renderTierRule(rule: AchievementTierRuleDraft, index: number): TemplateResult {
 		return html`
 			<div class="rule">
-				<label class="lead tier-pick">
-					<img src=${ getAchievementTierIcon(rule.tier) } alt="" />
-					<select
-						aria-label="Tier"
-						@change=${ (event: Event) => this.updateRule<AchievementTierRuleDraft>('tierRules', index, {
-							tier: Number((event.currentTarget as HTMLSelectElement).value),
-						}) }
-					>
-						${ achievementTiersAscending.map(tier => html`
-							<option value=${ tier } ?selected=${ tier === rule.tier }>${ formatTierLabel(tier) }</option>
-						`) }
-					</select>
-				</label>
+				${ this.renderTierPick(rule.tier, 'Tier', tier =>
+					this.updateRule<AchievementTierRuleDraft>('tierRules', index, { tier })) }
 				${ this.renderConditions('tierRules', index) }
 				<span class="sp"></span>
 				${ this.renderCount(this.summary?.tierRuleCounts[index], 'get this tier') }
@@ -350,24 +347,16 @@ export class AaVariantRulesEditor extends LitElement {
 		`;
 	}
 
+	/** The `tier bronze otherwise` line: the tier of every achievement no rule above matches. */
 	private renderDefaultTier(): TemplateResult {
+		const hasRules = this.tierRules.length > 0;
+
 		return html`
-			<div class="rule rule--default">
-				<span class="lead">${ this.tierRules.length > 0 ? 'Otherwise' : 'Tier' }</span>
-				<aa-segmented-control
-					size="small"
-					icon-only
-					.items=${ tierItems }
-					.selected=${ String(this.tier) }
-					label="Tier"
-					@segmented-control-change=${ (event: SegmentedControlChangeEvent) => {
-						event.stopPropagation();
-						this.emit({ tier: Number(event.detail) });
-					} }
-				></aa-segmented-control>
-				<b class="tier-name">${ formatTierLabel(this.tier) }</b>
+			<div class="rule">
+				${ this.renderTierPick(this.tier, 'Tier of every other achievement', tier => this.emit({ tier })) }
+				<span class="word">${ hasRules ? 'otherwise' : 'for every achievement' }</span>
 				<span class="sp"></span>
-				${ this.tierRules.length > 0 ? this.renderCount(this.summary?.defaultCount, 'get this tier') : nothing }
+				${ hasRules ? this.renderCount(this.summary?.defaultCount, 'get this tier') : nothing }
 			</div>
 		`;
 	}
@@ -384,20 +373,6 @@ export class AaVariantRulesEditor extends LitElement {
 				${ text }
 			</span>
 		`;
-	}
-
-	private renderTotals(): TemplateResult | typeof nothing {
-		const summary = this.summary;
-		if (!summary || !this.hasRules)
-			return nothing;
-
-		const parts = [
-			`${ summary.count } ${ summary.count === 1 ? 'achievement' : 'achievements' }`,
-			formatTierCounts(summary),
-			...summary.skipped > 0 ? [ `${ summary.skipped } skipped` ] : [],
-		].filter(Boolean);
-
-		return html`<p class="totals">${ parts.join(' · ') }</p>`;
 	}
 
 	private renderAddButtons(): TemplateResult | typeof nothing {
@@ -450,7 +425,6 @@ export class AaVariantRulesEditor extends LitElement {
 							${ this.tierRules.map((rule, index) => this.renderTierRule(rule, index)) }
 							${ this.renderDefaultTier() }
 						</div>
-						${ this.renderTotals() }
 					`
 					: nothing }
 			</section>

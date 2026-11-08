@@ -29,6 +29,7 @@ export type AchievementValueSource =
 	| 'constant'
 	| 'parameter'
 	| 'parameter.offset'
+	| 'parameter.ladder'
 	| 'board.leftNeighbor'
 	| 'board.rightNeighbor'
 	| 'round.throwCount'
@@ -56,6 +57,7 @@ export const achievementValueSourceLabels: Record<AchievementValueSource, string
 	'constant':                     'Number',
 	'parameter':                    'Parameter',
 	'parameter.offset':             'Parameter with numeric offset',
+	'parameter.ladder':             'Parameter moved along the ladder (1–20, 25, 50)',
 	'board.leftNeighbor':           'Left dartboard neighbor of parameter',
 	'board.rightNeighbor':          'Right dartboard neighbor of parameter',
 	'round.throwCount':             'Round throw count',

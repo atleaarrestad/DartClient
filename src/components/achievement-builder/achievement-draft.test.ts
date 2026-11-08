@@ -162,6 +162,38 @@ describe('tier and skip rules', () => {
 	});
 });
 
+describe('ladder steps', () => {
+	it('reports a rule step that leaves the ladder for some parameter value', () => {
+		const draft = validDraft({ parameters: [ parameter('n', { minimum: 1, maximum: 2 }) ] });
+		const round = draft.rule.type === 'all' ? draft.rule.children[0] : undefined;
+		if (round?.type === 'round' && round.condition.type === 'throw')
+			round.condition.hitLocation = { source: 'parameter.ladder', value: 'n', offset: -2 };
+
+		const message = '{ladder n-2} leaves the ladder (1–20, 25, 50) when {n} is 1.';
+
+		expect(messages(draft)).toEqual(expect.arrayContaining([ expect.stringContaining(message) ]));
+	});
+
+	it('reports a description step that leaves the ladder', () => {
+		const draft = validDraft({
+			parameters:          [ parameter('n', { generatorType: 'set', values: [ '20', '50' ] }) ],
+			descriptionTemplate: 'Hit {n}, then {ladder n+1}.',
+		});
+
+		expect(messages(draft))
+			.toContain('The description’s {ladder n+1} leaves the ladder (1–20, 25, 50) when {n} is 50.');
+	});
+
+	it('previews ladder steps in names and descriptions', () => {
+		const draft = validDraft({
+			parameters:          [ parameter('n', { generatorType: 'set', values: [ '19' ] }) ],
+			descriptionTemplate: 'Hit {n}, {ladder n+1} and {ladder n+2}.',
+		});
+
+		expect(getPreviews(draft)[0]?.description).toBe('Hit 19, 20 and 25.');
+	});
+});
+
 describe('rule tree helpers', () => {
 	const tree = (): AchievementRuleDraft => ({
 		id:       'root',

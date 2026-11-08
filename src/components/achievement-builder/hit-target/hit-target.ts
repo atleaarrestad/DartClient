@@ -1,7 +1,6 @@
 import {
 	bullLocation,
 	doubleBullLocation,
-	getBoardNeighbor,
 } from '../../../helpers/dartboard.js';
 import {
 	AchievementThrowType,
@@ -9,6 +8,7 @@ import {
 	throwTypeHasHitLocation,
 } from '../../../models/achievementBuilder.js';
 import type { ParameterBinding } from '../achievement-draft.js';
+import { formatParameterForm, isParameterFormSource, resolveParameterForm } from '../parameter-forms.js';
 
 /** Every throw type a target can have across the blocks that use targets. */
 export type TargetThrowType = 'any' | 'anyScoring' | AchievementThrowType;
@@ -91,23 +91,14 @@ export const resolveValueNumber = (
 
 		return value.value.trim() !== '' && Number.isInteger(number) ? number : undefined;
 	}
-	case 'parameter':
-		return parameterNumber();
-	case 'parameter.offset': {
+	default: {
+		if (!isParameterFormSource(value.source))
+			return undefined;
+
 		const number = parameterNumber();
 
-		return number === undefined ? undefined : number + (value.offset ?? 0);
+		return number === undefined ? undefined : resolveParameterForm(value, number);
 	}
-	case 'board.leftNeighbor':
-	case 'board.rightNeighbor': {
-		const number = parameterNumber();
-
-		return number === undefined
-			? undefined
-			: getBoardNeighbor(number, value.source === 'board.leftNeighbor' ? 'left' : 'right');
-	}
-	default:
-		return undefined;
 	}
 };
 
@@ -147,23 +138,8 @@ export const describeTarget = (target: HitTarget, binding?: ParameterBinding): s
 };
 
 /** A location that depends on a parameter without a preview value. */
-const formatUnresolvedLocation = (value: AchievementValueDraft): string => {
-	switch (value.source) {
-	case 'parameter':
-		return `{${ value.value }}`;
-	case 'parameter.offset': {
-		const offset = value.offset ?? 0;
-
-		return `{${ value.value }${ offset < 0 ? '-' : '+' }${ Math.abs(offset) }}`;
-	}
-	case 'board.leftNeighbor':
-		return `{left ${ value.value }}`;
-	case 'board.rightNeighbor':
-		return `{right ${ value.value }}`;
-	default:
-		return value.value;
-	}
-};
+const formatUnresolvedLocation = (value: AchievementValueDraft): string =>
+	isParameterFormSource(value.source) ? formatParameterForm(value) : value.value;
 
 const typeWords: Record<TargetThrowType, string> = {
 	any:        '',

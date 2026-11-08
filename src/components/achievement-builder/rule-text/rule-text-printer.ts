@@ -8,6 +8,7 @@ import type {
 } from '../../../models/achievementBuilder.js';
 import { formatAchievementRule } from '../achievement-rule-presentation.js';
 import { HitTarget, HitTargetContextId, hitTargetContexts, isBullLocation } from '../hit-target/hit-target.js';
+import { formatParameterForm, isParameterFormSource } from '../parameter-forms.js';
 import {
 	allRoundStatuses,
 	bullWord,
@@ -34,25 +35,14 @@ export interface RuleTextPrintResult {
 const indentUnit = '  ';
 const progressionTargetsPerLine = 10;
 
-/** A hit location inside a target: 20, {n}, {n+1}, {left n}. */
+/** A hit location inside a target: 20, {n}, {n+1}, {left n}, {ladder n+1}. */
 const printSegment = (value: AchievementValueDraft): string => {
-	switch (value.source) {
-	case 'constant':
+	if (value.source === 'constant')
 		return value.value;
-	case 'parameter':
-		return `{${ value.value }}`;
-	case 'parameter.offset': {
-		const offset = value.offset ?? 0;
+	if (isParameterFormSource(value.source))
+		return formatParameterForm(value);
 
-		return `{${ value.value }${ offset < 0 ? '-' : '+' }${ Math.abs(offset) }}`;
-	}
-	case 'board.leftNeighbor':
-		return `{left ${ value.value }}`;
-	case 'board.rightNeighbor':
-		return `{right ${ value.value }}`;
-	default:
-		return findFieldBySource(value.source)?.name ?? value.source;
-	}
+	return findFieldBySource(value.source)?.name ?? value.source;
 };
 
 /** A value in a comparison or count: a number, a parameter form or a field name. */

@@ -912,3 +912,41 @@ describe('tier and skip rules', () => {
 		expect(restored?.skipRules).toEqual(skipRules);
 	});
 });
+
+describe('ladder steps', () => {
+	const ladderSequence = (direction: 1 | -1): AstNode => astAnyRound([ 'Valid', 'Victory' ], {
+		kind:       'sequence',
+		collection: roundThrows,
+		items:      [ 0, 1, 2 ].map(step => astAnd(
+			astHitLocationIs(step === 0
+				? astParameter('start')
+				: { kind: 'ladderStep', number: astParameter('start'), offset: step * direction }),
+			astAnyScoringType(),
+		)),
+	});
+
+	it('restores the built-in Climbing sequence as ladder steps', () => {
+		expect(restoreRule(ladderSequence(1))).toMatchObject({
+			children: [ {
+				type:      'round',
+				condition: {
+					type:    'sequence',
+					targets: [
+						{ hitLocation: { source: 'parameter', value: 'start' } },
+						{ hitLocation: { source: 'parameter.ladder', value: 'start', offset: 1 } },
+						{ hitLocation: { source: 'parameter.ladder', value: 'start', offset: 2 } },
+					],
+				},
+			} ],
+		});
+	});
+
+	it('compiles a ladder step back to the stored block', () => {
+		const rule = restoreRule(ladderSequence(-1))!;
+
+		expect(astNodesOfKind(compileRoot(rule, [ rangeParameter('start', 3, 20) ]), 'ladderStep')).toEqual([
+			{ kind: 'ladderStep', number: astParameter('start'), offset: -1 },
+			{ kind: 'ladderStep', number: astParameter('start'), offset: -2 },
+		]);
+	});
+});

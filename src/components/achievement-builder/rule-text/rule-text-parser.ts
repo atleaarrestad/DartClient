@@ -770,16 +770,19 @@ class RuleTextParser {
 		this.fail(token, valueHelp);
 	}
 
-	/** `{n}`, `{n+2}`, `{n-1}`, `{left n}` or `{right n}`; the opening brace is next. */
+	/**
+	 * `{n}`, `{n+1}`, `{n-1}`, `{left n}`, `{right n}` or `{ladder n+1}`; the opening brace is
+	 * next. A ladder step needs its number of steps.
+	 */
 	private parseParameterForm(): AchievementValueDraft {
 		const open = this.next();
 		const first = this.next();
 		if (first.type !== 'word')
 			this.fail(first, 'Expected a parameter name inside { }.');
 
-		let side: 'left' | 'right' | undefined;
+		let side: 'left' | 'right' | 'ladder' | undefined;
 		let nameToken = first;
-		if ((first.text === 'left' || first.text === 'right') && this.peek()?.type === 'word') {
+		if ((first.text === 'left' || first.text === 'right' || first.text === 'ladder') && this.peek()?.type === 'word') {
 			side = first.text;
 			nameToken = this.next();
 		}
@@ -787,7 +790,7 @@ class RuleTextParser {
 		this.checkParameter(nameToken);
 
 		let offset: number | undefined;
-		if (!side && (this.is('+') || this.is('-'))) {
+		if ((!side || side === 'ladder') && (this.is('+') || this.is('-'))) {
 			const sign = this.next().text === '-' ? -1 : 1;
 			const amount = this.next();
 			if (amount.type !== 'number')
@@ -802,6 +805,14 @@ class RuleTextParser {
 
 		this.next();
 
+		if (side === 'ladder') {
+			if (!offset) {
+				const addStep = { label: 'Add +1', changes: [ { from: nameToken.to, to: nameToken.to, insert: '+1' } ] };
+				this.fail(nameToken, `Say how many steps along the ladder, such as {ladder ${ nameToken.text }+1}.`, [ addStep ]);
+			}
+
+			return { source: 'parameter.ladder', value: nameToken.text, offset };
+		}
 		if (side)
 			return { source: side === 'left' ? 'board.leftNeighbor' : 'board.rightNeighbor', value: nameToken.text };
 		if (offset !== undefined)

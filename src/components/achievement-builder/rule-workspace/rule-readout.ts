@@ -10,6 +10,7 @@ import {
 import type { ParameterBinding } from '../achievement-draft.js';
 import { formatAchievementRule } from '../achievement-rule-presentation.js';
 import { describeTarget, HitTarget, resolveValueNumber } from '../hit-target/hit-target.js';
+import { formatParameterForm } from '../parameter-forms.js';
 import { allRoundStatuses, operatorWords } from '../rule-text/rule-text-vocabulary.js';
 
 export interface ReadoutItem {
@@ -44,18 +45,12 @@ export const describeValue = (value: AchievementValueDraft, binding?: ParameterB
 		return bound === undefined ? `{${ value.value }}` : String(bound);
 	}
 	case 'parameter.offset':
+	case 'parameter.ladder':
 	case 'board.leftNeighbor':
 	case 'board.rightNeighbor': {
 		const resolved = resolveValueNumber(value, binding);
-		if (resolved !== undefined)
-			return String(resolved);
-		if (value.source === 'parameter.offset') {
-			const offset = value.offset ?? 0;
 
-			return `{${ value.value }${ offset < 0 ? '-' : '+' }${ Math.abs(offset) }}`;
-		}
-
-		return `{${ value.source === 'board.leftNeighbor' ? 'left' : 'right' } ${ value.value }}`;
+		return resolved === undefined ? formatParameterForm(value) : String(resolved);
 	}
 	default:
 		return achievementValueSourceLabels[value.source].toLowerCase();

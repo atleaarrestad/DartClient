@@ -67,7 +67,7 @@ const ruleTextLanguage = StreamLanguage.define<null>({
 			return null;
 		if (stream.match(/^#.*/))
 			return 'comment';
-		if (stream.match(/^\{(?:left |right )?[A-Za-z_]\w*(?:[+-]\d+)?\}/))
+		if (stream.match(/^\{(?:left |right |ladder )?[A-Za-z_]\w*(?:[+-]\d+)?\}/))
 			return 'string';
 		if (stream.match(/^(?:round|game)\.[A-Za-z]+/))
 			return 'propertyName';

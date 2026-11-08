@@ -100,6 +100,11 @@ const formatAchievementExpression = (value: unknown): string => {
 			? `${ side } of ${ format(node['number']) }`
 			: `${ Math.abs(offset) } ${ side } of ${ format(node['number']) }`;
 	}
+	case 'ladderStep': {
+		const offset = Number(node['offset']);
+
+		return `${ Math.abs(offset) } ${ offset < 0 ? 'down' : 'up' } the ladder from ${ format(node['number']) }`;
+	}
 	case 'hasHitSegment':
 		return `hit ${ format(node['throwType']) } ${ format(node['hitLocation']) }`;
 	}
@@ -123,6 +128,14 @@ export const formatAchievementValue = (value: AchievementValueDraft): string => 
 		return offset < 0
 			? `${ value.value } - ${ Math.abs(offset) }`
 			: `${ value.value } + ${ offset }`;
+	}
+	case 'parameter.ladder': {
+		if (!value.value)
+			return 'Choose a ladder step';
+
+		const offset = value.offset ?? 0;
+
+		return `${ Math.abs(offset) } ${ offset < 0 ? 'down' : 'up' } the ladder from ${ value.value }`;
 	}
 	case 'board.leftNeighbor':
 		return value.value ? `left of ${ value.value }` : 'Choose left neighbor';

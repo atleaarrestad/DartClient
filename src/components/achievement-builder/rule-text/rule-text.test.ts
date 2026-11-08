@@ -413,3 +413,23 @@ describe('tier and skip lines', () => {
 		expect(labels('')).toEqual(expect.arrayContaining([ 'tier', 'skip if' ]));
 	});
 });
+
+describe('ladder steps in rule text', () => {
+	const start: AchievementParameterDraft = { ...n, id: 'p-start', key: 'start' };
+	const lines = (...items: string[]): string => items.join(String.fromCharCode(10));
+
+	it('reads and writes {ladder start+1}', () => {
+		const text = lines('round any {', '  sequence {start} > {ladder start+1} > {ladder start+2}', '}');
+		const result = parseRuleText(text, { parameters: [ start ] });
+
+		expect(hasErrors(result.diagnostics)).toBe(false);
+		expect(printRuleText(result.value!).text).toBe(text);
+	});
+
+	it('asks for the number of steps', () => {
+		const { diagnostics } = parseRuleText(lines('round any {', '  hit {ladder start}', '}'), { parameters: [ start ] });
+
+		expect(diagnostics[0]?.message).toBe('Say how many steps along the ladder, such as {ladder start+1}.');
+		expect(diagnostics[0]?.fixes?.[0]?.label).toBe('Add +1');
+	});
+});

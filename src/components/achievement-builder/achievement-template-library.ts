@@ -233,27 +233,30 @@ export class AaAchievementTemplateLibrary extends LitElement {
 		return html`
 			<nav class="library" aria-label="Achievement library">
 				<div class="library__top">
-					<input
-						type="search"
-						aria-label="Search achievements"
-						placeholder="Search achievements…"
-						.value=${ this.filter }
-						@input=${ (event: InputEvent) => {
-							this.filter = (event.currentTarget as HTMLInputElement).value;
-						} }
-					/>
-					${ this.readOnly
-						? nothing
-						: html`
-							<button
-								type="button"
-								class="new-button"
-								@click=${ () => this.openTemplate({ templateId: '' }) }
-							>
-								<i class="fa-solid fa-plus" aria-hidden="true"></i>
-								New achievement
-							</button>
-						` }
+					<div class="search">
+						<input
+							type="search"
+							aria-label="Search achievements"
+							placeholder="Search achievements…"
+							.value=${ this.filter }
+							@input=${ (event: InputEvent) => {
+								this.filter = (event.currentTarget as HTMLInputElement).value;
+							} }
+						/>
+						${ this.readOnly
+							? nothing
+							: html`
+								<button
+									type="button"
+									class="search__new"
+									title="New achievement"
+									aria-label="New achievement"
+									@click=${ () => this.openTemplate({ templateId: '' }) }
+								>
+									<i class="fa-solid fa-plus" aria-hidden="true"></i>
+								</button>
+							` }
+					</div>
 				</div>
 				<div class="library__list">
 					${ this.renderNewDraftRow() }

@@ -100,6 +100,40 @@ In that case the design-time factory loads the repo's `.env`, which **replaces**
 `DB_CONNECTION_STRING`. Pass `ASPNETCORE_ENVIRONMENT=Production` to be sure which database is
 migrated.
 
+## Ladder steps (2026-11-08, unstaged in both repos)
+
+Climbing and Descending were split because their bull ends don't follow `{start}+1`:
+- Climbing 19 is 19 → 20 → 25.
+- Descending 50 is 50 → 25 → 20.
+
+A **ladder step** value moves along 1–20, then 25 and 50:
+- In rule text it is `{ladder start+1}`. The board neighbours `{left n}` / `{right n}` and arithmetic `{n+1}` still exist.
+- AST: `{"kind":"ladderStep","number":<constant or parameter>,"offset":k}`.
+- Bounds: the compiler rejects a step that leaves the ladder for any parameter value, for example `{start} = 50` with +1. So does the client's draft validation.
+- Names and descriptions accept the same forms (`{n+1}`, `{left n}`, `{ladder n+1}`). This is the backend's `AchievementTextTemplate` and the client's `parameter-forms.ts`. A token with no value for some variant is an error.
+
+Merged in the catalog:
+- Climbing is one template for 1–20; 19 is gold and 20 platinum.
+- Descending is one template for {3–20, 25, 50}; 25 is gold and 50 platinum.
+- Descending 2 and 1 stay separate because they end on the rim.
+- Templates per season: 42 → 38.
+- Descriptions now read "Hit 5, 6 and 7 …" instead of "Hit 5, 5+1 and 5+2 …".
+
+Code:
+- Backend: `AchievementLadder`, `AchievementTextTemplate`, and `ladderStep` in the compiler, evaluator, prediction analyzer and catalog block list.
+- Client: `helpers/dartboard.ts` (`getLadderStep`), `parameter-forms.ts` (format, resolve, templates), `parameter.ladder` value source (compile/restore, picker "Ladder" mode, value chip, parser/printer, completions, readout).
+
+Tests:
+- Backend: `LadderStepTests.cs`, `TextTemplateTests`, golden seed SQL (length 225444).
+- Client: `parameter-forms.test.ts` plus additions in the compile, draft and rule-text tests.
+
+Verified on a fresh migrated copy, `dartprodcopy_ladder`, against `dartprodcopy_head`:
+- Unlocks (802), progression (360) and MMR (40) are identical.
+- Instance names and tiers are identical. Bindings changed only for the former one-offs.
+- Descriptions changed on 72 rows (Climbing 1–18, Descending 3–20 in both seasons).
+
+The local backend's `local.env` points at `dartprodcopy_ladder`, with season Beta extended to 2027-11-06.
+
 ## Not done / follow-ups
 
 - The panel's layout was not checked in a browser.

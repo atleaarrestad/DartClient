@@ -37,23 +37,47 @@ button:focus-visible {
 	outline-offset: 2px;
 }
 
-.new-button {
+/* Search with the "new achievement" button inside the same field. */
+.search {
 	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.4rem;
-	padding: 0.45rem 0.6rem;
+	overflow: hidden;
 	background: var(--color-surface-plain);
 	border: 2px solid var(--color-border-strong);
 	border-radius: var(--radius-control-sm);
 	box-shadow: var(--shadow-brutal-sm);
-	font: inherit;
-	font-size: var(--font-size-sm);
-	font-weight: 700;
+}
+
+.search:focus-within {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.search input {
+	flex: 1;
+	border: 0;
+	border-radius: 0;
+}
+
+.search input:focus-visible,
+.search__new:focus-visible {
+	outline: none;
+}
+
+.search__new {
+	display: grid;
+	flex: none;
+	place-items: center;
+	padding: 0 0.75rem;
+	background: var(--color-surface-plain);
+	border: 0;
+	border-left: 2px solid var(--color-border-strong);
+	color: inherit;
+	font-size: 1rem;
 	cursor: pointer;
 }
 
-.new-button:hover {
+.search__new:hover,
+.search__new:focus-visible {
 	background: var(--color-status-info);
 }
 

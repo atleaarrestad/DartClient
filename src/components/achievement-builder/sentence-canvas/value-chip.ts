@@ -42,7 +42,7 @@ const valueOfChoice = (choice: string, current: AchievementValueDraft): Achievem
 	const source = choice.slice(0, separator) as AchievementValueSource;
 	const key = choice.slice(separator + 1);
 
-	return source === 'parameter.offset'
+	return source === 'parameter.offset' || source === 'parameter.ladder'
 		? { source, value: key, offset: current.source === source ? current.offset ?? 1 : 1 }
 		: { source, value: key };
 };
@@ -87,6 +87,13 @@ export const renderValueChip = ({
 						?selected=${ choice === `parameter.offset:${ parameter.key }` }
 					>{${ parameter.key }} + offset</option>
 				`) }
+				${ parameters.filter(parameter => fits(parameter, 'parameter.ladder')).map(parameter => html`
+					<option
+						value=${ `parameter.ladder:${ parameter.key }` }
+						?selected=${ choice === `parameter.ladder:${ parameter.key }` }
+						title="Steps along 1–20, 25, 50"
+					>{${ parameter.key }} along the ladder</option>
+				`) }
 				${ parameters.filter(parameter => fits(parameter, 'board.leftNeighbor')).flatMap(parameter =>
 					([ [ 'board.leftNeighbor', 'left' ], [ 'board.rightNeighbor', 'right' ] ] as const).map(([ source, side ]) => html`
 						<option value=${ `${ source }:${ parameter.key }` } ?selected=${ choice === `${ source }:${ parameter.key }` }>
@@ -117,13 +124,13 @@ export const renderValueChip = ({
 					/>
 				`
 				: nothing }
-			${ value.source === 'parameter.offset'
+			${ value.source === 'parameter.offset' || value.source === 'parameter.ladder'
 				? html`
 					<input
 						class="chip-number"
 						type="number"
 						step="1"
-						aria-label=${ `${ label } offset` }
+						aria-label=${ `${ label } ${ value.source === 'parameter.ladder' ? 'ladder steps' : 'offset' }` }
 						.value=${ String(value.offset ?? 0) }
 						@change=${ (event: Event) => onChange({
 							...value,

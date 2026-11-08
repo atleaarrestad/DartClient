@@ -135,11 +135,6 @@ input:focus-visible {
 	border-style: dashed;
 }
 
-.rule--default {
-	background: none;
-	border-color: transparent;
-}
-
 .lead {
 	min-width: 64px;
 	font-weight: 700;
@@ -159,14 +154,6 @@ input:focus-visible {
 .tier-pick img {
 	width: 22px;
 	height: 22px;
-}
-
-.tier-name {
-	font-weight: 700;
-}
-
-aa-segmented-control {
-	flex: none;
 }
 
 /* ── Conditions ───────────────────────────────────────────────────── */
@@ -236,10 +223,4 @@ code.parameter {
 
 .count--none {
 	background: var(--color-status-warning, #ffd166);
-}
-
-.totals {
-	margin: 0;
-	font-weight: 600;
-	opacity: 0.75;
 }

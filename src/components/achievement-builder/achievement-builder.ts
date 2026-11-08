@@ -10,6 +10,7 @@ import './achievement-template-library.js';
 import { html, LitElement, nothing, PropertyValues, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { keyed } from 'lit/directives/keyed.js';
+import { live } from 'lit/directives/live.js';
 
 import { faIcons } from '../../faIcons.js';
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
@@ -1077,7 +1078,7 @@ export class AaAchievementBuilder extends LitElement {
 				${ this.renderSection(
 					'status',
 					'Status',
-					`${ this.versionLabel }${ template?.isDisabled ? ' · Disabled' : '' }`,
+					[ ...this.statusNotes, ...template ? [ template.isDisabled ? 'Disabled' : 'Enabled' ] : [] ].join(' · '),
 					() => this.renderStatusSection(),
 					false,
 				) }
@@ -1109,49 +1110,43 @@ export class AaAchievementBuilder extends LitElement {
 		`;
 	}
 
-	/** Which version is open: "Draft v2", "Built-in v1", "New draft from v1" or a new one. */
-	private get versionLabel(): string {
+	/**
+	 * What the editor is doing with the open version, as far as the library doesn't show it
+	 * (it already shows the template, its versions and which one is open).
+	 */
+	private get statusNotes(): string[] {
 		const template = this.selectedTemplate;
 		const version = this.selectedVersion;
 		if (!template || !version)
-			return 'New, not saved yet';
-		if (template.isBuiltIn)
-			return `Built-in v${ version.versionNumber }`;
-		if (version.status === 'Draft')
-			return `Draft v${ version.versionNumber }`;
-		// An unlocked published version: saving creates a new draft from it.
-		if (!this.readOnlyVersion)
-			return `New draft from v${ version.versionNumber }`;
+			return [ 'Not saved yet' ];
 
-		return `Published v${ version.versionNumber }`;
+		return [
+			...this.readOnlyVersion ? [ 'Read-only' ] : [],
+			...version.status === 'Published' && !this.readOnlyVersion ? [ 'Saving creates a new draft' ] : [],
+			...this.hasUnsavedChanges ? [ 'Unsaved changes' ] : [],
+		];
 	}
 
 	/**
-	 * The open version's state and what can be done with the template: unlock a published
-	 * version, duplicate it, enable or disable it. These act on the saved template, not the
+	 * The open version's state and what can be done with the template: enable or disable it,
+	 * unlock a published version, duplicate it. These act on the saved template, not the
 	 * draft, so the section works on read-only versions too.
 	 */
 	private renderStatusSection(): TemplateResult {
 		const template = this.selectedTemplate;
 		const disabled = !!template?.isDisabled;
 		const canManage = !this.viewOnly && !this.locked && !!template;
-		const details = [
-			this.versionLabel,
-			...this.readOnlyVersion ? [ 'read-only' ] : [],
-			...this.hasUnsavedChanges ? [ 'unsaved changes' ] : [],
-		];
+		const notes = this.statusNotes;
 
 		return html`
-			<p class="status-line">
-				<b>${ details.join(' · ') }</b>
-				${ template
-					? html`
-						<span class="status-state ${ disabled ? 'status-state--disabled' : '' }">
-							${ disabled ? 'Disabled' : 'Enabled' }
-						</span>
-					`
-					: nothing }
-			</p>
+			${ template || notes.length > 0
+				? html`
+					<div class="status-line">
+						<b>${ notes.join(' · ') }</b>
+						${ template ? this.renderEnabledSwitch(template, disabled, canManage) : nothing }
+					</div>
+				`
+				: nothing }
 			${ disabled
 				? html`
 					<p class="section__intro">
@@ -1160,11 +1155,37 @@ export class AaAchievementBuilder extends LitElement {
 					</p>
 				`
 				: nothing }
-			${ canManage ? this.renderStatusActions(template!, disabled) : nothing }
+			${ canManage ? this.renderStatusActions(template!) : nothing }
 		`;
 	}
 
-	private renderStatusActions(template: AchievementTemplateResponse, disabled: boolean): TemplateResult {
+	/** One switch both shows and changes whether the template counts. */
+	private renderEnabledSwitch(
+		template: AchievementTemplateResponse,
+		disabled: boolean,
+		canManage: boolean,
+	): TemplateResult {
+		return html`
+			<label class="switch" title=${ canManage ? '' : 'Unlock editing to enable or disable it' }>
+				<input
+					type="checkbox"
+					role="switch"
+					.checked=${ live(!disabled) }
+					?disabled=${ !canManage }
+					@change=${ (event: Event) => {
+						const input = event.currentTarget as HTMLInputElement;
+						// Cancelled: keep showing the saved state.
+						if (!this.requestDisabledChange(template.id, !input.checked))
+							input.checked = !disabled;
+					} }
+				/>
+				<span class="switch__track" aria-hidden="true"></span>
+				<span>${ disabled ? 'Disabled' : 'Enabled' }</span>
+			</label>
+		`;
+	}
+
+	private renderStatusActions(template: AchievementTemplateResponse): TemplateResult {
 		return html`
 			<div class="status-actions">
 				${ this.readOnlyVersion && !template.isBuiltIn
@@ -1179,26 +1200,21 @@ export class AaAchievementBuilder extends LitElement {
 					<i class="fa-solid fa-copy" aria-hidden="true"></i>
 					Duplicate as new
 				</aa-button>
-				<aa-button
-					size="small"
-					variant=${ disabled ? 'primary' : 'ghost' }
-					@click=${ () => this.requestDisabledChange(template.id, !disabled) }
-				>
-					<i class="fa-solid ${ disabled ? 'fa-toggle-on' : 'fa-toggle-off' }" aria-hidden="true"></i>
-					${ disabled ? 'Enable' : 'Disable' }
-				</aa-button>
 			</div>
 		`;
 	}
 
-	private requestDisabledChange(templateId: string, disabled: boolean): void {
+	/** Asks the page to enable or disable the template; false when the user cancels. */
+	private requestDisabledChange(templateId: string, disabled: boolean): boolean {
 		if (disabled && !window.confirm('Disable this achievement? It stops counting for every player until you enable it again.'))
-			return;
+			return false;
 
 		this.dispatchEvent(new CustomEvent<AchievementTemplateDisabledChangeDetail>(
 			achievementTemplateDisabledChangeEventName,
 			{ detail: { templateId, disabled }, bubbles: true, composed: true },
 		));
+
+		return true;
 	}
 
 	private renderCanvasPane(): TemplateResult {
