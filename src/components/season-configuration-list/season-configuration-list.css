@@ -33,6 +33,8 @@
 
 .configuration-item {
 	min-width: 0;
+	/* Set per card, so a shorter last row still fills the width (see updateColumnCount). */
+	grid-column: span var(--configuration-span, 1);
 }
 
 .configuration-item::part(card) {
@@ -136,5 +138,9 @@
 @media (max-width: 700px) {
 	.configuration-panel {
 		grid-template-columns: 1fr;
+	}
+
+	.configuration-item {
+		grid-column: auto;
 	}
 }

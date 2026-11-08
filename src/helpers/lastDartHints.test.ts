@@ -333,7 +333,7 @@ describe('groupByName', () => {
 		]);
 
 		expect(groups.map(group => [ group.name, group.hints.length ])).toEqual([
-			[ 'Score At Least 50 (Modified · Raw)', 2 ],
+			[ 'Score At Least 50 (Modified, Raw)', 2 ],
 			[ 'Classic 20', 1 ],
 		]);
 	});

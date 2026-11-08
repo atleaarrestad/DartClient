@@ -365,7 +365,7 @@ export function getHighestTier(hints: readonly LastDartHint[]): AchievementTier 
 }
 
 export interface HintGroup {
-	/** "Score At Least 50 (Modified · Raw)" for achievements that differ only in brackets. */
+	/** "Score At Least 50 (Modified, Raw)" for achievements that differ only in brackets. */
 	name:  string;
 	hints: LastDartHint[];
 }
@@ -388,7 +388,7 @@ export function groupByName(hints: readonly LastDartHint[]): HintGroup[] {
 
 	return [ ...groups.entries() ].map(([ base, group ]) => ({
 		name: group.hints.length > 1 && group.kinds.length === group.hints.length
-			? `${ base } (${ group.kinds.join(' · ') })`
+			? `${ base } (${ group.kinds.join(', ') })`
 			: group.hints.length > 1 ? `${ base } ×${ group.hints.length }` : group.hints[0]!.name,
 		hints: group.hints,
 	}));

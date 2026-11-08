@@ -79,11 +79,22 @@ export class SeasonConfigurationList extends LitElement {
 			Math.floor((panel.clientWidth + gap) / (minimumItemWidth + gap)),
 		);
 		const rowCount = Math.ceil(this.items.length / maximumColumns);
-		const balancedColumns = Math.ceil(this.items.length / rowCount);
-		const columnCount = String(Math.max(1, balancedColumns));
+		const columns = Math.max(1, Math.ceil(this.items.length / rowCount));
+		// A shorter last row shares the full width too, so no cell is left empty: with
+		// columns × lastRowCount tracks, full rows' items span lastRowCount tracks each and
+		// the last row's span columns each.
+		const lastRowCount = this.items.length % columns || columns;
+		const trackCount = String(lastRowCount === columns ? columns : columns * lastRowCount);
 
-		if (panel.style.getPropertyValue('--configuration-columns') !== columnCount)
-			panel.style.setProperty('--configuration-columns', columnCount);
+		if (panel.style.getPropertyValue('--configuration-columns') !== trackCount)
+			panel.style.setProperty('--configuration-columns', trackCount);
+
+		const cards = [ ...panel.querySelectorAll<HTMLElement>(':scope > .configuration-item') ];
+		cards.forEach((card, index) => {
+			const span = lastRowCount === columns ? 1 : index >= cards.length - lastRowCount ? columns : lastRowCount;
+			if (card.style.getPropertyValue('--configuration-span') !== String(span))
+				card.style.setProperty('--configuration-span', String(span));
+		});
 	}
 
 	private activateItem(id: SeasonConfigurationItemId): void {
