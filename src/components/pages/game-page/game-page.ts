@@ -3,7 +3,7 @@ import '../../aa-last-dart-hints/aa-last-dart-hints.js';
 import '../../../ui/button/aa-button.js';
 import '../../../ui/error-state/aa-error-state.js';
 
-import { html, unsafeCSS } from 'lit';
+import { html, nothing, unsafeCSS } from 'lit';
 import type { PropertyValues } from 'lit';
 import { LitElement } from 'lit';
 import { property, state } from 'lit/decorators.js';
@@ -17,7 +17,8 @@ import {
 	applyGameTrackerDelta,
 	ApplyGameTrackerDeltaResult,
 } from '../../../helpers/applyGameTrackerDelta.js';
-import { isLastDartWindowOpen, TierRewards } from '../../../helpers/lastDartHints.js';
+import { getFinishValue, getLastDartRoundIndex, isLastDartUp, TierRewards } from '../../../helpers/lastDartHints.js';
+import type { ThrowPosition } from '../../../helpers/throwFocusNavigation.js';
 import { sum } from '../../../helpers/sum.js';
 import { AchievementTier, achievementTiersAscending, RoundStatus } from '../../../models/enums.js';
 import { GameTracker, GameTrackerDelta, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../../models/schemas.js';
@@ -40,10 +41,15 @@ import {
 } from '../../../services/signalRService.js';
 import { CacheService } from '../../../services/cacheService.js';
 import { getErrorMessage } from '../../../helpers/getErrorMessage.js';
-import type {
-	AchievementInstanceResponse,
-	LastDartHints,
-} from '../../../models/achievementBuilderApi.js';
+import type { AchievementInstanceResponse } from '../../../models/achievementBuilderApi.js';
+import { LastDartHintsLoader, LastDartHintsTarget } from './last-dart-hints-loader.js';
+
+/** Below this, player rows stop shrinking and the player grid scrolls. */
+const minimumPlayerRowHeight = 240;
+/** How much taller than usual the last-dart hints may grow into space the players leave. */
+const maximumHintsGrowthRem = 8;
+/** The last-dart hints move into the last player row when it has this many free cells. */
+const minimumHintPanelCells = 2;
 
 export class GamePage extends LitElement {
 
@@ -58,12 +64,15 @@ export class GamePage extends LitElement {
 	@state() protected syncStatusMessage = 'Live sync offline';
 	@state() protected browserOnline = navigator.onLine;
 	@state() protected visibleRoundCapacity = 10;
+	/** Free cells at the end of the last player row that hold the hints; 0 keeps them at the bottom. */
+	@state() private hintPanelCells = 0;
+	/** Extra height for the hints at the bottom: the space under the last player row, in px. */
+	@state() private hintsGrowth = 0;
 	@state() protected maximumRounds: number | null = null;
 	@state() protected configuredMaximumRounds: number | null = null;
 	@state() protected compactAchievementPlayers: ReadonlySet<string> = new Set();
-	@state() protected lastDartHintsByPlayer: Record<string, LastDartHints> = {};
-	// Players with a throw being saved: their hints are about to be replaced, so hide them.
-	@state() private savingThrowPlayers: ReadonlySet<string> = new Set();
+	// Throws being saved, per player: hints wait until the server has all of them.
+	@state() private savingThrowCounts: ReadonlyMap<string, number> = new Map();
 
 	protected dataService: DataService;
 	protected seasonService: SeasonService;
@@ -80,8 +89,13 @@ export class GamePage extends LitElement {
 	protected selectedCellElement?: aaDartThrow = undefined;
 	@state() protected isActiveGame: boolean = false;
 	protected projectedV2AchievementsByPlayer: Record<string, AchievementInstanceResponse[]> = {};
-	// Breaks ties when several players have hints, for example while correcting old rounds.
-	private lastHintedPlayerId?: string;
+	/** The player whose throw changed last; spectators follow them (see getCurrentThrow). */
+	private lastThrowingPlayerId?: string;
+	/** Hints for the dart being thrown, when it is a last dart; fetched apart from saving throws. */
+	private readonly lastDartHints = new LastDartHintsLoader(
+		this,
+		(gameId, playerId, signal) => this.gameService.getLastDartHints(gameId, playerId, signal),
+	);
 	protected scrollLeader: HTMLElement | null = null;
 	protected signalRService: SignalRService;
 	protected gameLiveService: GameLiveService;
@@ -451,7 +465,6 @@ export class GamePage extends LitElement {
 			this.gameRevisionId = gameTracker.id;
 			this.gameRevision = 0;
 			this.projectedV2AchievementsByPlayer = {};
-			this.lastDartHintsByPlayer = {};
 		}
 		else if (gameTracker.revision < this.gameRevision) {
 			return false;
@@ -468,7 +481,6 @@ export class GamePage extends LitElement {
 		this.projectedV2AchievementsByPlayer = {
 			...gameTracker.projectedV2AchievementsByPlayer,
 		};
-		this.lastDartHintsByPlayer = { ...gameTracker.lastDartHintsByPlayer };
 		this.reorderPlayersByMMR();
 
 		if (roundCountChanged)
@@ -490,7 +502,6 @@ export class GamePage extends LitElement {
 			configuredMaximumRounds:         this.configuredMaximumRounds,
 			playersRounds:                   this.players,
 			projectedV2AchievementsByPlayer: this.projectedV2AchievementsByPlayer,
-			lastDartHintsByPlayer:           this.lastDartHintsByPlayer,
 		}, delta);
 
 		if (result.status !== 'applied')
@@ -501,11 +512,7 @@ export class GamePage extends LitElement {
 		this.configuredMaximumRounds = result.state.configuredMaximumRounds;
 		this.players = result.state.playersRounds;
 		this.projectedV2AchievementsByPlayer = result.state.projectedV2AchievementsByPlayer;
-		this.lastDartHintsByPlayer = result.state.lastDartHintsByPlayer;
-		const hintedPlayerId = Object.entries(delta.lastDartHintsByPlayer)
-			.find(([ , hints ]) => hints !== null)?.[0];
-		if (hintedPlayerId)
-			this.lastHintedPlayerId = hintedPlayerId;
+		this.lastThrowingPlayerId = delta.playerRoundDeltas.at(-1)?.playerId ?? this.lastThrowingPlayerId;
 
 		const newRoundCount = Math.max(...this.players.map(player => player.rounds.length), 0);
 		if (oldRoundCount !== newRoundCount)
@@ -648,14 +655,18 @@ export class GamePage extends LitElement {
 			Number.parseFloat(styles.paddingTop)
 			+ Number.parseFloat(styles.paddingBottom);
 		const rowGap = Number.parseFloat(styles.rowGap) || 0;
+		// As if the hints strip had its usual height (or with no strip, when the hints are a
+		// panel): growing the strip into the space the rows leave (below) never changes the rows.
 		const availableHeight =
 			playerContainer.clientHeight
+			+ this.getAppliedHintsGrowth()
 			- verticalPadding
 			- rowGap * (rowCount - 1);
 		const availableRowHeight = Math.max(
-			240,
+			minimumPlayerRowHeight,
 			Math.floor(availableHeight / rowCount),
 		);
+		const hintsMoved = this.placeLastDartHints(playerCards, rowCount, availableHeight);
 		const playerLayouts = playerCards.map(playerCard => {
 			const roundsViewport =
 				playerCard.querySelector<HTMLElement>('.rounds-scroll-container');
@@ -702,7 +713,49 @@ export class GamePage extends LitElement {
 		if (playerContainer.style.getPropertyValue('--player-row-height') !== rowHeightValue)
 			playerContainer.style.setProperty('--player-row-height', rowHeightValue);
 
+		// Right after a move the space was measured with the hints elsewhere: wait for the next pass.
+		this.growLastDartHints(hintsMoved ? 0 : availableHeight - rowCount * rowHeight);
 		this.updateAchievementLayouts(playerCards);
+	}
+
+	/**
+	 * The hints take the free cells at the end of the last player row when there are enough
+	 * of them and every row is on screen (the grid doesn't scroll); otherwise they stay along
+	 * the bottom. Only the cards are measured, so where the hints are now doesn't matter, and
+	 * the choice only changes with the players or the window, never between darts.
+	 */
+	private placeLastDartHints(playerCards: HTMLElement[], rowCount: number, availableHeight: number): boolean {
+		const firstRowTop = Math.round(playerCards[0]!.offsetTop);
+		const columnCount = playerCards.filter(card => Math.round(card.offsetTop) === firstRowTop).length;
+		const freeCells = columnCount * rowCount - playerCards.length;
+		const rowsFit = availableHeight / rowCount >= minimumPlayerRowHeight;
+		const cells = freeCells >= minimumHintPanelCells && rowsFit ? freeCells : 0;
+		const moved = (this.hintPanelCells > 0) !== (cells > 0);
+		if (this.hintPanelCells !== cells)
+			this.hintPanelCells = cells;
+
+		return moved;
+	}
+
+	/**
+	 * Lets the hints along the bottom take the space under the last player row, so there is
+	 * no empty band between them, up to a limit. It changes with the window or the players,
+	 * not between darts.
+	 */
+	private growLastDartHints(spaceLeft: number): void {
+		const rootFontSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+		const growth = this.hintPanelCells > 0
+			? 0
+			: Math.max(0, Math.min(Math.floor(spaceLeft), maximumHintsGrowthRem * rootFontSize));
+		if (this.hintsGrowth !== growth)
+			this.hintsGrowth = growth;
+	}
+
+	/** The growth the hints have on screen now (read back, so a pending render can't skew it). */
+	private getAppliedHintsGrowth(): number {
+		const hints = this.shadowRoot?.querySelector<HTMLElement>('aa-last-dart-hints');
+
+		return Number.parseFloat(hints?.style.getPropertyValue('--aa-last-dart-hints-growth') ?? '') || 0;
 	}
 
 	private updateAchievementLayouts(playerCards: HTMLElement[]): void {
@@ -785,61 +838,97 @@ export class GamePage extends LitElement {
 		return false;
 	}
 
-	/**
-	 * The player's hints, if their local rounds still match the round the server computed
-	 * them for and no throw of theirs is being saved.
-	 */
-	protected getVisibleLastDartHints(player: PlayerRounds): LastDartHints | null {
-		const hints = this.lastDartHintsByPlayer[player.playerId];
-		if (!hints || hints.hints.length === 0 || this.savingThrowPlayers.has(player.playerId))
-			return null;
-
-		return isLastDartWindowOpen(player, hints.roundIndex) ? hints : null;
+	protected override willUpdate(changedProperties: PropertyValues): void {
+		super.willUpdate(changedProperties);
+		// Here rather than in updated(), so starting or cancelling a request adds no render.
+		this.lastDartHints.sync(this.getLastDartTarget());
 	}
 
 	/**
-	 * Normally only the player about to throw has hints. If several do, prefer the focused
-	 * player, then the one whose hints arrived last.
+	 * The dart being thrown now. The play page uses the selected cell; spectators have none,
+	 * so they follow whoever threw last, at their next dart when it is a last dart.
 	 */
-	private getLastDartDockTarget(): { playerName: string; hints: LastDartHints; } | null {
-		const candidates = this.players
-			.map((player, playerIndex) => ({
-				player,
-				playerIndex,
-				hints: this.getVisibleLastDartHints(player),
-			}))
-			.filter(candidate => candidate.hints !== null);
-		const target = candidates.find(candidate => this.isPlayerActive(candidate.playerIndex))
-			?? candidates.find(candidate => candidate.player.playerId === this.lastHintedPlayerId)
-			?? candidates[0];
-		if (!target)
-			return null;
+	protected getCurrentThrow(): ThrowPosition | undefined {
+		const playerIndex = this.players.findIndex(player => player.playerId === this.lastThrowingPlayerId);
+		const player = this.players[playerIndex];
+		const roundIndex = player ? getLastDartRoundIndex(player) : undefined;
+
+		return roundIndex === undefined ? undefined : { playerIndex, roundIndex, throwIndex: 2 };
+	}
+
+	/**
+	 * Hints are only ever for the dart being thrown now, when it is the player's last dart and
+	 * the server has their first two (no throw of theirs is still saving). Moving to another
+	 * player or another dart drops them at once; there is no falling back to anyone else.
+	 */
+	private getLastDartTarget(): LastDartHintsTarget | undefined {
+		const gameId = this.gameRevisionId;
+		const position = this.getCurrentThrow();
+		const player = position ? this.players[position.playerIndex] : undefined;
+		if (!gameId || !this.isActiveGame || !position || !player)
+			return undefined;
+
+		if (!isLastDartUp(player, position) || this.savingThrowCounts.has(player.playerId))
+			return undefined;
+
+		const { playerIndex, roundIndex } = position;
+		const darts = player.rounds
+			.find(round => round.roundIndex === roundIndex)!.dartThrows
+			.map(dart => `${ dart.throwType }:${ dart.hitLocation }:${ dart.finalPoints }`)
+			.join(',');
 
 		return {
-			playerName: this.getUserFromPlayerIndex(target.playerIndex)?.alias ?? '',
-			hints:      target.hints!,
+			gameId,
+			playerId:   player.playerId,
+			playerName: this.getUserFromPlayerIndex(playerIndex)?.alias ?? '',
+			roundIndex,
+			key:        `${ gameId }|${ player.playerId }|${ roundIndex }|${ darts }`,
 		};
 	}
 
 	private markThrowSaving(playerId: string, isSaving: boolean): void {
-		const saving = new Set(this.savingThrowPlayers);
-		if (isSaving)
-			saving.add(playerId);
+		const saving = new Map(this.savingThrowCounts);
+		const count = (saving.get(playerId) ?? 0) + (isSaving ? 1 : -1);
+		if (count > 0)
+			saving.set(playerId, count);
 		else
 			saving.delete(playerId);
-		this.savingThrowPlayers = saving;
+
+		this.savingThrowCounts = saving;
 	}
 
-	protected renderLastDartHints(): unknown {
-		const target = this.getLastDartDockTarget();
+	/** Along the bottom, or across `panelCells` free cells at the end of the last player row. */
+	protected renderLastDartHints(panelCells = 0): unknown {
+		const state = this.lastDartHints.state;
 
 		return html`
 			<aa-last-dart-hints
-				.playerName=${ target?.playerName ?? '' }
-				.hints=${ target?.hints ?? null }
+				placement=${ panelCells > 0 ? 'panel' : 'strip' }
+				style=${ panelCells > 0
+					? `grid-column: span ${ panelCells }`
+					: `--aa-last-dart-hints-growth: ${ this.hintsGrowth }px` }
+				.playerName=${ state.status === 'idle' ? '' : state.target.playerName }
+				.hints=${ state.status === 'ready' ? state.hints : null }
+				.loading=${ state.status === 'loading' }
 				.tierRewards=${ this.getTierRewards() }
+				.victoryValue=${ state.status === 'idle' ? 0 : this.getVictoryValue(state.target) }
 			></aa-last-dart-hints>
 		`;
+	}
+
+	/**
+	 * What finishing with this dart would be worth to the player, by the season's match MMR
+	 * rules: placed after everyone who has finished already, in the target's round.
+	 */
+	private getVictoryValue(target: LastDartHintsTarget): number {
+		const configuration = this.season?.mmrConfiguration;
+		if (!configuration)
+			return 0;
+
+		const finishedBefore = this.players.filter(player => player.playerId !== target.playerId
+			&& player.rounds.some(round => round.roundStatus === RoundStatus.Victory)).length;
+
+		return getFinishValue(configuration, target.roundIndex + 1, finishedBefore + 1);
 	}
 
 	private tierRewardsSource?: Season['achievementTierRewards'];
@@ -981,8 +1070,6 @@ export class GamePage extends LitElement {
 							const isAchievementCompact =
 								this.compactAchievementPlayers.has(player.playerId);
 							const isActive = this.isPlayerActive(playerIndex);
-							const lastDartHintRound =
-								this.getVisibleLastDartHints(player)?.roundIndex ?? null;
 
 							return guard([
 								player,
@@ -996,7 +1083,6 @@ export class GamePage extends LitElement {
 								projectedV2Achievements,
 								isAchievementCompact,
 								isActive,
-								lastDartHintRound,
 								this.isReadOnly,
 							], () => html`
 								<article
@@ -1070,10 +1156,6 @@ export class GamePage extends LitElement {
 																			id="throw-${playerIndex}-${roundIndex}-${throwIndex}"
 																			.dartThrow=${dartThrow}
 																			?isDisabled=${this.isReadOnly}
-																			.hasLastDartHints=${
-																				roundIndex === lastDartHintRound
-																				&& throwIndex === 2
-																			}
 																			@throw-updated=${onThrowUpdated}
 																			@focus=${onFocus}>
 																		</aa-dart-throw>
@@ -1162,10 +1244,11 @@ export class GamePage extends LitElement {
 								</article>
 							`);
 						})}
+						${ this.hintPanelCells > 0 ? this.renderLastDartHints(this.hintPanelCells) : nothing }
 					</div>
 				</div>
 
-				${this.renderLastDartHints()}
+				${ this.hintPanelCells > 0 ? nothing : this.renderLastDartHints() }
 			</div>
 		`;
 	}

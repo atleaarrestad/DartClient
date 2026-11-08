@@ -3,8 +3,8 @@ import type {
 	LastDartHint,
 } from '../models/achievementBuilderApi.js';
 import { AchievementTier, RoundStatus, ThrowType } from '../models/enums.js';
-import type { PlayerRounds, Round } from '../models/schemas.js';
-import { bullLocation, dartboardNumbers, doubleBullLocation } from './dartboard.js';
+import type { MmrConfiguration, PlayerRounds, Round } from '../models/schemas.js';
+import { bullLocation, doubleBullLocation } from './dartboard.js';
 import { defaultAchievementRewards } from './seasonDraft.js';
 
 const LAST_THROW_INDEX = 2;
@@ -40,6 +40,34 @@ export function isLastDartWindowOpen(player: PlayerRounds, roundIndex: number): 
 		index === LAST_THROW_INDEX ? isPlaceholderThrow(dartThrow) : !isPlaceholderThrow(dartThrow));
 }
 
+/**
+ * The round whose last dart the player is about to throw, or undefined when that isn't the
+ * case (fewer than two darts down, the round over, the game won). Hints are asked for then.
+ */
+export function getLastDartRoundIndex(player: PlayerRounds): number | undefined {
+	const current = player.rounds.find(round => round.dartThrows.some(isPlaceholderThrow));
+
+	return current && isLastDartWindowOpen(player, current.roundIndex) ? current.roundIndex : undefined;
+}
+
+/**
+ * Whether the dart at this position is the player's last dart and it is up now: the third
+ * dart of the round whose first two are down. Hints are only ever for such a dart.
+ */
+export function isLastDartUp(player: PlayerRounds, position: { roundIndex: number; throwIndex: number; }): boolean {
+	return position.throwIndex === 2 && getLastDartRoundIndex(player) === position.roundIndex;
+}
+
+/**
+ * How a hit reads to a player, where dart notation would mislead: the notation's "Bull" (50)
+ * is the double bull, since players call the 25 the bull. Everything else reads as notation.
+ */
+export function describeHit(hit: AchievementLegalHit): string {
+	return hit.hitLocation === doubleBullLocation && hit.throwType === ThrowType.Single
+		? 'Double Bull'
+		: formatHit(hit);
+}
+
 /** Dart notation: T20, D16, S5, 25, Bull, Rim, Miss. */
 export function formatHit(hit: AchievementLegalHit): string {
 	switch (hit.throwType) {
@@ -62,9 +90,31 @@ export function formatHit(hit: AchievementLegalHit): string {
 	return `${ prefix }${ hit.hitLocation }`;
 }
 
-/** Every target, in the server's order (easiest first), for tooltips and screen readers. */
-export function listWinningHits(hits: readonly AchievementLegalHit[]): string {
-	return hits.map(formatHit).join(', ');
+const throwTypesByLetter: Readonly<Record<string, ThrowType>> = {
+	S: ThrowType.Single,
+	D: ThrowType.Double,
+	T: ThrowType.Triple,
+};
+
+/** Reads dart notation back (the server sends hits this way), or undefined for anything else. */
+export function parseHit(code: string): AchievementLegalHit | undefined {
+	switch (code) {
+	case 'Rim':
+		return { hitLocation: 0, throwType: ThrowType.Rim };
+	case 'Miss':
+		return { hitLocation: 0, throwType: ThrowType.Miss };
+	case 'Bull':
+		return { hitLocation: doubleBullLocation, throwType: ThrowType.Single };
+	case String(bullLocation):
+		return { hitLocation: bullLocation, throwType: ThrowType.Single };
+	}
+
+	const match = /^([SDT])(\d{1,2})$/.exec(code);
+	const hitLocation = Number(match?.[2]);
+
+	return match && hitLocation >= 1 && hitLocation <= 20
+		? { hitLocation, throwType: throwTypesByLetter[match[1]!]! }
+		: undefined;
 }
 
 export type HitKind = 'single' | 'double' | 'treble' | 'outer-bull' | 'bull' | 'off-board';
@@ -83,16 +133,6 @@ export function getHitKind(hit: AchievementLegalHit): HitKind {
 	return hit.throwType === ThrowType.Triple
 		? 'treble'
 		: hit.throwType === ThrowType.Double ? 'double' : 'single';
-}
-
-export type BoardShade = 'dark' | 'light';
-
-/**
- * The colour pair a number has on a real board: 20 has a black single and red rings, its
- * neighbour 1 a cream single and green rings, and so on around the board.
- */
-export function getBoardShade(hitLocation: number): BoardShade {
-	return dartboardNumbers.indexOf(hitLocation) % 2 === 0 ? 'dark' : 'light';
 }
 
 // ── The hint strip: the board unrolled into columns ─────────────────────────
@@ -130,10 +170,14 @@ const stripLayout: readonly { label: string; hits: (AchievementLegalHit | undefi
 	{ label: 'Miss', hits: [ undefined, undefined, legalHit(0, ThrowType.Miss) ] },
 ];
 
-/** Which hints (by position in the list) each hit unlocks, by dart notation. */
+/** Which hints (by position in the list) each hit unlocks, by dart notation. Unknown codes are skipped. */
 const indexHintsByHit = (hints: readonly LastDartHint[]): Map<string, { hit: AchievementLegalHit; hintIndexes: number[]; }> => {
 	const byKey: Map<string, { hit: AchievementLegalHit; hintIndexes: number[]; }> = new Map();
-	hints.forEach((hint, index) => hint.winningHits.forEach(hit => {
+	hints.forEach((hint, index) => hint.hits.forEach(code => {
+		const hit = parseHit(code);
+		if (!hit)
+			return;
+
 		const key = formatHit(hit);
 		const entry = byKey.get(key) ?? { hit, hintIndexes: [] };
 		if (!entry.hintIndexes.includes(index))
@@ -169,24 +213,73 @@ export function buildHintStrip(hints: readonly LastDartHint[]): HintColumn[] {
 	}));
 }
 
+/** How many steps the colour of a lit segment has, from pale to strong. */
+export const heatLevels = 4;
+
+/**
+ * How strongly to colour a segment that unlocks `count` achievements, from 1 (pale) to
+ * `heatLevels` (strong), against `most`, the most any segment on the board unlocks.
+ */
+export function getHeatLevel(count: number, most: number): number {
+	if (count <= 0 || most <= 0)
+		return 0;
+
+	return Math.min(heatLevels, Math.max(1, Math.ceil(count / most * heatLevels)));
+}
+
 // ── The best throw ───────────────────────────────────────────────────────────
 
 /**
- * How likely a throw aimed at a kind of segment lands, relative to a single. A single is big
- * and forgiving; a treble is small but sits inside the board; the bulls are small targets;
- * a double is the riskiest, since going for it so often ends on the wire or off the board.
+ * How likely a throw aimed at a kind of segment lands, relative to a single: easiest first,
+ * single, treble, 25, bull, double. A single is big and forgiving; a treble is small but sits
+ * inside the board; the bulls are small targets; a double is the hardest. Its risk is also in
+ * where misses go (see `missFallbackChance`): a missed treble still lands in its number on
+ * either side, a missed double only on the inside, otherwise on the wire or off the board.
  */
 export const throwDifficulty: Readonly<Record<HitKind, number>> = {
 	'single':     1,
 	'treble':     0.3,
-	'outer-bull': 0.22,
-	'bull':       0.15,
-	'double':     0.1,
+	'outer-bull': 0.25,
+	'bull':       0.2,
+	'double':     0.18,
 	'off-board':  0.1,
+};
+
+/**
+ * Where a dart that misses a treble, a double or the bull mostly lands instead, and how often
+ * (on the same scale as `throwDifficulty`): a treble or double that misses usually stays in
+ * the single of the same number, a missed bull often lands in the 25. Aiming there is also
+ * worth that share of what the fallback unlocks.
+ */
+export const missFallbackChance: Readonly<Partial<Record<HitKind, number>>> = {
+	treble: 0.55,
+	double: 0.35,
+	bull:   0.35,
+};
+
+const getMissFallback = (hit: AchievementLegalHit): AchievementLegalHit | undefined => {
+	switch (getHitKind(hit)) {
+	case 'treble':
+	case 'double':
+		return { hitLocation: hit.hitLocation, throwType: ThrowType.Single };
+	case 'bull':
+		return { hitLocation: bullLocation, throwType: ThrowType.Single };
+	default:
+		return undefined;
+	}
 };
 
 /** MMR per achievement tier; the season's own rewards, or the defaults. */
 export type TierRewards = Readonly<Partial<Record<AchievementTier, number>>>;
+
+/** What the outcomes of a dart are worth, besides the achievements in the hints. */
+export interface ThrowValues {
+	tierRewards?:  TierRewards;
+	/** The darts that win the game, in dart notation. */
+	victoryHits?:  readonly string[];
+	/** What winning the game with this dart is worth, in MMR; see `getFinishValue`. */
+	victoryValue?: number;
+}
 
 export interface ThrowPayoff {
 	hit:         AchievementLegalHit;
@@ -195,27 +288,52 @@ export interface ThrowPayoff {
 	hintIndexes: number[];
 	/** What the achievements it unlocks are worth. */
 	mmr:         number;
-	/** `mmr` weighed by how hard the throw is: what aiming for it is worth. */
+	/** It wins the game. */
+	wins:        boolean;
+	/**
+	 * What aiming at it is worth: what hitting it is worth (achievements, and the win) times
+	 * the chance of hitting it, plus the same for where a miss mostly lands instead.
+	 */
 	payoff:      number;
 }
 
 /**
- * Every throw that unlocks something, best first: the highest expected payoff, then the one
- * that unlocks more, then the easier one. A single that unlocks a few bronzes beats a double
- * that unlocks a gold.
+ * Every throw worth aiming at, best first: the highest expected payoff, then the one that
+ * unlocks more, then the easier one. A single that unlocks a few bronzes beats a double that
+ * unlocks a gold; but a double that unlocks everything its single does and much more, or that
+ * wins the game, is worth going for, since a miss usually still lands in that single.
  */
-export function rankThrows(hints: readonly LastDartHint[], tierRewards: TierRewards = {}): ThrowPayoff[] {
+export function rankThrows(hints: readonly LastDartHint[], values: ThrowValues = {}): ThrowPayoff[] {
+	const { tierRewards = {}, victoryHits = [], victoryValue = 0 } = values;
 	const reward = (hint: LastDartHint): number => {
-		const tier = hint.achievement.achievementTier as AchievementTier;
+		const tier = hint.tier as AchievementTier;
 
 		return tierRewards[tier] ?? defaultAchievementRewards[tier] ?? 0;
 	};
 
-	return [ ...indexHintsByHit(hints).entries() ]
-		.map(([ key, { hit, hintIndexes } ]) => {
-			const mmr = hintIndexes.reduce((total, index) => total + reward(hints[index]!), 0);
+	const byKey = indexHintsByHit(hints);
+	for (const code of victoryHits) {
+		const hit = parseHit(code);
+		if (hit && !byKey.has(code))
+			byKey.set(code, { hit, hintIndexes: [] });
+	}
 
-			return { hit, key, hintIndexes, mmr, payoff: mmr * throwDifficulty[getHitKind(hit)] };
+	const outcomes = new Map([ ...byKey ].map(([ key, { hit, hintIndexes } ]) => {
+		const mmr = hintIndexes.reduce((total, index) => total + reward(hints[index]!), 0);
+		const wins = victoryHits.includes(key);
+
+		return [ key, { hit, hintIndexes, mmr, wins, worth: mmr + (wins ? victoryValue : 0) } ];
+	}));
+	const worthOf = (hit: AchievementLegalHit | undefined): number =>
+		hit ? outcomes.get(formatHit(hit))?.worth ?? 0 : 0;
+
+	return [ ...outcomes ]
+		.map(([ key, { hit, hintIndexes, mmr, wins, worth } ]) => {
+			const kind = getHitKind(hit);
+			const payoff = worth * throwDifficulty[kind]
+				+ worthOf(getMissFallback(hit)) * (missFallbackChance[kind] ?? 0);
+
+			return { hit, key, hintIndexes, mmr, wins, payoff };
 		})
 		.sort((left, right) =>
 			right.payoff - left.payoff
@@ -223,9 +341,24 @@ export function rankThrows(hints: readonly LastDartHint[], tierRewards: TierRewa
 			|| throwDifficulty[getHitKind(right.hit)] - throwDifficulty[getHitKind(left.hit)]);
 }
 
+/**
+ * What finishing the game is worth in the season's match MMR: the placement bonus for the
+ * place it would take, plus the finish bonus less the round penalty for every round played
+ * (as the server works it out, before the opponent factor).
+ */
+export function getFinishValue(
+	{ placementBonus, finishBonus, roundPenalty }: Pick<MmrConfiguration, 'placementBonus' | 'finishBonus' | 'roundPenalty'>,
+	roundsPlayed: number,
+	placement: number,
+): number {
+	const finish = Math.min(Math.max(finishBonus - roundPenalty * roundsPlayed, 0), finishBonus);
+
+	return Math.floor(placementBonus / Math.max(1, placement)) + finish;
+}
+
 export function getHighestTier(hints: readonly LastDartHint[]): AchievementTier | undefined {
 	return hints.reduce<AchievementTier | undefined>((highest, hint) => {
-		const tier = hint.achievement.achievementTier as AchievementTier;
+		const tier = hint.tier as AchievementTier;
 
 		return highest === undefined || tier > highest ? tier : highest;
 	}, undefined);
@@ -243,9 +376,8 @@ const bracketPattern = /^(.*?)\s*\(([^)]*)\)$/;
 export function groupByName(hints: readonly LastDartHint[]): HintGroup[] {
 	const groups: Map<string, { kinds: string[]; hints: LastDartHint[]; }> = new Map();
 	hints.forEach(hint => {
-		const name = hint.achievement.renderedName;
-		const match = bracketPattern.exec(name);
-		const base = match?.[1] ?? name;
+		const match = bracketPattern.exec(hint.name);
+		const base = match?.[1] ?? hint.name;
 		const group = groups.get(base) ?? { kinds: [], hints: [] };
 		if (match)
 			group.kinds.push(match[2]!);
@@ -257,7 +389,7 @@ export function groupByName(hints: readonly LastDartHint[]): HintGroup[] {
 	return [ ...groups.entries() ].map(([ base, group ]) => ({
 		name: group.hints.length > 1 && group.kinds.length === group.hints.length
 			? `${ base } (${ group.kinds.join(' · ') })`
-			: group.hints.length > 1 ? `${ base } ×${ group.hints.length }` : group.hints[0]!.achievement.renderedName,
+			: group.hints.length > 1 ? `${ base } ×${ group.hints.length }` : group.hints[0]!.name,
 		hints: group.hints,
 	}));
 }

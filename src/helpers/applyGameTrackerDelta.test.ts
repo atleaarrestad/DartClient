@@ -4,7 +4,6 @@ import { ScoreModifier, ThrowType } from '../models/enums.js';
 import type { GameTrackerDelta, Round } from '../models/schemas.js';
 import {
 	createAchievementInstance as createInstance,
-	createLastDartHints as createHints,
 	createPlayer,
 	createRound,
 	testGameId as gameId,
@@ -29,7 +28,6 @@ function createState(): GameTrackerState {
 			createPlayer(secondPlayerId, createThreeRounds()),
 		],
 		projectedV2AchievementsByPlayer: {},
-		lastDartHintsByPlayer:           {},
 	};
 }
 
@@ -47,7 +45,6 @@ function createDelta(rounds: Round[]): GameTrackerDelta {
 			rounds,
 		} ],
 		projectedV2AchievementsByPlayer: {},
-		lastDartHintsByPlayer:           {},
 	};
 }
 
@@ -145,41 +142,6 @@ describe('applyGameTrackerDelta', () => {
 			[secondPlayerId]: [ kept ],
 		});
 		expect(state.projectedV2AchievementsByPlayer[firstPlayerId]).toEqual([ revoked ]);
-	});
-
-	it('sets, replaces and clears last-dart hints and keeps unchanged players', () => {
-		const state = createState();
-		const stale = createHints(createInstance('8d3b5c6f-1e9d-4e4b-8f5a-6f7a8b9c0d14', 'Stale'));
-		const kept = createHints(createInstance('9e4c6d7a-2f0e-4f5c-9a6b-7a8b9c0d1e25', 'Kept'));
-		state.lastDartHintsByPlayer = { [firstPlayerId]: stale, [secondPlayerId]: kept };
-		const delta = createDelta([ createRound(2) ]);
-		delta.lastDartHintsByPlayer = { [firstPlayerId]: null };
-
-		const cleared = applyGameTrackerDelta(state, delta);
-
-		expect(cleared.status).toBe('applied');
-		if (cleared.status !== 'applied')
-			return;
-
-		expect(cleared.state.lastDartHintsByPlayer).toEqual({ [secondPlayerId]: kept });
-		expect(state.lastDartHintsByPlayer[firstPlayerId]).toBe(stale);
-
-		const replacement = createHints(createInstance('0f5d7e8b-3a1f-4a6d-8b7c-8b9c0d1e2f36', 'New'));
-		const next = createDelta([ createRound(2) ]);
-		next.baseRevision = 5;
-		next.revision = 6;
-		next.lastDartHintsByPlayer = { [firstPlayerId]: replacement };
-
-		const set = applyGameTrackerDelta(cleared.state, next);
-
-		expect(set.status).toBe('applied');
-		if (set.status !== 'applied')
-			return;
-
-		expect(set.state.lastDartHintsByPlayer).toEqual({
-			[firstPlayerId]:  replacement,
-			[secondPlayerId]: kept,
-		});
 	});
 
 	it('ignores stale or duplicate deltas without changing local state', () => {

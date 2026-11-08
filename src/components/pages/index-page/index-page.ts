@@ -445,7 +445,6 @@ export class IndexPage extends GamePage {
 			this.gameRevisionId = newGameID;
 			this.gameRevision = 0;
 			this.projectedV2AchievementsByPlayer = {};
-			this.lastDartHintsByPlayer = {};
 			await this.subscribeToAchievementEvents(newGameID);
 		}
 
@@ -475,6 +474,11 @@ export class IndexPage extends GamePage {
 
 	protected getSelectedThrow(): ThrowPosition | undefined {
 		return parseThrowElementId(this.selectedId);
+	}
+
+	/** On the play page the dart being thrown is the selected cell, and nothing else. */
+	protected override getCurrentThrow(): ThrowPosition | undefined {
+		return this.getSelectedThrow();
 	}
 
 	protected async getNewPlayer(players: readonly PlayerRounds[] = this.players): Promise<User | undefined> {

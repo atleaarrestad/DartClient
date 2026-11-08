@@ -6,13 +6,51 @@ As of 2026-10-19. Covers both repos:
 
 Ground rules from `achievement-release-plan.md` apply: Claude leaves every change unstaged. No add, commit, push or deploy.
 
+> **2026-11-08:** hints no longer travel in game state or with throw saves. They have their own
+> cancellable request; see [last-dart-hints-loading-plan.md](last-dart-hints-loading-plan.md).
+>
+> **2026-11-08, placement:** where the hints go only changes with the players or the window
+> (`placeLastDartHints`), never between darts.
+> - **Panel:** used when the last player row has at least two free cells and every row fits
+>   without scrolling. The hints fill those cells as tall as the row: a bigger board, with
+>   the name and list down the side if the panel is wider than 1400px, stacked if narrower.
+> - **Strip:** used otherwise. It grows upward into the space under the last player row, up
+>   to 8rem more (`growLastDartHints`, worked out as if the strip had its usual height, so the
+>   rows never change because of it). The player grid keeps 8px of bottom padding for the
+>   card shadows.
+> - **List length:** in both, the list shows as many achievements as fit.
+> - **Ranking (`rankThrows`):** each target is scored by aim, not by hit.
+>   - What hitting it is worth (achievement MMR, plus `getFinishValue` when the server lists it
+>     in `victoryHits`) times its hit chance.
+>   - Plus what a miss usually lands in times the fallback chance: a treble or double falls
+>     back to the single of the same number, the bull to the 25.
+>   - Hit chances, relative to a single: single 1, treble 0.3, 25 0.25, bull 0.2, double 0.18.
+>   - Fallback chances: treble 0.55, double 0.35, bull 0.35.
+>   - So a double that unlocks far more than its single, or that wins the game, gets
+>     recommended; one that adds little doesn't.
+> - **Worth line:** reads "Win + 4 achievements (+65 MMR)" (or "4 achievements (+65 MMR)", or
+>   "Win"), without dot separators, and only wraps between its parts.
+> - **Bull naming:** players call the 25 the bull, so the 50 shows as "Double Bull"
+>   (`describeHit`) on the tile, in titles and to screen readers. The notation and wire codes
+>   keep "Bull".
+> - **Colours:** by ring rather than board colours. Trebles are purple, doubles (and the bull)
+>   orange, singles (and the 25) blue, and the rim and a miss grey. The T/D/S row letters are
+>   badges in the strong colours, as the key.
+> - **Heat map:** a lit segment runs from the pastel end of its ring's colour to the strong
+>   end, in four steps (`getHeatLevel`), by how many achievements it unlocks against the most
+>   any segment on the board unlocks. Unlit segments are a faint tint. The best-throw tile
+>   always takes the strong colour.
+> - **Best throw:** marked on the board by the star alone. On the side it is a big tile in its
+>   ring's colour (`S20` in large type, as tall as the strip allows), with the label, what it's
+>   worth and the achievements to its right. The 🎯 badge on the third-dart input is gone.
+
 ## Status (2026-10-19, implementation pass)
 
 Phases 1–4 are implemented in both working trees, unstaged. Placement A (bottom dock) was chosen. Checks: backend 321/321, client tsc clean, vitest 88/88, `pnpm build` passes.
 
 **Not done: end-to-end smoke test in the real app.** Claude couldn't start the backend: reading the local DB password was blocked. The component and dock were checked with headless-Chrome screenshots of a temporary preview page (since removed) at 1440, 1000, 760 and 600 px, with 0, 1 and 5 hints. User smoke test:
 1. Start the backend and the client.
-2. Throw 2 darts: the dock fills and 🎯 shows on dart 3.
+2. Throw 2 darts: the dock fills.
 3. Throw dart 3: the dock clears.
 4. Correct dart 2: the hints update.
 5. Bust after 2 darts: no hints.
@@ -226,7 +264,7 @@ Content, in **one row**:
 
 **C. Top strip in `.player-header`.** Stable, but it takes about 52px of scoreboard height permanently, and the spectate page already uses that row.
 
-**Marker on slot 3 (both A and B):** while a player's window is open, `aa-dart-throw` for slot 3 gets a `hasHints` boolean. It shows a small 🎯 corner badge (absolutely positioned, fixed size, no layout effect), so it's clear which input the hints belong to.
+**Marker on slot 3 (both A and B):** while a player's window is open, `aa-dart-throw` for slot 3 gets a `hasHints` boolean. It shows a small 🎯 corner badge (absolutely positioned, fixed size, no layout effect), so it's clear which input the hints belong to. *(Removed 2026-11-08: the user found it ugly; the strip already names the player.)*
 
 ### Where it renders
 

@@ -1,5 +1,6 @@
 import { container, injectable } from 'tsyringe';
 
+import type { LastDartHints } from '../models/achievementBuilderApi.js';
 import { DartThrow } from '../models/dartThrowSchema.js';
 import { GameResult, GameTracker, GameTrackerDelta } from '../models/schemas.js';
 import { CacheService } from './cacheService.js';
@@ -44,6 +45,11 @@ export class GameService {
 	/** Waits for pending dart-throw saves before finalizing the game. */
 	submitGame(gameId: string): Promise<GameResult> {
 		return this.dataService.SubmitGame(gameId);
+	}
+
+	/** What the player can unlock with their last dart; see DataService.getLastDartHints. */
+	getLastDartHints(gameId: string, playerId: string, signal?: AbortSignal): Promise<LastDartHints | null> {
+		return this.dataService.getLastDartHints(gameId, playerId, signal);
 	}
 
 	async getActiveGame(gameId: string): Promise<GameTracker | undefined> {

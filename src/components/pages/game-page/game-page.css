@@ -142,7 +142,8 @@ aa-loading-state {
 	justify-items: center;
 	align-items: stretch;
 	padding-top: 24px;
-	padding-bottom: 24px;
+	/* Just room for the card shadows: the last-dart hints grow into the rest. */
+	padding-bottom: 8px;
 	padding-left: 12px;
 	padding-right: calc(12px - var(--scrollbar-width));
 

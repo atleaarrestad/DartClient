@@ -8,6 +8,7 @@ import {
 	testPlayerId,
 	testSecondPlayerId,
 } from '../test/gameFixtures.js';
+import { LastDartHintsSchema } from './achievementBuilderApi.js';
 import { GameTrackerDeltaSchema } from './schemas.js';
 
 type DeltaInput = Record<string, unknown> & {
@@ -117,16 +118,25 @@ describe('GameTrackerDeltaSchema', () => {
 		}).projectedV2AchievementsByPlayer).toEqual({ [testPlayerId]: [ instance ] });
 	});
 
-	it('parses null hint entries as clears and defaults the field when absent', () => {
+	it('drops the hints an older server still puts in deltas: they have their own request now', () => {
 		const hints = createLastDartHints(
 			createAchievementInstance('8d3b5c6f-1e9d-4e4b-8f5a-6f7a8b9c0d14', 'Hinted'),
 		);
-		const delta = createDeltaInput();
-
-		expect(GameTrackerDeltaSchema.parse(delta).lastDartHintsByPlayer).toEqual({});
-		expect(GameTrackerDeltaSchema.parse({
-			...delta,
+		const parsed = GameTrackerDeltaSchema.parse({
+			...createDeltaInput(),
 			lastDartHintsByPlayer: { [testPlayerId]: null, [testSecondPlayerId]: hints },
-		}).lastDartHintsByPlayer).toEqual({ [testPlayerId]: null, [testSecondPlayerId]: hints });
+		});
+
+		expect(parsed).not.toHaveProperty('lastDartHintsByPlayer');
+	});
+
+	it('parses the slim last-dart hints', () => {
+		const hints = createLastDartHints(
+			createAchievementInstance('8d3b5c6f-1e9d-4e4b-8f5a-6f7a8b9c0d14', 'Hinted'),
+		);
+
+		expect(LastDartHintsSchema.parse(hints)).toEqual(hints);
+		expect(LastDartHintsSchema.safeParse({ ...hints, hints: [ { ...hints.hints[0], hits: 'T20' } ] }).success)
+			.toBe(false);
 	});
 });

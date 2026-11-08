@@ -195,6 +195,37 @@ describe('DataService requests', () => {
 		await expect(createService().GetAllSeasons()).rejects.toThrow(/^Not able to parse season from server \(/);
 	});
 
+	it('asks for last-dart hints, with no content meaning none', async () => {
+		const hints = {
+			roundIndex: 2,
+			totalCount: 1,
+			hints:       [ { id: '8d3b5c6f-1e9d-4e4b-8f5a-6f7a8b9c0d14', name: 'Hinted', tier: 1, hits: [ 'T20' ] } ],
+			victoryHits: [ 'D20' ],
+		};
+		const fetchMock = stubFetch(() => jsonResponse(200, hints));
+
+		await expect(createService().getLastDartHints('game', 'player')).resolves.toEqual(hints);
+		expect(fetchMock.mock.calls[0]![0]).toBe('http://test.invalid/games/sessions/game/player/player/last-dart-hints');
+
+		for (const response of [ () => new Response(null, { status: 204 }), () => jsonResponse(404) ]) {
+			stubFetch(response);
+
+			await expect(createService().getLastDartHints('game', 'player')).resolves.toBeNull();
+		}
+	});
+
+	it('lets the caller cancel a request, which then rejects as aborted rather than failed', async () => {
+		vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+			init.signal!.addEventListener('abort', () => reject(init.signal!.reason));
+		})));
+		const controller = new AbortController();
+
+		const request = createService().getLastDartHints('game', 'player', controller.signal);
+		controller.abort();
+
+		await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+	});
+
 	it('sends a JSON body with the admin key', async () => {
 		const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
 

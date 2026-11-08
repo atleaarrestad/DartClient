@@ -19,6 +19,8 @@ import {
 	AchievementValidationResponse,
 	AchievementValidationResponseSchema,
 	CreateAchievementCategoryRequest,
+	LastDartHints,
+	LastDartHintsSchema,
 	PredictAchievementThrowsRequest,
 	PredictAchievementThrowsResponse,
 	PredictAchievementThrowsResponseSchema,
@@ -61,6 +63,8 @@ interface SendOptions<T, F> {
 	whenMissing?:  () => F;
 	/** Messages that replace the generic error for specific statuses. */
 	statusErrors?: Partial<Record<number, string>>;
+	/** Cancels the request; it then rejects with an AbortError, not a timeout message. */
+	signal?:       AbortSignal;
 }
 
 export interface DataServiceOptions {
@@ -508,6 +512,20 @@ export class DataService {
 	}
 
 	/**
+	 * What the player can unlock with the last dart of their current round, or null when that
+	 * dart isn't up or nothing is in reach. Cancel it with `signal` when the player moves on.
+	 */
+	async getLastDartHints(gameId: string, playerId: string, signal?: AbortSignal): Promise<LastDartHints | null> {
+		return this.send('GET', path`games/sessions/${ gameId }/player/${ playerId }/last-dart-hints`, {
+			error:       'Failed to fetch last-dart hints',
+			schema:      LastDartHintsSchema,
+			invalid:     'Invalid last-dart hints received from the API',
+			whenMissing: () => null,
+			signal,
+		});
+	}
+
+	/**
 	 * Sends a request and turns the response into data or an error:
 	 * a failed status throws `${error}: <server detail or status>`, and a body that
 	 * does not match `schema` throws `${invalid} (<zod issues>)`.
@@ -517,7 +535,7 @@ export class DataService {
 		endpoint: string,
 		options: SendOptions<T, F>,
 	): Promise<T | F> {
-		const response = await this.request(method, endpoint, options.body, options.headers);
+		const response = await this.request(method, endpoint, options.body, options.headers, options.signal);
 
 		if (options.whenMissing && (response.status === 404 || response.status === 204))
 			return options.whenMissing();
@@ -565,6 +583,7 @@ export class DataService {
 		endpoint: string,
 		body?: unknown,
 		extraHeaders?: HeadersInit,
+		signal?: AbortSignal,
 	): Promise<ApiResponse<unknown>> {
 		const hasBody = body !== undefined && body !== null;
 		const headers = {
@@ -580,11 +599,17 @@ export class DataService {
 				body:        hasBody ? JSON.stringify(body) : undefined,
 				headers,
 				credentials: 'include',
-				signal:      AbortSignal.timeout(this.requestTimeoutMs),
+				signal:      signal
+					? AbortSignal.any([ signal, AbortSignal.timeout(this.requestTimeoutMs) ])
+					: AbortSignal.timeout(this.requestTimeoutMs),
 			});
 			text = await res.text();
 		}
 		catch (error) {
+			// Cancelled by the caller: let it see the abort, there is nothing to report.
+			if (signal?.aborted)
+				throw signal.reason instanceof Error ? signal.reason : new DOMException('Cancelled', 'AbortError');
+
 			if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError'))
 				throw new Error('The server took too long to respond. Please try again.');
 

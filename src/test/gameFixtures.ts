@@ -70,8 +70,11 @@ export function createLastDartHints(achievement: AchievementInstanceResponse): L
 		roundIndex: 2,
 		totalCount: 1,
 		hints:      [ {
-			achievement,
-			winningHits: [ { hitLocation: 20, throwType: ThrowType.Triple } ],
+			id:   achievement.id,
+			name: achievement.renderedName,
+			tier: achievement.achievementTier,
+			hits: [ 'T20' ],
 		} ],
+		victoryHits: [],
 	};
 }

@@ -151,9 +151,14 @@ export const AchievementPredictionSchema = z.object({
 	outcome: AchievementPredictionOutcomeSchema,
 });
 
+// One achievement the last dart can unlock: only what the hint strip shows, since hints are
+// fetched for every last dart, often over a slow connection.
 export const LastDartHintSchema = z.object({
-	achievement: AchievementInstanceResponseSchema,
-	winningHits: z.array(AchievementLegalHitSchema).min(1),
+	id: z.string().uuid(),
+	name: z.string(),
+	tier: z.number().int(),
+	// The winning hits in dart notation (S20, D16, T19, 25, Bull, Rim, Miss), easiest first.
+	hits: z.array(z.string()),
 });
 
 // Ranked best first and capped by the server; totalCount includes the hints beyond the cap.
@@ -161,6 +166,8 @@ export const LastDartHintsSchema = z.object({
 	roundIndex: z.number().int().nonnegative(),
 	totalCount: z.number().int().nonnegative(),
 	hints: z.array(LastDartHintSchema),
+	// The last darts that win the game, in dart notation; usually none. Older servers leave it out.
+	victoryHits: z.array(z.string()).default([]),
 });
 
 export const PredictAchievementThrowsResponseSchema = z.object({

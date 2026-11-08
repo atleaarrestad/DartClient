@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { AchievementInstanceResponseSchema, LastDartHintsSchema } from './achievementBuilderApi.js';
+import { AchievementInstanceResponseSchema } from './achievementBuilderApi.js';
 import { DartThrowSchema } from './dartThrowSchema.js';
 import { AchievementTier, GameConstraint, RoundStatus, ScoreModifier, ThrowType, WinCondition } from './enums.js';
 import { Rank } from './rank.js';
@@ -44,11 +44,6 @@ export const GameTrackerSchema = z.object({
 	projectedV2AchievementsByPlayer: z.record(
 		z.string().uuid(),
 		z.array(AchievementInstanceResponseSchema),
-	).default({}),
-	// Only players about to throw the last dart of their round with something in reach.
-	lastDartHintsByPlayer: z.record(
-		z.string().uuid(),
-		LastDartHintsSchema,
 	).default({}),
 });
 
@@ -94,11 +89,6 @@ export const GameTrackerDeltaSchema = z.object({
 	projectedV2AchievementsByPlayer: z.record(
 		z.string().uuid(),
 		z.array(AchievementInstanceResponseSchema),
-	).default({}),
-	// Only players whose hints changed; null clears the player's hints.
-	lastDartHintsByPlayer: z.record(
-		z.string().uuid(),
-		LastDartHintsSchema.nullable(),
 	).default({}),
 }).superRefine((delta, context) => {
 	if (delta.revision !== delta.baseRevision + 1) {
