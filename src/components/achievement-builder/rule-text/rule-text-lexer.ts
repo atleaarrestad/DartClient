@@ -1,4 +1,4 @@
-export type RuleTextTokenType = 'word' | 'number' | 'punct' | 'comment' | 'unknown';
+export type RuleTextTokenType = 'word' | 'number' | 'string' | 'punct' | 'comment' | 'unknown';
 
 export interface RuleTextToken {
 	type: RuleTextTokenType;
@@ -12,6 +12,8 @@ export interface RuleTextToken {
 /** Words may contain dots, so fields like `round.points` are one token. */
 const wordPattern = /[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*/y;
 const numberPattern = /[0-9]+/y;
+/** Text in double quotes on one line; an unterminated one runs to the end of the line. */
+const stringPattern = /"[^"\n]*"?/y;
 const twoCharPunct = new Set([ '<=', '>=', '!=' ]);
 const oneCharPunct = new Set([ '{', '}', '(', ')', '|', '<', '>', '=', '+', '-' ]);
 
@@ -57,6 +59,12 @@ export const tokenizeRuleText = (text: string): RuleTextToken[] => {
 		const number = match(numberPattern);
 		if (number) {
 			push('number', number);
+			continue;
+		}
+
+		const quoted = match(stringPattern);
+		if (quoted) {
+			push('string', quoted);
 			continue;
 		}
 

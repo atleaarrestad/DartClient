@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 
 import { faIcons } from '../../faIcons.js';
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
+import { formatTierLabel, VariantSummary } from '../../helpers/achievementVariantRules.js';
 import { getEditableVersion } from '../../helpers/compileAchievementTemplate.js';
 import type {
 	AchievementCategoryResponse,
@@ -10,8 +11,9 @@ import type {
 	AchievementTemplateVersionResponse,
 } from '../../models/achievementBuilderApi.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
-import { countDefinitionInstances } from './achievement-draft.js';
+import { countDefinitionInstances, getVersionVariantSummary } from './achievement-draft.js';
 import libraryStyles from './achievement-template-library.css?inline';
+import { getTierRange } from './variant-rules/variant-rule-edits.js';
 
 export interface AchievementTemplateOpenDetail {
 	templateId: string;
@@ -38,6 +40,33 @@ const byVersionNumberDescending = (
 ): number => right.versionNumber - left.versionNumber;
 
 /** Sidebar list of the season's achievement templates, grouped by category. */
+/** Versions never change once loaded, so their summaries are worked out once. */
+const summaries: WeakMap<AchievementTemplateVersionResponse, VariantSummary | undefined> = new WeakMap();
+
+const getSummary = (version: AchievementTemplateVersionResponse): VariantSummary | undefined => {
+	if (!summaries.has(version))
+		summaries.set(version, getVersionVariantSummary(version));
+
+	return summaries.get(version);
+};
+
+/** The tier icon, or the lowest and highest one when tier rules give the achievements several. */
+const renderTiers = (version: AchievementTemplateVersionResponse, summary: VariantSummary | undefined): TemplateResult => {
+	const range = summary && getTierRange(summary);
+	if (!range || range.lowest === range.highest) {
+		const tier = range?.lowest ?? version.achievementTier;
+
+		return html`<img src=${ getAchievementTierIcon(tier) } alt="" />`;
+	}
+
+	return html`
+		<span class="row__tiers" title=${ `${ formatTierLabel(range.lowest) } to ${ formatTierLabel(range.highest) }` }>
+			<img src=${ getAchievementTierIcon(range.lowest) } alt="" />
+			<img src=${ getAchievementTierIcon(range.highest) } alt="" />
+		</span>
+	`;
+};
+
 @customElement('aa-achievement-template-library')
 export class AaAchievementTemplateLibrary extends LitElement {
 
@@ -144,7 +173,8 @@ export class AaAchievementTemplateLibrary extends LitElement {
 		const shownVersion = selected
 			? template.versions.find(item => item.id === this.selectedVersionId) ?? version
 			: version;
-		const count = countDefinitionInstances(shownVersion.parameters);
+		const summary = getSummary(shownVersion);
+		const count = summary?.count ?? countDefinitionInstances(shownVersion.parameters);
 
 		return html`
 			<li class="entry ${ selected ? 'entry--selected' : '' } ${ template.isDisabled ? 'entry--disabled' : '' }">
@@ -158,7 +188,7 @@ export class AaAchievementTemplateLibrary extends LitElement {
 							this.openTemplate({ templateId: template.id });
 					} }
 				>
-					<img src=${ getAchievementTierIcon(shownVersion.achievementTier) } alt="" />
+					${ renderTiers(shownVersion, summary) }
 					<span class="row__name">${ shownVersion.nameTemplate || 'Unnamed achievement' }</span>
 					${ count > 1 ? html`<span class="row__count" title="Generated achievements">×${ count }</span>` : nothing }
 					${ selected && this.dirty

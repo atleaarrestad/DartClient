@@ -1,8 +1,21 @@
 import {
+	enumerateBindings,
+	getVariantTier,
+	isOrderingOperator,
+	isVariantSkipped,
+	restoreVariantRules,
+	summarizeVariants,
+	VariantSummary,
+	VariantValue,
+	VariantValueLists,
+	variantsPropertyName,
+} from '../../helpers/achievementVariantRules.js';
+import {
 	compileAchievementTemplate,
 	measureAchievementAst,
 } from '../../helpers/compileAchievementTemplate.js';
 import {
+	achievementComparisonOperators,
 	achievementRoundStatusLabels,
 	achievementRulePlacements,
 	AchievementRuleScope,
@@ -15,6 +28,7 @@ import {
 	AchievementTemplatePreview,
 	AchievementValueDraft,
 	AchievementValueSource,
+	AchievementVariantConditionDraft,
 	createAchievementBuilderId,
 	createDefaultAchievementRule,
 	EditableAchievementRuleType,
@@ -395,40 +409,87 @@ const createPreview = (
 	bindings:    binding,
 	name:        renderTemplateText(draft.nameTemplate, binding),
 	description: renderTemplateText(draft.descriptionTemplate, binding),
+	tier:        getVariantTier(draft, binding),
 });
 
+/** The parts of a draft that decide which achievements it generates and their tiers. */
+export type VariantDraft = Pick<AchievementTemplateDraft, 'parameters' | 'tier' | 'tierRules' | 'skipRules'>;
+
 /**
- * The generated achievements in generation order, up to `limit`, or an empty
- * list while a parameter has no values.
+ * At most this many parameter combinations are looked at to find previews or count tiers;
+ * a template with more is far over the generation limit anyway.
+ */
+const maximumVariantScan = 100_000;
+
+const getValueLists = (parameters: readonly AchievementParameterDraft[]): VariantValueLists =>
+	parameters.map(parameter => [ parameter.key, getParameterValues(parameter, maximumVariantScan) ] as const);
+
+/**
+ * The generated achievements in generation order, up to `limit`, without the skipped ones.
+ * Empty while a parameter has no values.
  */
 export const getPreviews = (
 	draft: AchievementTemplateDraft,
 	limit = Number.POSITIVE_INFINITY,
 ): AchievementTemplatePreview[] => {
-	if (countGeneratedInstances(draft.parameters) === 0)
-		return [];
-
-	const valueLists = draft.parameters.map(parameter => getParameterValues(parameter, limit));
 	const previews: AchievementTemplatePreview[] = [];
-	const binding: ParameterBinding = {};
-	const visit = (index: number): void => {
-		if (index === draft.parameters.length) {
-			previews.push(createPreview(draft, { ...binding }));
-
-			return;
-		}
-
-		for (const value of valueLists[index]!) {
-			if (previews.length >= limit)
-				return;
-
-			binding[draft.parameters[index]!.key] = value;
-			visit(index + 1);
-		}
-	};
-	visit(0);
+	for (const binding of enumerateBindings(getValueLists(draft.parameters), maximumVariantScan)) {
+		if (previews.length >= limit)
+			break;
+		if (!isVariantSkipped(draft.skipRules, binding))
+			previews.push(createPreview(draft, binding));
+	}
 
 	return previews;
+};
+
+/**
+ * How many achievements each tier and each rule gets, or undefined when there are too many
+ * parameter combinations to go through.
+ */
+export const getVariantSummary = (draft: VariantDraft): VariantSummary | undefined =>
+	countGeneratedInstances(draft.parameters) > maximumVariantScan
+		? undefined
+		: summarizeVariants(getValueLists(draft.parameters), draft);
+
+/** The achievements a template makes once the skipped combinations are left out. */
+export const countAchievements = (draft: VariantDraft): number =>
+	draft.skipRules.length === 0
+		? countGeneratedInstances(draft.parameters)
+		: getVariantSummary(draft)?.count ?? countGeneratedInstances(draft.parameters);
+
+const getDefinitionValues = (parameter: AchievementParameterDefinition): VariantValue[] => {
+	switch (parameter.kind) {
+	case 'IntegerRange': {
+		const minimum = parameter.minimum ?? 0;
+		const maximum = parameter.maximum ?? minimum;
+		const step = Math.max(parameter.step, 1);
+		const values: number[] = [];
+		for (let value = minimum; value <= maximum && values.length < maximumVariantScan; value += step)
+			values.push(value);
+
+		return values;
+	}
+	case 'IntegerSet':
+		return [ ...new Set(parameter.integerValues) ];
+	case 'StringSet':
+		return [ ...new Set(parameter.stringValues) ];
+	case 'BooleanSet':
+		return [ ...new Set(parameter.booleanValues) ];
+	}
+};
+
+/** Counts and tiers of a saved version's achievements, the way the server generates them. */
+export const getVersionVariantSummary = (
+	version: AchievementTemplateVersionResponse,
+): VariantSummary | undefined => {
+	if (countDefinitionInstances(version.parameters) > maximumVariantScan)
+		return undefined;
+
+	return summarizeVariants(
+		version.parameters.map(parameter => [ parameter.name, getDefinitionValues(parameter) ] as const),
+		{ tier: version.achievementTier, ...restoreVariantRules(version.definition[variantsPropertyName]) },
+	);
 };
 
 export const sortCategories = (
@@ -505,7 +566,7 @@ const renameAstParameters = (ast: unknown, oldKey: string, newKey: string): unkn
 
 /**
  * Points every reference to parameter `oldKey` at `newKey`: the logic blocks, progression
- * targets, raw logic and the {tokens} in the name and description. The draft is returned
+ * targets, raw logic, tier and skip rules, and the {tokens} in the name and description. The draft is returned
  * unchanged when the rename would be ambiguous: either key is not a valid parameter key,
  * another parameter still uses the old key, or several parameters now use the new key.
  */
@@ -531,12 +592,16 @@ export const renameParameterReferences = (
 			: value;
 	const mapAst = (ast: unknown): unknown => renameAstParameters(ast, oldKey, newKey);
 	const renameToken = (text: string): string => text.replaceAll(`{${ oldKey }}`, `{${ newKey }}`);
+	const renameConditions = (when: AchievementVariantConditionDraft[]): AchievementVariantConditionDraft[] =>
+		when.map(condition => condition.parameter === oldKey ? { ...condition, parameter: newKey } : condition);
 	const { progression } = draft;
 
 	return {
 		...draft,
 		nameTemplate:        renameToken(draft.nameTemplate),
 		descriptionTemplate: renameToken(draft.descriptionTemplate),
+		tierRules:           draft.tierRules.map(rule => ({ ...rule, when: renameConditions(rule.when) })),
+		skipRules:           draft.skipRules.map(rule => ({ ...rule, when: renameConditions(rule.when) })),
 		rule:                mapRuleValues(draft.rule, mapValue, mapAst),
 		progression:         progression && {
 			...progression,
@@ -790,6 +855,47 @@ const getTemplateTextErrors = (
 	return errors;
 };
 
+const getConditionErrors = (
+	condition: AchievementVariantConditionDraft,
+	label: string,
+	parameters: readonly AchievementParameterDraft[],
+): string[] => {
+	const parameter = parameters.find(item => item.key === condition.parameter);
+	if (!parameter)
+		return [ `${ label } uses {${ condition.parameter }}, which isn’t a parameter.` ];
+	if (!achievementComparisonOperators.includes(condition.operator))
+		return [ `${ label } has an unknown comparison.` ];
+	if (parameter.valueType !== 'integer' && isOrderingOperator(condition.operator))
+		return [ `${ label } can only check {${ parameter.key }} with = or !=.` ];
+
+	const { value } = condition;
+	const fits = parameter.valueType === 'integer'
+		? typeof value === 'number' && isInt32(value)
+		: parameter.valueType === 'string'
+			? typeof value === 'string'
+			: typeof value === 'boolean';
+
+	return fits
+		? []
+		: [ `${ label } compares {${ parameter.key }} with something that isn’t ${ valueTypeLabels[parameter.valueType] }.` ];
+};
+
+/** Tier and skip rules: a valid tier, and conditions that fit the parameters they check. */
+const getVariantRuleErrors = (draft: AchievementTemplateDraft): string[] => {
+	const ruleErrors = (when: AchievementVariantConditionDraft[], label: string): string[] =>
+		when.length === 0
+			? [ `${ label } needs at least one condition.` ]
+			: when.flatMap(condition => getConditionErrors(condition, label, draft.parameters));
+
+	return [
+		...draft.tierRules.flatMap((rule, index) => [
+			...achievementTiersAscending.includes(rule.tier) ? [] : [ `Tier rule ${ index + 1 } needs a valid tier.` ],
+			...ruleErrors(rule.when, `Tier rule ${ index + 1 }`),
+		]),
+		...draft.skipRules.flatMap((rule, index) => ruleErrors(rule.when, `Skip rule ${ index + 1 }`)),
+	];
+};
+
 const getAstLimitErrors = (
 	draft: AchievementTemplateDraft,
 	limits: AchievementDraftLimits,
@@ -843,7 +949,8 @@ export const validateDraft = (
 	else if (category.isArchived && !draft.id)
 		add('details', [ 'Choose an active category for a new achievement.' ]);
 	if (!achievementTiersAscending.includes(draft.tier))
-		add('details', [ 'Choose a valid achievement tier.' ]);
+		add('logic', [ 'Choose a valid achievement tier.' ]);
+	add('logic', getVariantRuleErrors(draft));
 
 	const keys = draft.parameters.map(parameter => parameter.key);
 	if (keys.some(key => !parameterKeyPattern.test(key)))
@@ -871,6 +978,9 @@ export const validateDraft = (
 		add('details', [ `Name must include ${ missingNameKeys.join(', ') } so every generated achievement has a distinct name.` ]);
 
 	add('details', getTemplateTextErrors(draft, limits, generatedCount));
+
+	if (generatedCount > 0 && generatedCount <= limits.maximumGeneratedInstances && countAchievements(draft) === 0)
+		add('logic', [ 'Every combination is skipped, so this template makes no achievements.' ]);
 
 	// Raw progression logic is kept verbatim; the server validates it on save.
 	if (draft.achievementScope === 'progression' && !draft.progression?.raw) {

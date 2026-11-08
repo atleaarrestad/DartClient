@@ -233,13 +233,35 @@ export const getRulePlacementError = (
 		: placement.message ?? 'This block cannot be used here.';
 };
 
+/** One comparison of a parameter with a value, e.g. `{threshold} >= 100`. */
+export interface AchievementVariantConditionDraft {
+	parameter: string;
+	operator:  AchievementComparisonOperator;
+	value:     string | number | boolean;
+}
+
+/** Generated achievements that match every condition get this tier instead of the default. */
+export interface AchievementTierRuleDraft {
+	tier: number;
+	when: AchievementVariantConditionDraft[];
+}
+
+/** Generated achievements that match every condition are left out. */
+export interface AchievementSkipRuleDraft {
+	when: AchievementVariantConditionDraft[];
+}
+
 export interface AchievementTemplateDraft {
 	id?: string;
 	seasonId: string;
 	nameTemplate: string;
 	descriptionTemplate: string;
 	categoryId: string;
+	/** The tier of every generated achievement no tier rule matches. */
 	tier: number;
+	/** Checked in order; the first rule that matches decides the tier. */
+	tierRules: AchievementTierRuleDraft[];
+	skipRules: AchievementSkipRuleDraft[];
 	achievementScope: AchievementScope;
 	parameters: AchievementParameterDraft[];
 	rule: AchievementRuleDraft;
@@ -250,6 +272,7 @@ export interface AchievementTemplatePreview {
 	bindings: Record<string, string | number | boolean>;
 	name: string;
 	description: string;
+	tier: number;
 }
 
 export interface AchievementProgressionTargetDraft {
@@ -292,6 +315,8 @@ export const createEmptyAchievementTemplate = (
 	descriptionTemplate: '',
 	categoryId: '',
 	tier: 1,
+	tierRules: [],
+	skipRules: [],
 	achievementScope: 'session',
 	parameters: [],
 	rule: createDefaultAchievementRule(),

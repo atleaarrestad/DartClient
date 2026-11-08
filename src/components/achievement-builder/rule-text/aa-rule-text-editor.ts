@@ -3,17 +3,20 @@ import '../../../ui/dartboard/aa-dartboard.js';
 import { html, LitElement, nothing, PropertyValues, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 
+import type { AchievementVariantRules } from '../../../helpers/achievementVariantRules.js';
 import {
 	AchievementParameterDraft,
 	AchievementProgressionDraft,
 	AchievementRuleDraft,
 	AchievementScope,
+	AchievementSkipRuleDraft,
+	AchievementTierRuleDraft,
 	createDefaultAchievementProgression,
 	createDefaultAchievementRule,
 } from '../../../models/achievementBuilder.js';
 import type { ParameterBinding } from '../achievement-draft.js';
 import { describeTarget, getTargetBoardZones } from '../hit-target/hit-target.js';
-import { ruleChangeEventName, ruleHighlightEventName } from '../rule-events.js';
+import { AchievementLogicChangeDetail, ruleChangeEventName, ruleHighlightEventName } from '../rule-events.js';
 import ruleTextEditorStyles from './aa-rule-text-editor.css?inline';
 import {
 	collectRawRules,
@@ -29,16 +32,25 @@ import {
 	parseRuleText,
 	parseTargetText,
 	RuleTextDiagnostic,
+	RuleTextVariants,
 } from './rule-text-parser.js';
 import { printProgressionText, printRuleText, RuleTextRange } from './rule-text-printer.js';
 
 const parseDelay = 250;
+
+/** What the editor last sent; when the same values come back, the text is left alone. */
+interface EmittedDocument {
+	source:    unknown;
+	tier:      number;
+	tierRules: unknown;
+	skipRules: unknown;
+}
 const targetAtPattern = /(?:DBull|Bull|[SDT]?(?:\d+|\{[^}\n]*\}))/g;
 
 /**
- * Rule text in a code editor, in two-way sync with the rule tree. Typing is parsed after a
- * short pause; text with errors never replaces the rule, and a clean parse only emits a change
- * when the rule really differs. Edits made elsewhere (the canvas) are printed back.
+ * Rule text in a code editor, in two-way sync with the rule tree and the tier and skip rules.
+ * Typing is parsed after a short pause; text with errors never replaces anything, and a clean
+ * parse only emits what really differs. Edits made elsewhere (the canvas) are printed back.
  */
 @customElement('aa-rule-text-editor')
 export class AaRuleTextEditor extends LitElement {
@@ -48,6 +60,9 @@ export class AaRuleTextEditor extends LitElement {
 	@property({ type: String }) achievementScope: AchievementScope = 'session';
 	@property({ attribute: false }) parameters:   readonly AchievementParameterDraft[] = [];
 	@property({ attribute: false }) binding?:     ParameterBinding;
+	@property({ type: Number }) tier = 1;
+	@property({ attribute: false }) tierRules:    readonly AchievementTierRuleDraft[] = [];
+	@property({ attribute: false }) skipRules:    readonly AchievementSkipRuleDraft[] = [];
 	@property({ type: Boolean }) readOnly = false;
 
 	@state() private diagnostics: readonly RuleTextDiagnostic[] = [];
@@ -58,8 +73,8 @@ export class AaRuleTextEditor extends LitElement {
 
 	private editor?:      RuleTextEditorHandle;
 	private ranges:       Map<string, RuleTextRange> = new Map();
-	/** The rule or progression this editor emitted last; its echo must not reprint the text. */
-	private lastEmitted?: unknown;
+	/** What this editor emitted last; its echo must not reprint the text. */
+	private lastEmitted?: EmittedDocument;
 	private parseTimer?:  number;
 
 	private get isProgression(): boolean {
@@ -75,13 +90,21 @@ export class AaRuleTextEditor extends LitElement {
 		return this.isProgression && !!this.currentProgression.raw;
 	}
 
+	private get variants(): AchievementVariantRules {
+		return { tier: this.tier, tierRules: this.tierRules, skipRules: this.skipRules };
+	}
+
+	private get source(): AchievementRuleDraft | AchievementProgressionDraft | undefined {
+		return this.isProgression ? this.progression : this.rule;
+	}
+
 	private print(): string {
 		if (this.isRawProgression)
 			return 'Advanced progression logic can\'t be shown as text.';
 
 		const result = this.isProgression
-			? printProgressionText(this.currentProgression)
-			: printRuleText(this.rule);
+			? printProgressionText(this.currentProgression, this.variants)
+			: printRuleText(this.rule, this.variants);
 		this.ranges = result.ranges;
 
 		return result.text;
@@ -118,9 +141,8 @@ export class AaRuleTextEditor extends LitElement {
 		if (changed.has('readOnly') || changed.has('progression') || changed.has('achievementScope'))
 			this.editor.setReadOnly(this.readOnly || this.isRawProgression);
 
-		const source = this.isProgression ? this.progression : this.rule;
-		const sourceChanged = changed.has('rule') || changed.has('progression') || changed.has('achievementScope');
-		if (sourceChanged && source !== this.lastEmitted) {
+		const documentKeys = [ 'rule', 'progression', 'achievementScope', 'tier', 'tierRules', 'skipRules' ] as const;
+		if (documentKeys.some(key => changed.has(key)) && !this.isEcho()) {
 			window.clearTimeout(this.parseTimer);
 			this.diagnostics = [];
 			this.editor.setText(this.print());
@@ -133,6 +155,16 @@ export class AaRuleTextEditor extends LitElement {
 		window.clearTimeout(this.parseTimer);
 		this.editor?.destroy();
 		this.editor = undefined;
+	}
+
+	private isEcho(): boolean {
+		const last = this.lastEmitted;
+
+		return !!last
+			&& last.source === this.source
+			&& last.tier === this.tier
+			&& last.tierRules === this.tierRules
+			&& last.skipRules === this.skipRules;
 	}
 
 	/** Selects where a rule is written, e.g. when its line is clicked on the canvas. */
@@ -151,40 +183,65 @@ export class AaRuleTextEditor extends LitElement {
 		const context = { parameters: this.parameters, rawRules: collectRawRules(this.rule) };
 		if (this.isProgression) {
 			const result = parseProgressionText(text, context);
-			this.applyDiagnostics(result.diagnostics);
-			if (!result.value || hasErrors(result.diagnostics))
+			if (!this.applyDiagnostics(result.diagnostics, result.variants) || !result.value)
 				return;
 
 			this.ranges = result.ranges;
 			const current = this.currentProgression;
 			const targets = reconcileTargetIds(current.targets, result.value.targets);
 			const before = { statuses: current.statuses, targets: current.targets };
-			if (isSameStructure(before, { statuses: result.value.statuses, targets }))
-				return;
-
-			this.emit({ progression: { ...current, statuses: result.value.statuses, targets } });
+			const progression = isSameStructure(before, { statuses: result.value.statuses, targets })
+				? undefined
+				: { ...current, statuses: result.value.statuses, targets };
+			this.emit({ progression, ...this.getVariantChanges(result.variants) });
 
 			return;
 		}
 
 		const result = parseRuleText(text, context);
-		this.applyDiagnostics(result.diagnostics);
-		if (!result.value || hasErrors(result.diagnostics))
+		if (!this.applyDiagnostics(result.diagnostics, result.variants) || !result.value)
 			return;
 
 		const rule = reconcileRuleIds(this.rule, result.value);
 		this.ranges = reconcileRanges(result.ranges, result.value, rule);
-		if (!isSameStructure(rule, this.rule))
-			this.emit({ rule });
+		this.emit({
+			rule: isSameStructure(rule, this.rule) ? undefined : rule,
+			...this.getVariantChanges(result.variants),
+		});
 	}
 
-	private applyDiagnostics(diagnostics: RuleTextDiagnostic[]): void {
-		this.diagnostics = diagnostics;
-		this.editor?.setDiagnostics(diagnostics);
+	/** Shows the problems in the text; true when there are no errors, so the text may be applied. */
+	private applyDiagnostics(diagnostics: RuleTextDiagnostic[], variants: RuleTextVariants): boolean {
+		const all = variants.tier === undefined && !this.isRawProgression
+			? [ ...diagnostics, missingTierDiagnostic ]
+			: diagnostics;
+		this.diagnostics = all;
+		this.editor?.setDiagnostics(all);
+
+		return !hasErrors(all);
 	}
 
-	private emit(detail: { rule?: AchievementRuleDraft; progression?: AchievementProgressionDraft; }): void {
-		this.lastEmitted = detail.rule ?? detail.progression;
+	private getVariantChanges(variants: RuleTextVariants): AchievementLogicChangeDetail {
+		return {
+			tier:      variants.tier === undefined || variants.tier === this.tier ? undefined : variants.tier,
+			tierRules: isSameStructure(variants.tierRules, this.tierRules) ? undefined : variants.tierRules,
+			skipRules: isSameStructure(variants.skipRules, this.skipRules) ? undefined : variants.skipRules,
+		};
+	}
+
+	/** Emits the parts that changed, if any. */
+	private emit(changes: AchievementLogicChangeDetail): void {
+		const detail = Object.fromEntries(Object.entries(changes)
+			.filter(([ , value ]) => value !== undefined)) as AchievementLogicChangeDetail;
+		if (Object.keys(detail).length === 0)
+			return;
+
+		this.lastEmitted = {
+			source:    (this.isProgression ? detail.progression : detail.rule) ?? this.source,
+			tier:      detail.tier ?? this.tier,
+			tierRules: detail.tierRules ?? this.tierRules,
+			skipRules: detail.skipRules ?? this.skipRules,
+		};
 		this.dispatchEvent(new CustomEvent(ruleChangeEventName, { detail, bubbles: true, composed: true }));
 	}
 
@@ -283,6 +340,14 @@ export class AaRuleTextEditor extends LitElement {
 	static override styles = unsafeCSS(ruleTextEditorStyles);
 
 }
+
+const missingTierDiagnostic: RuleTextDiagnostic = {
+	from:     0,
+	to:       0,
+	severity: 'error',
+	message:  'Say which tier the achievements get, such as tier bronze.',
+	fixes:    [ { label: 'Add tier bronze', changes: [ { from: 0, to: 0, insert: 'tier bronze\n' } ] } ],
+};
 
 /**
  * The parser records ranges under the ids it generated; after `reconcileRuleIds` copied the

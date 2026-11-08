@@ -2,6 +2,7 @@ import './aa-rule-readout.js';
 import '../progression/aa-progression-board-editor.js';
 import '../rule-text/aa-rule-text-editor.js';
 import '../sentence-canvas/aa-sentence-canvas.js';
+import '../variant-rules/aa-variant-rules-editor.js';
 
 import { html, LitElement, nothing, PropertyValues, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
@@ -12,6 +13,8 @@ import {
 	AchievementProgressionDraft,
 	AchievementRuleDraft,
 	AchievementScope,
+	AchievementSkipRuleDraft,
+	AchievementTierRuleDraft,
 	createDefaultAchievementProgression,
 	createDefaultAchievementRule,
 } from '../../../models/achievementBuilder.js';
@@ -49,9 +52,10 @@ const writeStorage = (key: string, value: string): void => {
 };
 
 /**
- * Where the unlock rule is edited: the readout, then blocks, text or both side by side.
- * Owns which generated achievement is previewed and which rule is highlighted; every view
- * reports edits with the builder's `achievement-logic-change` event.
+ * Where the unlock rule and the tiers are edited: the readout, then blocks, text or both side
+ * by side. The blocks side has the tier panel above the rule; the text has them as `tier` and
+ * `skip` lines. Owns which generated achievement is previewed and which rule is highlighted;
+ * every view reports edits with the builder's `achievement-logic-change` event.
  */
 @customElement('aa-rule-workspace')
 export class AaRuleWorkspace extends LitElement {
@@ -61,6 +65,9 @@ export class AaRuleWorkspace extends LitElement {
 	@property({ attribute: false }) parameters:   readonly AchievementParameterDraft[] = [];
 	@property({ attribute: false }) previews:     readonly AchievementTemplatePreview[] = [];
 	@property({ type: String }) achievementScope: AchievementScope = 'session';
+	@property({ type: Number }) tier = 1;
+	@property({ attribute: false }) tierRules:    readonly AchievementTierRuleDraft[] = [];
+	@property({ attribute: false }) skipRules:    readonly AchievementSkipRuleDraft[] = [];
 	@property({ type: Boolean }) readOnly = false;
 
 	/** Opens in Split: blocks to add structure, text to tweak values. */
@@ -122,11 +129,11 @@ export class AaRuleWorkspace extends LitElement {
 		this.textEditor?.revealRule(event.detail.ruleId);
 	}
 
-	private renderBlocks(): TemplateResult {
+	private renderLogicBlocks(): TemplateResult {
 		if (this.isProgression) {
 			return html`
 				<aa-progression-board-editor
-					class="pane"
+					class="logic"
 					.progression=${ this.progression }
 					.parameters=${ this.parameters }
 					.binding=${ this.binding }
@@ -137,7 +144,7 @@ export class AaRuleWorkspace extends LitElement {
 
 		return html`
 			<aa-sentence-canvas
-				class="pane"
+				class="logic"
 				.rule=${ this.rule }
 				.parameters=${ this.parameters }
 				.binding=${ this.binding }
@@ -145,6 +152,21 @@ export class AaRuleWorkspace extends LitElement {
 				?readOnly=${ this.readOnly }
 				@rule-select=${ this.handleSelect }
 			></aa-sentence-canvas>
+		`;
+	}
+
+	private renderBlocks(): TemplateResult {
+		return html`
+			<div class="pane blocks">
+				<aa-variant-rules-editor
+					.tier=${ this.tier }
+					.tierRules=${ this.tierRules }
+					.skipRules=${ this.skipRules }
+					.parameters=${ this.parameters }
+					?readOnly=${ this.readOnly }
+				></aa-variant-rules-editor>
+				${ this.renderLogicBlocks() }
+			</div>
 		`;
 	}
 
@@ -157,6 +179,9 @@ export class AaRuleWorkspace extends LitElement {
 				.achievementScope=${ this.achievementScope }
 				.parameters=${ this.parameters }
 				.binding=${ this.binding }
+				.tier=${ this.tier }
+				.tierRules=${ this.tierRules }
+				.skipRules=${ this.skipRules }
 				?readOnly=${ this.readOnly }
 			></aa-rule-text-editor>
 		`;

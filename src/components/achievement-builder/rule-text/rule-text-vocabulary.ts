@@ -120,5 +120,17 @@ export const statementKeywords = [
 	'not',
 ] as const;
 
+/**
+ * Lines at the top of a document that shape the generated achievements rather than the rule:
+ * `skip if {n} = 13`, `tier gold if {n} >= 15` and the default `tier bronze`.
+ */
+export const variantKeywords = {
+	tier:      'tier',
+	skip:      'skip',
+	if:        'if',
+	and:       'and',
+	otherwise: 'otherwise',
+} as const;
+
 export const bullWord = 'Bull';
 export const doubleBullWord = 'DBull';

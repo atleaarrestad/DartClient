@@ -303,12 +303,6 @@ textarea:focus-visible {
 	white-space: nowrap;
 }
 
-.section__tier {
-	width: 18px;
-	height: 18px;
-	object-fit: contain;
-}
-
 .section--error .section__toggle {
 	background: var(--color-surface-highlight);
 }

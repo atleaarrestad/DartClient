@@ -26,6 +26,7 @@ import type {
 	AchievementTemplateVersionResponse,
 	UpsertAchievementTemplateRequest,
 } from '../models/achievementBuilderApi.js';
+import { compileVariantRules, restoreVariantRules, variantsPropertyName } from './achievementVariantRules.js';
 
 type AstNode = Record<string, unknown>;
 
@@ -545,10 +546,15 @@ export function compileAchievementTemplate(
 		rule: draft.rule,
 		progression: getEditorProgression(draft.progression),
 	};
+	const variants = compileVariantRules(draft);
+	const header = {
+		version: 1,
+		editor,
+		...variants ? { [variantsPropertyName]: variants } : {},
+	};
 	const definition = draft.achievementScope === 'progression'
 		? {
-			version: 1,
-			editor,
+			...header,
 			reducers: progression.raw
 				? structuredClone(progression.raw.reducers)
 				: compileProgressionReducers(progression),
@@ -557,8 +563,7 @@ export function compileAchievementTemplate(
 				: compileProgressionRoot(progression),
 		}
 		: {
-			version: 1,
-			editor,
+			...header,
 			root: compileRule(draft.rule, 'root'),
 		};
 
@@ -1748,6 +1753,7 @@ export function restoreAchievementTemplateDraft(
 		descriptionTemplate: version.descriptionTemplate,
 		categoryId: version.categoryId,
 		tier: version.achievementTier,
+		...restoreVariantRules(version.definition[variantsPropertyName]),
 		achievementScope: version.evaluationPhase === 'Progression'
 			? 'progression'
 			: 'session',

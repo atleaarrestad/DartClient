@@ -129,6 +129,29 @@ button:focus-visible {
 	object-fit: contain;
 }
 
+/* The lowest and highest tier of the template's achievements, stacked in the icon's square. */
+.row__tiers {
+	position: relative;
+	width: 20px;
+	height: 20px;
+}
+
+.row__tiers img {
+	position: absolute;
+	width: 15px;
+	height: 15px;
+}
+
+.row__tiers img:first-child {
+	top: 0;
+	left: 0;
+}
+
+.row__tiers img:last-child {
+	right: 0;
+	bottom: 0;
+}
+
 .row > i {
 	text-align: center;
 }

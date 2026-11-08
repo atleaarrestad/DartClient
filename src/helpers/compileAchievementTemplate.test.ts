@@ -875,3 +875,40 @@ describe('measureAchievementAst', () => {
 		});
 	});
 });
+
+describe('tier and skip rules', () => {
+	const tierRules = [ { tier: 3, when: [ { parameter: 'n', operator: 'greaterThanOrEqual' as const, value: 15 } ] } ];
+	const skipRules = [ { when: [ { parameter: 'n', operator: 'equal' as const, value: 13 } ] } ];
+	const rule: AchievementRuleDraft = { id: 'root', type: 'all', children: [] };
+
+	it('stores them in the definition next to the logic', () => {
+		const definition = compileAchievementTemplate(templateDraft(rule, {
+			parameters: [ rangeParameter('n') ],
+			tierRules,
+			skipRules,
+		})).definition;
+
+		expect(definition['variants']).toEqual({
+			skip:  [ { when: [ { parameter: 'n', operator: 'equal', value: 13 } ] } ],
+			tiers: [ { tier: 'gold', when: [ { parameter: 'n', operator: 'greaterThanOrEqual', value: 15 } ] } ],
+		});
+	});
+
+	it('leaves the definition unchanged without rules', () => {
+		const definition = compileAchievementTemplate(templateDraft(rule)).definition;
+
+		expect(definition).not.toHaveProperty('variants');
+	});
+
+	it('reads them back when a version is opened', () => {
+		const { definition } = compileAchievementTemplate(templateDraft(rule, {
+			parameters: [ rangeParameter('n') ],
+			tierRules,
+			skipRules,
+		}));
+		const restored = restoreAchievementTemplateDraft(template(templateVersion(1, { definition })));
+
+		expect(restored?.tierRules).toEqual(tierRules);
+		expect(restored?.skipRules).toEqual(skipRules);
+	});
+});

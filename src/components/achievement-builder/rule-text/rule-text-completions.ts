@@ -1,4 +1,7 @@
+import { findTierByName, formatTierLabel, getTierName } from '../../../helpers/achievementVariantRules.js';
 import type { AchievementParameterDraft } from '../../../models/achievementBuilder.js';
+import { achievementTiersAscending } from '../../../models/enums.js';
+import { getParameterValues } from '../achievement-draft.js';
 import { HitTargetContextId, hitTargetContexts } from '../hit-target/hit-target.js';
 import { RuleTextToken, tokenizeRuleText } from './rule-text-lexer.js';
 import {
@@ -7,6 +10,7 @@ import {
 	findStatusByWord,
 	roundStatusWords,
 	ruleTextFields,
+	variantKeywords,
 } from './rule-text-vocabulary.js';
 
 export type RuleTextCompletionType = 'keyword' | 'field' | 'parameter' | 'target' | 'status';
@@ -127,9 +131,94 @@ const fieldOptions = (scope: 'round' | 'root'): RuleTextCompletion[] =>
 				: undefined,
 	}));
 
-const statementOptions = (scope: 'round' | 'root', parameters: readonly AchievementParameterDraft[]): RuleTextCompletion[] => {
-	const keyword = (label: string, detail: string, apply = `${ label } `): RuleTextCompletion =>
-		({ label, type: 'keyword', detail, apply });
+const keyword = (label: string, detail: string, apply = `${ label } `): RuleTextCompletion =>
+	({ label, type: 'keyword', detail, apply });
+
+/** The lines that may start a document: the tier and skip lines. */
+const variantLineOptions = (): RuleTextCompletion[] => [
+	keyword(variantKeywords.tier, 'the achievements\u2019 tier, e.g. tier gold'),
+	keyword(`${ variantKeywords.skip } ${ variantKeywords.if }`, 'leave some combinations out'),
+];
+
+/** How many values of a parameter are suggested after a comparison. */
+const suggestedValueCount = 12;
+
+/**
+ * Inside a `tier` or `skip` line: tier names after `tier`, then `if`/`otherwise`, then plain
+ * {parameters}, and after a comparison the values the parameter makes.
+ */
+const variantLineCompletions = (
+	tokens: readonly RuleTextToken[],
+	typed: string,
+	from: number,
+	parameters: readonly AchievementParameterDraft[],
+): RuleTextCompletionResult | undefined => {
+	const previous = tokens.at(-1);
+	const braceAt = typed.lastIndexOf('{');
+	if (braceAt >= 0) {
+		const options = parameters.map(parameter => ({ label: parameter.key, type: 'parameter' as const, detail: 'parameter' }));
+
+		return options.length > 0 ? { from: from + braceAt + 1, options } : undefined;
+	}
+	// Nothing fits inside text that is still being typed: `"ha`.
+	if (!previous || (previous.type === 'string' && (previous.text.length < 2 || !previous.text.endsWith('"'))))
+		return undefined;
+
+	if (previous.text === variantKeywords.tier) {
+		return {
+			from,
+			options: achievementTiersAscending.map(tier => ({
+				label:  getTierName(tier)!,
+				type:   'status' as const,
+				detail: formatTierLabel(tier),
+			})),
+		};
+	}
+	if (findTierByName(previous.text) !== undefined && tokens.at(-2)?.text === variantKeywords.tier) {
+		return {
+			from,
+			options: [
+				keyword(variantKeywords.if, 'only for some combinations'),
+				keyword(variantKeywords.otherwise, 'every other achievement', variantKeywords.otherwise),
+			],
+		};
+	}
+	if (previous.text === variantKeywords.if || previous.text === variantKeywords.and) {
+		const options = parameters.map(parameter => ({
+			label:  `{${ parameter.key }}`,
+			type:   'parameter' as const,
+			detail: 'parameter',
+			apply:  `{${ parameter.key }} `,
+		}));
+
+		return options.length > 0 ? { from, options } : undefined;
+	}
+	if (previous.type === 'punct' && findOperatorBySymbol(previous.text)) {
+		const parameter = parameters.find(item => item.key === tokens.at(-3)?.text);
+		const values = parameter ? getParameterValues(parameter, suggestedValueCount) : [];
+
+		return values.length > 0
+			? {
+				from,
+				options: values.map(value => ({
+					label:  typeof value === 'string' ? `"${ value }"` : String(value),
+					type:   'field' as const,
+					detail: `{${ parameter!.key }}`,
+				})),
+			}
+			: undefined;
+	}
+	if (previous.type === 'number' || previous.type === 'string' || previous.text === 'true' || previous.text === 'false')
+		return { from, options: [ keyword(variantKeywords.and, 'another condition that has to hold') ] };
+
+	return undefined;
+};
+
+const statementOptions = (
+	scope: 'round' | 'root',
+	parameters: readonly AchievementParameterDraft[],
+	topLevel: boolean,
+): RuleTextCompletion[] => {
 	const scoped = scope === 'round'
 		? [
 			keyword('hit', 'a dart hits a target'),
@@ -145,6 +234,7 @@ const statementOptions = (scope: 'round' | 'root', parameters: readonly Achievem
 
 	return [
 		...scoped,
+		...topLevel ? variantLineOptions() : [],
 		keyword('all', 'all of these', 'all {'),
 		keyword('any', 'any of these', 'any {'),
 		keyword('not', 'this must not happen'),
@@ -174,6 +264,10 @@ export const getRuleTextCompletions = (
 	const previous = tokens.at(-1);
 	const cursorLine = before.split('\n').length - 1;
 
+	const lineKeyword = previous?.line === cursorLine ? statementKeyword(tokens, cursorLine) : undefined;
+	if (lineKeyword === variantKeywords.tier || lineKeyword === variantKeywords.skip)
+		return variantLineCompletions(tokens, typed, from, context.parameters);
+
 	// Inside a parameter: `D{` or `{le`.
 	const braceAt = typed.lastIndexOf('{');
 	if (braceAt >= 0 || blocks.at(-1) === 'parameter') {
@@ -198,8 +292,12 @@ export const getRuleTextCompletions = (
 			return { from, options: [ 'valid', 'victory', 'none' ].map(label => ({ label, type: 'status' as const })) };
 
 		const collect: RuleTextCompletion = { label: 'collect', type: 'keyword', apply: 'collect valid|victory {' };
+		const hasCollect = tokens.some(token => token.text === 'collect');
+		const lineStart = !previous || previous.line < cursorLine;
 
-		return previous ? undefined : { from, options: [ collect ] };
+		return lineStart
+			? { from, options: [ ...variantLineOptions(), ...hasCollect ? [] : [ collect ] ] }
+			: undefined;
 	}
 
 	if (typed.includes('.'))
@@ -237,5 +335,5 @@ export const getRuleTextCompletions = (
 			return undefined;
 	}
 
-	return { from, options: statementOptions(scope, context.parameters) };
+	return { from, options: statementOptions(scope, context.parameters, blocks.length === 0) };
 };

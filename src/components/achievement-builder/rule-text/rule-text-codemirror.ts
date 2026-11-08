@@ -56,8 +56,8 @@ export interface RuleTextEditorHandle {
 /** Marks changes made by `setText`, so they aren't reported back as typing. */
 const external = Annotation.define<boolean>();
 
-const keywords = /^(?:hit|every|dart|count|winning|sequence|round|all|any|not|raw|collect|none)\b/;
-const statuses = /^(?:valid|victory|overshoot|failed)\b/;
+const keywords = /^(?:hit|every|dart|count|winning|sequence|round|all|any|not|raw|collect|none|tier|skip|if|and|otherwise)\b/;
+const statuses = /^(?:valid|victory|overshoot|failed|bronze|silver|gold|platinum|diamond)\b/;
 
 /** Highlighting only; the real parser runs separately and reports diagnostics. */
 const ruleTextLanguage = StreamLanguage.define<null>({
@@ -75,7 +75,9 @@ const ruleTextLanguage = StreamLanguage.define<null>({
 			return 'keyword';
 		if (stream.match(statuses))
 			return 'typeName';
-		if (stream.match(/^(?:DBull|Bull|rim|miss)\b/) || stream.match(/^[SDT](?:\d+\b|(?=\{)|\b)/))
+		if (stream.match(/^"[^"]*"?/))
+			return 'string';
+		if (stream.match(/^(?:DBull|Bull|rim|miss|true|false)\b/) || stream.match(/^[SDT](?:\d+\b|(?=\{)|\b)/))
 			return 'atom';
 		if (stream.match(/^\d+/))
 			return 'number';

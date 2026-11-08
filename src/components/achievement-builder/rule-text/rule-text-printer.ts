@@ -1,8 +1,10 @@
+import { AchievementVariantRules, getTierName } from '../../../helpers/achievementVariantRules.js';
 import type {
 	AchievementProgressionTargetDraft,
 	AchievementRoundStatus,
 	AchievementRuleDraft,
 	AchievementValueDraft,
+	AchievementVariantConditionDraft,
 } from '../../../models/achievementBuilder.js';
 import { formatAchievementRule } from '../achievement-rule-presentation.js';
 import { HitTarget, HitTargetContextId, hitTargetContexts, isBullLocation } from '../hit-target/hit-target.js';
@@ -15,6 +17,7 @@ import {
 	roundStatusWords,
 	throwKindLetters,
 	throwTypeWords,
+	variantKeywords,
 } from './rule-text-vocabulary.js';
 
 export interface RuleTextRange {
@@ -194,13 +197,45 @@ class RuleTextWriter {
 
 }
 
+const printVariantValue = (value: AchievementVariantConditionDraft['value']): string =>
+	typeof value === 'string' ? `"${ value }"` : String(value);
+
+const printConditions = (when: readonly AchievementVariantConditionDraft[]): string =>
+	when
+		.map(({ parameter, operator, value }) => `{${ parameter }} ${ operatorSymbols[operator] } ${ printVariantValue(value) }`)
+		.join(` ${ variantKeywords.and } `);
+
 /**
- * Prints a session rule. A root All group is written as top-level lines without braces,
+ * The skip and tier lines at the top of a document: skips first, then the tier rules in the
+ * order they are checked, then the default tier, which reads "otherwise" after tier rules.
+ */
+export const printVariantLines = (variants: AchievementVariantRules): string => {
+	const { tier, skip, if: when, otherwise } = variantKeywords;
+	const tierName = (value: number): string => getTierName(value) ?? String(value);
+
+	return [
+		...variants.skipRules.map(rule => `${ skip } ${ when } ${ printConditions(rule.when) }`),
+		...variants.tierRules.map(rule => `${ tier } ${ tierName(rule.tier) } ${ when } ${ printConditions(rule.when) }`),
+		`${ tier } ${ tierName(variants.tier) }${ variants.tierRules.length > 0 ? ` ${ otherwise }` : '' }`,
+	].join('\n');
+};
+
+const startWithVariants = (writer: RuleTextWriter, variants: AchievementVariantRules | undefined): void => {
+	if (variants)
+		writer.text = `${ printVariantLines(variants) }\n\n`;
+};
+
+/**
+ * Prints a session rule, after the tier and skip lines when they are given. A root All group is written as top-level lines without braces,
  * except when its only child is a group: a single top-level group reads back as the root,
  * so that case keeps its braces and parses back to the same shape.
  */
-export const printRuleText = (rule: AchievementRuleDraft): RuleTextPrintResult => {
+export const printRuleText = (
+	rule: AchievementRuleDraft,
+	variants?: AchievementVariantRules,
+): RuleTextPrintResult => {
 	const writer = new RuleTextWriter();
+	startWithVariants(writer, variants);
 	const onlyChild = rule.type === 'all' && rule.children.length === 1 ? rule.children[0] : undefined;
 	const onlyChildIsGroup = onlyChild?.type === 'all' || onlyChild?.type === 'any';
 	if (rule.type === 'all' && !onlyChildIsGroup)
@@ -208,20 +243,24 @@ export const printRuleText = (rule: AchievementRuleDraft): RuleTextPrintResult =
 	else
 		writer.statement(rule, 0);
 
-	const text = writer.text.replace(/\n$/, '');
+	const text = writer.text.replace(/\n+$/, '');
 	writer.ranges.set(rule.id, { from: 0, to: text.length });
 
 	return { text, ranges: writer.ranges };
 };
 
-/** Prints a progression target set as a `collect` block. */
-export const printProgressionText = (progression: {
-	statuses: readonly ('valid' | 'victory')[];
-	targets:  readonly AchievementProgressionTargetDraft[];
-}): RuleTextPrintResult => {
+/** Prints a progression target set as a `collect` block, after the tier and skip lines. */
+export const printProgressionText = (
+	progression: {
+		statuses: readonly ('valid' | 'victory')[];
+		targets:  readonly AchievementProgressionTargetDraft[];
+	},
+	variants?: AchievementVariantRules,
+): RuleTextPrintResult => {
 	const writer = new RuleTextWriter();
+	startWithVariants(writer, variants);
 	const statuses = progression.statuses.map(status => roundStatusWords[status]).join('|');
-	writer.text = `collect ${ statuses || 'none' } {\n`;
+	writer.text += `collect ${ statuses || 'none' } {\n`;
 	writer.progressionTargets(progression.targets, 1);
 	writer.text += '}';
 

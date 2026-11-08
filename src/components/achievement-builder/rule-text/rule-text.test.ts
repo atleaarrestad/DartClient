@@ -321,3 +321,95 @@ describe('bull targets', () => {
 		expect(formatTargetLabel({ throwType: 'any', hitLocation: doubleBull })).toBe('D-Bull');
 	});
 });
+
+describe('tier and skip lines', () => {
+	const mode: AchievementParameterDraft = {
+		id:            'p-mode',
+		key:           'mode',
+		valueType:     'string',
+		generatorType: 'set',
+		values:        [ 'easy', 'hard' ],
+	};
+	const variantContext = { parameters: [ n, mode ] };
+	const variants = {
+		tier:      1,
+		tierRules: [
+			{ tier: 5, when: [ { parameter: 'n', operator: 'greaterThanOrEqual' as const, value: 18 } ] },
+			{
+				tier: 3,
+				when: [
+					{ parameter: 'n', operator: 'equal' as const, value: 17 },
+					{ parameter: 'mode', operator: 'equal' as const, value: 'hard' },
+				],
+			},
+		],
+		skipRules: [ { when: [ { parameter: 'n', operator: 'equal' as const, value: 13 } ] } ],
+	};
+
+	it('prints skips, tier rules and the default tier above the rule', () => {
+		const { text } = printRuleText(all(round([ hit('triple', { source: 'constant', value: '20' }) ])), variants);
+
+		expect(text).toBe([
+			'skip if {n} = 13',
+			'tier diamond if {n} >= 18',
+			'tier gold if {n} = 17 and {mode} = "hard"',
+			'tier bronze otherwise',
+			'',
+			'round any valid|victory {',
+			'  hit T20',
+			'}',
+		].join('\n'));
+	});
+
+	it('prints only the tier when there are no rules', () => {
+		expect(printRuleText(all(), { tier: 3, tierRules: [], skipRules: [] }).text).toBe('tier gold');
+	});
+
+	it('reads the lines back', () => {
+		const printed = printRuleText(all(round([ hit('any', { source: 'constant', value: '20' }) ])), variants).text;
+		const result = parseRuleText(printed, variantContext);
+
+		expect(hasErrors(result.diagnostics)).toBe(false);
+		expect(result.variants).toEqual(variants);
+		expect(result.value?.type === 'all' && result.value.children).toHaveLength(1);
+	});
+
+	it('reads them in a progression document too', () => {
+		const printed = printProgressionText({ statuses: [ 'valid' ], targets: [] }, variants).text;
+		const result = parseProgressionText(printed, variantContext);
+
+		expect(hasErrors(result.diagnostics)).toBe(false);
+		expect(result.variants).toEqual(variants);
+		expect(result.value?.statuses).toEqual([ 'valid' ]);
+	});
+
+	it.each([
+		[ 'tier golden', 'Expected a tier' ],
+		[ 'tier gold\ntier silver', 'The tier is already set' ],
+		[ 'tier gold\nskip if {mode} > "easy"', '{mode} can only be compared with = or !=.' ],
+		[ 'tier gold\nskip if {mode} = hard', 'Write text in quotes' ],
+		[ 'tier gold\nskip if {n} = "13"', '{n} is a number' ],
+		[ 'tier gold\nskip if {n+1} = 3', 'check the parameter itself' ],
+		[ 'tier gold\nskip {n} = 3', 'Write skip if' ],
+		[ 'round any {\n  tier gold\n}', 'outside every block' ],
+	])('reports %j', (text, message) => {
+		const { diagnostics } = parseRuleText(text, variantContext);
+
+		expect(diagnostics.some(diagnostic => diagnostic.severity === 'error' && diagnostic.message.includes(message)))
+			.toBe(true);
+	});
+
+	it('suggests tier names, then if or otherwise, then parameters and values', () => {
+		const labels = (text: string): string[] =>
+			getRuleTextCompletions(text, text.length, { parameters: [ n, mode ], documentKind: 'rule' })
+				?.options.map(option => option.label) ?? [];
+
+		expect(labels('tier ')).toEqual([ 'bronze', 'silver', 'gold', 'platinum', 'diamond' ]);
+		expect(labels('tier gold ')).toEqual([ 'if', 'otherwise' ]);
+		expect(labels('tier gold if ')).toEqual([ '{n}', '{mode}' ]);
+		expect(labels('skip if {mode} = ')).toEqual([ '"easy"', '"hard"' ]);
+		expect(labels('skip if {n} = 3 ')).toEqual([ 'and' ]);
+		expect(labels('skip if {mode} = "ha')).toEqual([]);
+		expect(labels('')).toEqual(expect.arrayContaining([ 'tier', 'skip if' ]));
+	});
+});

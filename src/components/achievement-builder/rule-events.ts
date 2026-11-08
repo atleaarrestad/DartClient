@@ -1,8 +1,14 @@
 import type { AchievementTemplateDraft } from '../../models/achievementBuilder.js';
 
-/** An edit of the unlock rule or progression targets, from any of the rule views. */
+/**
+ * An edit of the unlock rule, the progression targets, or the tier and skip rules, from any of
+ * the rule views. Only the parts that changed are set.
+ */
 export const ruleChangeEventName = 'achievement-logic-change';
-export type AchievementLogicChangeDetail = Partial<Pick<AchievementTemplateDraft, 'rule' | 'progression'>>;
+export type AchievementLogicChangeDetail = Partial<Pick<
+	AchievementTemplateDraft,
+	'rule' | 'progression' | 'tier' | 'tierRules' | 'skipRules'
+>>;
 
 /** A rule to highlight in every view, e.g. while its line, phrase or text is hovered. */
 export const ruleHighlightEventName = 'rule-highlight';

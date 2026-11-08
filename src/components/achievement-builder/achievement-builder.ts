@@ -13,6 +13,7 @@ import { keyed } from 'lit/directives/keyed.js';
 
 import { faIcons } from '../../faIcons.js';
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
+import { formatTierLabel } from '../../helpers/achievementVariantRules.js';
 import {
 	getEditableVersion,
 	restoreAchievementTemplateDraft,
@@ -29,7 +30,6 @@ import type {
 	AchievementTemplateResponse,
 	AchievementTemplateVersionResponse,
 } from '../../models/achievementBuilderApi.js';
-import { AchievementTier, achievementTiersAscending } from '../../models/enums.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
 import type {
 	SegmentedControlChangeEvent,
@@ -44,7 +44,7 @@ import formStyles from './achievement-builder-form.css?inline';
 import {
 	AchievementDraftLimits,
 	BuilderTab,
-	countGeneratedInstances,
+	countAchievements,
 	countParameterValues,
 	defaultAchievementDraftLimits,
 	getConflictingDraftVersion,
@@ -81,7 +81,7 @@ export interface AchievementBuilderStateChangeDetail {
 type TemplateField = 'nameTemplate' | 'descriptionTemplate';
 
 /** The collapsible sections of the inspector on the right. */
-type InspectorSection = 'status' | 'card' | 'tier' | 'variants' | 'preview';
+type InspectorSection = 'status' | 'card' | 'type' | 'variants' | 'preview';
 
 /** Where an error can be fixed: an inspector section or the logic canvas. */
 type ErrorArea = InspectorSection | 'logic';
@@ -106,7 +106,7 @@ const errorAreaByTab: Record<BuilderTab, ErrorArea> = {
 	logic:      'logic',
 };
 
-const inspectorSections: InspectorSection[] = [ 'status', 'card', 'tier', 'variants', 'preview' ];
+const inspectorSections: InspectorSection[] = [ 'status', 'card', 'type', 'variants', 'preview' ];
 
 const narrowWidth = 1100;
 const compactWidth = 760;
@@ -145,14 +145,6 @@ const readCollapsedSections = (): Set<InspectorSection> => {
 	}
 };
 
-const formatTierName = (tier: AchievementTier): string =>
-	AchievementTier[tier]?.replace(/^./, letter => letter.toUpperCase()) ?? String(tier);
-
-const achievementTierItems: SegmentedControlItem[] = achievementTiersAscending.map(tier => ({
-	value: String(tier),
-	label: formatTierName(tier),
-	icon:  getAchievementTierIcon(tier),
-}));
 const achievementScopeItems: SegmentedControlItem[] = [
 	{ value: 'session', label: 'Session' },
 	{ value: 'progression', label: 'Progression' },
@@ -847,17 +839,11 @@ export class AaAchievementBuilder extends LitElement {
 		`;
 	}
 
-	// ── Tier & type section ─────────────────────────────────────────────────
+	// ── Type section ────────────────────────────────────────────────────────
 
-	private renderTierSection(): TemplateResult {
+	/** Tiers live with the logic, in the workspace's tier panel and the rule text. */
+	private renderTypeSection(): TemplateResult {
 		return html`
-			${ this.renderField('Tier', this.renderSegmented(
-				achievementTierItems,
-				String(this.draft.tier),
-				'Achievement tier',
-				tier => this.updateDraft({ tier: Number(tier) }),
-				true,
-			), `${ formatTierName(this.draft.tier) }. The tier sets the MMR reward and the MMR cap increase.`) }
 			${ this.renderField('Type', this.renderSegmented(
 				achievementScopeItems,
 				this.draft.achievementScope,
@@ -1017,7 +1003,8 @@ export class AaAchievementBuilder extends LitElement {
 				${ parameters.length === 0
 					? html`This makes one achievement. Add a parameter such as <code>{n}</code> to make
 						one per value, and use it in the name, description and logic.`
-					: html`Every combination of values makes its own achievement.` }
+					: html`Every combination of values makes its own achievement. Give some of them another
+						tier, or skip them, in the Tiers panel above the rule.` }
 			</p>
 			${ parameters.map((parameter, index) => this.renderParameter(parameter, index)) }
 			${ this.readOnlyVersion
@@ -1035,8 +1022,7 @@ export class AaAchievementBuilder extends LitElement {
 
 	private renderPreviewSection(): TemplateResult {
 		const previews = getPreviews(this.draft, previewLimit);
-		const count = countGeneratedInstances(this.draft.parameters);
-		const tierIcon = getAchievementTierIcon(this.draft.tier);
+		const count = countAchievements(this.draft);
 
 		if (previews.length === 0) {
 			return html`
@@ -1050,7 +1036,11 @@ export class AaAchievementBuilder extends LitElement {
 			<ol class="preview-list">
 				${ previews.map(preview => html`
 					<li class="preview-card">
-						<img src=${ tierIcon } alt="" />
+						<img
+							src=${ getAchievementTierIcon(preview.tier) }
+							alt=${ formatTierLabel(preview.tier) }
+							title=${ formatTierLabel(preview.tier) }
+						/>
 						<div>
 							<strong>${ preview.name || 'Untitled achievement' }</strong>
 							<p>${ preview.description || 'No description' }</p>
@@ -1076,7 +1066,7 @@ export class AaAchievementBuilder extends LitElement {
 	// ── Panes ───────────────────────────────────────────────────────────────
 
 	private renderInspector(): TemplateResult {
-		const count = countGeneratedInstances(this.draft.parameters);
+		const count = countAchievements(this.draft);
 		const category = this.categoryList.find(item => item.id === this.draft.categoryId);
 		const parameterKeys = this.draft.parameters.map(parameter => `{${ parameter.key }}`).join(' ');
 
@@ -1098,13 +1088,10 @@ export class AaAchievementBuilder extends LitElement {
 					() => this.renderCardSection(),
 				) }
 				${ this.renderSection(
-					'tier',
-					'Tier & type',
-					html`
-						<img class="section__tier" src=${ getAchievementTierIcon(this.draft.tier) } alt="" />
-						${ this.draft.achievementScope === 'progression' ? 'Progression' : 'Session' }
-					`,
-					() => this.renderTierSection(),
+					'type',
+					'Type',
+					this.draft.achievementScope === 'progression' ? 'Progression' : 'Session',
+					() => this.renderTypeSection(),
 				) }
 				${ this.renderSection(
 					'variants',
@@ -1229,6 +1216,9 @@ export class AaAchievementBuilder extends LitElement {
 						.parameters=${ this.draft.parameters }
 						.previews=${ getPreviews(this.draft, previewLimit) }
 						.achievementScope=${ this.draft.achievementScope }
+						.tier=${ this.draft.tier }
+						.tierRules=${ this.draft.tierRules }
+						.skipRules=${ this.draft.skipRules }
 						.readOnly=${ this.readOnlyVersion }
 						@achievement-logic-change=${ (
 							event: CustomEvent<AchievementLogicChangeDetail>,

@@ -1,3 +1,4 @@
+import { findTierByName, isOrderingOperator } from '../../../helpers/achievementVariantRules.js';
 import { isBoardLocation } from '../../../helpers/dartboard.js';
 import {
 	AchievementComparisonOperator,
@@ -7,7 +8,10 @@ import {
 	AchievementRoundStatus,
 	AchievementRuleDraft,
 	achievementRulePlacements,
+	AchievementSkipRuleDraft,
+	AchievementTierRuleDraft,
 	AchievementValueDraft,
+	AchievementVariantConditionDraft,
 	createAchievementBuilderId,
 } from '../../../models/achievementBuilder.js';
 import type { BuilderScope } from '../achievement-draft.js';
@@ -28,6 +32,7 @@ import {
 	findOperatorBySymbol,
 	findStatusByWord,
 	findThrowKindByLetter,
+	variantKeywords,
 } from './rule-text-vocabulary.js';
 
 export interface RuleTextChange {
@@ -55,9 +60,18 @@ export interface RuleTextParseContext {
 	rawRules?:  readonly AchievementRawRuleDraft[];
 }
 
+/** The `tier` and `skip` lines of a document. */
+export interface RuleTextVariants {
+	/** From the `tier <name>` line without conditions; undefined when the document has none. */
+	tier?:     number;
+	tierRules: AchievementTierRuleDraft[];
+	skipRules: AchievementSkipRuleDraft[];
+}
+
 export interface RuleTextParseResult<T> {
 	/** Undefined only when nothing could be read; check diagnostics for errors either way. */
 	value?:      T;
+	variants:    RuleTextVariants;
 	diagnostics: RuleTextDiagnostic[];
 	ranges:      Map<string, RuleTextRange>;
 }
@@ -87,6 +101,8 @@ class RuleTextSyntaxError extends Error {
 const operatorHelp = 'Expected a comparison: =, !=, <, <=, > or >=.';
 const targetHelp = 'Expected a target such as T20, D{n}, 20, Bull, DBull, rim or miss.';
 const valueHelp = 'Expected a number, a {parameter} or a value such as round.points.';
+const tierHelp = 'Expected a tier: bronze, silver, gold, platinum or diamond.';
+const variantValueHelp = 'Expected a number, "text" in quotes, true or false.';
 
 const typeNouns: Record<TargetThrowType, string> = {
 	any:        'any throw',
@@ -111,6 +127,7 @@ class RuleTextParser {
 	private index = 0;
 	readonly diagnostics: RuleTextDiagnostic[] = [];
 	readonly ranges:      Map<string, RuleTextRange> = new Map();
+	readonly variants:    RuleTextVariants = { tierRules: [], skipRules: [] };
 
 	constructor(
 		private readonly text: string,
@@ -197,6 +214,7 @@ class RuleTextParser {
 	}
 
 	parseProgressionDocument(): ProgressionTextValue | undefined {
+		this.parseVariantLines();
 		try {
 			this.expect('collect', 'A progression achievement is written as: collect valid|victory { D1 D2 … }');
 			const statuses = this.parseProgressionStatuses();
@@ -224,8 +242,9 @@ class RuleTextParser {
 				}
 			}
 			this.expect('}', 'Missing } at the end of the targets.');
+			this.parseVariantLines();
 			if (!this.atEnd())
-				this.fail(this.peek(), 'Nothing may follow the collect block.');
+				this.fail(this.peek(), 'Only tier and skip lines may follow the collect block.');
 
 			return { statuses, targets };
 		}
@@ -268,6 +287,149 @@ class RuleTextParser {
 		return target;
 	}
 
+	// ── Tier and skip lines ─────────────────────────────────────────────
+
+	private isVariantLine(): boolean {
+		const token = this.peek();
+
+		return token?.type === 'word' && (token.text === variantKeywords.tier || token.text === variantKeywords.skip);
+	}
+
+	private parseVariantLines(): void {
+		while (this.isVariantLine()) {
+			const start = this.index;
+			try {
+				this.parseVariantLine();
+			}
+			catch (error) {
+				if (!(error instanceof RuleTextSyntaxError))
+					throw error;
+
+				this.recover(error, start);
+			}
+		}
+	}
+
+	/** `skip if …`, `tier gold if …`, or the default `tier bronze [otherwise]`. */
+	private parseVariantLine(): void {
+		const keyword = this.next();
+		if (keyword.text === variantKeywords.skip) {
+			if (!this.is(variantKeywords.if))
+				this.fail(this.peek() ?? keyword, 'Write skip if and a condition, such as skip if {n} = 13.');
+
+			this.next();
+			this.variants.skipRules.push({ when: this.parseVariantConditions() });
+
+			return;
+		}
+
+		const name = this.peek();
+		if (!name || name.line !== keyword.line)
+			this.fail(keyword, 'Write the tier after tier, such as tier gold.');
+
+		const tier = findTierByName(this.next().text);
+		if (tier === undefined)
+			this.fail(name, tierHelp);
+
+		if (this.is(variantKeywords.if)) {
+			this.next();
+			this.variants.tierRules.push({ tier, when: this.parseVariantConditions() });
+
+			return;
+		}
+
+		if (this.is(variantKeywords.otherwise))
+			this.next();
+		if (this.variants.tier === undefined) {
+			this.variants.tier = tier;
+
+			return;
+		}
+
+		const remove = { label: 'Remove this line', changes: [ { from: keyword.from, to: this.previous!.to, insert: '' } ] };
+		this.report(keyword.from, this.previous!.to, 'The tier is already set. Add if and a condition to give some '
+			+ 'achievements another tier.', 'error', [ remove ]);
+	}
+
+	private parseVariantConditions(): AchievementVariantConditionDraft[] {
+		const conditions = [ this.parseVariantCondition() ];
+		while (this.is(variantKeywords.and)) {
+			this.next();
+			conditions.push(this.parseVariantCondition());
+		}
+
+		return conditions;
+	}
+
+	/** `{n} >= 15`, `{mode} = "hard"` or `{double} = true`. */
+	private parseVariantCondition(): AchievementVariantConditionDraft {
+		const open = this.peek();
+		if (open?.text !== '{')
+			this.fail(open, 'Expected a {parameter}, such as {n}.');
+
+		this.next();
+		const name = this.next();
+		if (name.type !== 'word')
+			this.fail(name, 'Expected a parameter name inside { }.');
+
+		this.checkParameter(name);
+		if (!this.is('}'))
+			this.fail(this.peek(), 'Tier and skip rules check the parameter itself, such as {n}.');
+
+		this.next();
+		const operatorToken = this.peek();
+		const operator = this.parseOperator();
+		const valueToken = this.peek();
+		const value = this.parseVariantValue();
+		const parameter = this.context.parameters.find(item => item.key === name.text)!;
+
+		if (parameter.valueType !== 'integer' && isOrderingOperator(operator)) {
+			this.report(operatorToken!.from, operatorToken!.to, `{${ parameter.key }} can only be compared with = or !=.`);
+		}
+		else if (typeof value !== variantValueTypes[parameter.valueType]) {
+			const from = valueToken!.from;
+			const to = this.previous!.to;
+			const fixes = parameter.valueType === 'string' && typeof value === 'number'
+				? [ { label: 'Put it in quotes', changes: [ { from, to, insert: `"${ value }"` } ] } ]
+				: undefined;
+			this.report(from, to, variantValueMessages[parameter.valueType](parameter.key), 'error', fixes);
+		}
+
+		return { parameter: name.text, operator, value };
+	}
+
+	private parseVariantValue(): string | number | boolean {
+		const token = this.peek();
+		if (!token)
+			this.fail(token, variantValueHelp);
+
+		if (token.text === '-' || token.type === 'number') {
+			const negative = this.next().text === '-';
+			const number = negative ? this.next() : token;
+			if (number.type !== 'number')
+				this.fail(number, 'Expected a number after -.');
+
+			return Number(number.text) * (negative ? -1 : 1);
+		}
+
+		this.next();
+		if (token.type === 'string') {
+			if (token.text.length < 2 || !token.text.endsWith('"'))
+				this.fail(token, 'Missing " at the end of the text.');
+
+			return token.text.slice(1, -1);
+		}
+		if (token.text === 'true' || token.text === 'false')
+			return token.text === 'true';
+		if (token.type === 'word') {
+			const quoted = `"${ token.text }"`;
+			const quote = { label: `Write ${ quoted }`, changes: [ { from: token.from, to: token.to, insert: quoted } ] };
+			this.fail(token, `Write text in quotes, such as ${ quoted }.`, [ quote ]);
+		}
+
+		this.fail(token, variantValueHelp);
+	}
+
 	// ── Statements ──────────────────────────────────────────────────────
 
 	/** Statements until a closing brace (inside a block) or the end of the text. */
@@ -285,6 +447,14 @@ class RuleTextParser {
 
 			const start = this.index;
 			try {
+				if (this.isVariantLine()) {
+					if (inBlock)
+						this.fail(this.peek(), 'Tier and skip lines go at the top, outside every block.');
+
+					this.parseVariantLine();
+					continue;
+				}
+
 				statements.push(this.parseStatement(scope));
 			}
 			catch (error) {
@@ -727,6 +897,18 @@ class RuleTextParser {
 
 }
 
+const variantValueTypes = {
+	integer: 'number',
+	string:  'string',
+	boolean: 'boolean',
+} as const satisfies Record<AchievementParameterDraft['valueType'], string>;
+
+const variantValueMessages: Record<AchievementParameterDraft['valueType'], (key: string) => string> = {
+	integer: key => `{${ key }} is a number, so compare it with a number.`,
+	string:  key => `{${ key }} is text, so compare it with text in quotes.`,
+	boolean: key => `{${ key }} is yes or no, so compare it with true or false.`,
+};
+
 type AchievementThrowRuleType = Extract<AchievementRuleDraft, { type: 'throw'; }>['throwType'];
 type AchievementThrowCountType = Extract<AchievementRuleDraft, { type: 'throwCount'; }>['throwType'];
 type AchievementSequenceStepType = Extract<AchievementRuleDraft, { type: 'sequence'; }>['targets'][number]['throwType'];
@@ -742,7 +924,7 @@ export const parseRuleText = (
 	const parser = createParser(text, context);
 	const value = parser.parseRuleDocument();
 
-	return { value, diagnostics: parser.diagnostics, ranges: parser.ranges };
+	return { value, variants: parser.variants, diagnostics: parser.diagnostics, ranges: parser.ranges };
 };
 
 /** Reads a `collect { … }` progression document. */
@@ -753,7 +935,7 @@ export const parseProgressionText = (
 	const parser = createParser(text, context);
 	const value = parser.parseProgressionDocument();
 
-	return { value, diagnostics: parser.diagnostics, ranges: parser.ranges };
+	return { value, variants: parser.variants, diagnostics: parser.diagnostics, ranges: parser.ranges };
 };
 
 /** Reads one target in shorthand, e.g. what someone types into a target chip. */

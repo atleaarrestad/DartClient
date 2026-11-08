@@ -19,6 +19,7 @@ import {
 import {
 	appendChildRule,
 	canUseParameterAs,
+	countAchievements,
 	countDefinitionInstances,
 	countGeneratedInstances,
 	createRule,
@@ -31,6 +32,7 @@ import {
 	getParameterValues,
 	getPreviews,
 	getThrowTypePatch,
+	getVariantSummary,
 	renameParameterReferences,
 	replaceRule,
 	updateRule,
@@ -94,6 +96,71 @@ const compareDraft = (
 
 const messages = (draft: AchievementTemplateDraft, limits: Partial<typeof defaultAchievementDraftLimits> = {}) =>
 	validate(draft, 1000, limits).map(error => error.message);
+
+describe('tier and skip rules', () => {
+	const threshold = (value: number, operator: AchievementComparisonOperator = 'greaterThanOrEqual') =>
+		[ { parameter: 'n', operator, value } ];
+
+	it('skips variants in the previews and gives each its tier', () => {
+		const draft = validDraft({
+			parameters: [ parameter('n', { maximum: 5 }) ],
+			tier:       1,
+			tierRules:  [ { tier: 3, when: threshold(4) } ],
+			skipRules:  [ { when: threshold(2, 'equal') } ],
+		});
+
+		expect(getPreviews(draft).map(preview => [ preview.name, preview.tier ])).toEqual([
+			[ 'Hit 1', 1 ],
+			[ 'Hit 3', 1 ],
+			[ 'Hit 4', 3 ],
+			[ 'Hit 5', 3 ],
+		]);
+		expect(countAchievements(draft)).toBe(4);
+		expect(getVariantSummary(draft)?.tierCounts.get(3)).toBe(2);
+	});
+
+	it('reports rules that do not fit the parameters', () => {
+		const mode = parameter('mode', { valueType: 'string', generatorType: 'set', values: [ 'easy' ] });
+		const draft = validDraft({
+			parameters:   [ parameter('n'), mode ],
+			nameTemplate: 'Hit {n} {mode}',
+			tierRules:    [
+				{ tier: 3, when: [ { parameter: 'missing', operator: 'equal', value: 1 } ] },
+				{ tier: 9, when: [] },
+			],
+			skipRules: [
+				{ when: [ { parameter: 'mode', operator: 'greaterThan', value: 'easy' } ] },
+				{ when: [ { parameter: 'n', operator: 'equal', value: 'one' } ] },
+			],
+		});
+
+		expect(messages(draft)).toEqual(expect.arrayContaining([
+			'Tier rule 1 uses {missing}, which isn\u2019t a parameter.',
+			'Tier rule 2 needs a valid tier.',
+			'Tier rule 2 needs at least one condition.',
+			'Skip rule 1 can only check {mode} with = or !=.',
+			'Skip rule 2 compares {n} with something that isn\u2019t a number.',
+		]));
+	});
+
+	it('reports a template whose every variant is skipped', () => {
+		const draft = validDraft({ skipRules: [ { when: threshold(0, 'greaterThan') } ] });
+
+		expect(messages(draft)).toContain('Every combination is skipped, so this template makes no achievements.');
+	});
+
+	it('follows a renamed parameter', () => {
+		const draft = validDraft({
+			parameters: [ parameter('m') ],
+			tierRules:  [ { tier: 3, when: threshold(2) } ],
+			skipRules:  [ { when: threshold(1, 'equal') } ],
+		});
+		const renamed = renameParameterReferences(draft, 'n', 'm');
+
+		expect(renamed.tierRules[0]!.when[0]!.parameter).toBe('m');
+		expect(renamed.skipRules[0]!.when[0]!.parameter).toBe('m');
+	});
+});
 
 describe('rule tree helpers', () => {
 	const tree = (): AchievementRuleDraft => ({

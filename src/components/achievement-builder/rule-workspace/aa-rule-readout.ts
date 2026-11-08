@@ -1,6 +1,8 @@
 import { html, LitElement, nothing, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
+import { getAchievementTierIcon } from '../../../helpers/achievementHelper.js';
+import { formatTierLabel } from '../../../helpers/achievementVariantRules.js';
 import type { AchievementTemplatePreview } from '../../../models/achievementBuilder.js';
 import { ruleHighlightEventName } from '../rule-events.js';
 import ruleReadoutStyles from './aa-rule-readout.css?inline';
@@ -80,12 +82,24 @@ export class AaRuleReadout extends LitElement {
 	}
 
 	override render(): TemplateResult {
-		const name = this.previews[this.previewIndex]?.name || 'this achievement';
+		const preview = this.previews[this.previewIndex];
+		const name = preview?.name || 'this achievement';
 
 		return html`
 			<section class="readout" aria-label="The rule in words">
 				<div class="top">
-					<p class="lead">Unlocks <b>${ name }</b> ${ this.readout.intro }</p>
+					<p class="lead">
+						Unlocks
+						${ preview
+							? html`<img
+								class="tier"
+								src=${ getAchievementTierIcon(preview.tier) }
+								alt=${ formatTierLabel(preview.tier) }
+								title=${ formatTierLabel(preview.tier) }
+							/>`
+							: nothing }
+						<b>${ name }</b> ${ this.readout.intro }
+					</p>
 					${ this.renderPicker() }
 				</div>
 				${ this.readout.items.length > 0

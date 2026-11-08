@@ -32,6 +32,8 @@ const draft = (): AchievementTemplateDraft => ({
 	descriptionTemplate: 'Hit {n}, D{n} and T{n}.',
 	categoryId:          'shanghai',
 	tier:                3,
+	tierRules:           [ { tier: 5, when: [ { parameter: 'n', operator: 'equal', value: 20 } ] } ],
+	skipRules:           [ { when: [ { parameter: 'n', operator: 'equal', value: 13 } ] } ],
 	achievementScope:    'session',
 	parameters:          [ numberParameter ],
 	rule:                {
@@ -58,6 +60,8 @@ describe('duplicateDraft', () => {
 		expect(copy.nameTemplate).toBe('Shanghai {n} (copy)');
 		expect(copy.categoryId).toBe('shanghai');
 		expect(copy.tier).toBe(3);
+		expect(copy.tierRules).toEqual(draft().tierRules);
+		expect(copy.skipRules).toEqual(draft().skipRules);
 		expect(isSameStructure(copy.rule, draft().rule)).toBe(true);
 		expect(isSameStructure(copy.parameters, draft().parameters)).toBe(true);
 	});
