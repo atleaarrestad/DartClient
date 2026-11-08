@@ -1,15 +1,15 @@
-import '../../ui/button/aa-button.js';
-
 import { html, LitElement, nothing, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
+import { faIcons } from '../../faIcons.js';
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
+import { getEditableVersion } from '../../helpers/compileAchievementTemplate.js';
 import type {
+	AchievementCategoryResponse,
 	AchievementTemplateResponse,
 	AchievementTemplateVersionResponse,
 } from '../../models/achievementBuilderApi.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
-import formStyles from './achievement-builder-form.css?inline';
 import { countDefinitionInstances } from './achievement-draft.js';
 import libraryStyles from './achievement-template-library.css?inline';
 
@@ -20,36 +20,39 @@ export interface AchievementTemplateOpenDetail {
 
 export const achievementTemplateOpenEventName = 'achievement-template-open';
 
-type TemplateSortColumn = 'achievement' | 'category' | 'type' | 'generated' | 'version';
-type SortDirection = 'ascending' | 'descending';
-
 interface TemplateRow {
-	template:       AchievementTemplateResponse;
-	version:        AchievementTemplateVersionResponse;
-	generatedCount: number;
+	template: AchievementTemplateResponse;
+	/** The version the row stands for: the draft, else the latest version. */
+	version:  AchievementTemplateVersionResponse;
 }
 
-const compareRows: Record<TemplateSortColumn, (left: TemplateRow, right: TemplateRow) => number> = {
-	achievement: (left, right) => left.version.nameTemplate.localeCompare(right.version.nameTemplate),
-	category:    (left, right) => left.version.categoryName.localeCompare(right.version.categoryName),
-	type:        (left, right) => left.version.evaluationPhase.localeCompare(right.version.evaluationPhase),
-	generated:   (left, right) => left.generatedCount - right.generatedCount,
-	version:     (left, right) => left.version.versionNumber - right.version.versionNumber,
-};
+interface TemplateGroup {
+	id:   string;
+	name: string;
+	rows: TemplateRow[];
+}
 
+const byVersionNumberDescending = (
+	left: AchievementTemplateVersionResponse,
+	right: AchievementTemplateVersionResponse,
+): number => right.versionNumber - left.versionNumber;
+
+/** Sidebar list of the season's achievement templates, grouped by category. */
 @customElement('aa-achievement-template-library')
 export class AaAchievementTemplateLibrary extends LitElement {
 
-	@property({ attribute: false }) templates: AchievementTemplateResponse[] = [];
+	@property({ attribute: false }) templates:  AchievementTemplateResponse[] = [];
+	@property({ attribute: false }) categories: AchievementCategoryResponse[] = [];
 	@property({ type: String }) selectedTemplateId = '';
 	@property({ type: String }) selectedVersionId = '';
+	/** The open achievement has unsaved changes. */
 	@property({ type: Boolean }) dirty = false;
-	/** Every version opens read-only, e.g. when a player inspects an achievement. */
+	/** Name of the unsaved new achievement, shown while no saved template is selected. */
+	@property({ type: String }) newDraftName = '';
+	/** Every version opens read-only and no new achievement can be made. */
 	@property({ type: Boolean }) readOnly = false;
 
 	@state() private filter = '';
-	@state() private sortColumn:    TemplateSortColumn = 'achievement';
-	@state() private sortDirection: SortDirection = 'ascending';
 
 	private openTemplate(detail: AchievementTemplateOpenDetail): void {
 		this.dispatchEvent(new CustomEvent<AchievementTemplateOpenDetail>(
@@ -58,172 +61,195 @@ export class AaAchievementTemplateLibrary extends LitElement {
 		));
 	}
 
-	private setSort(column: TemplateSortColumn): void {
-		if (this.sortColumn === column) {
-			this.sortDirection = this.sortDirection === 'ascending' ? 'descending' : 'ascending';
+	private matchesFilter(template: AchievementTemplateResponse, filter: string): boolean {
+		return !filter || template.versions.some(version => [
+			version.nameTemplate,
+			version.descriptionTemplate,
+			version.categoryName,
+		].some(value => value.toLocaleLowerCase().includes(filter)));
+	}
 
-			return;
+	private get groups(): TemplateGroup[] {
+		const filter = this.filter.trim().toLocaleLowerCase();
+		const order = new Map(this.categories.map(category => [ category.id, category.sortOrder ]));
+		const groups: Map<string, TemplateGroup> = new Map();
+
+		for (const template of this.templates) {
+			const version = getEditableVersion(template);
+			if (!version || !this.matchesFilter(template, filter))
+				continue;
+
+			const group = groups.get(version.categoryId)
+				?? { id: version.categoryId, name: version.categoryName, rows: [] };
+			group.rows.push({ template, version });
+			groups.set(version.categoryId, group);
 		}
 
-		this.sortColumn = column;
-		this.sortDirection = 'ascending';
+		const rank = (group: TemplateGroup): number => order.get(group.id) ?? Number.MAX_SAFE_INTEGER;
+
+		return [ ...groups.values() ]
+			.sort((left, right) => rank(left) - rank(right) || left.name.localeCompare(right.name))
+			.map(group => ({
+				...group,
+				rows: group.rows.sort((left, right) =>
+					left.version.nameTemplate.localeCompare(right.version.nameTemplate)),
+			}));
 	}
 
-	private get rows(): TemplateRow[] {
-		const filter = this.filter.trim().toLocaleLowerCase();
-		const direction = this.sortDirection === 'ascending' ? 1 : -1;
+	private renderStatus(template: AchievementTemplateResponse, version: AchievementTemplateVersionResponse): TemplateResult {
+		if (template.isBuiltIn)
+			return html`<span class="status status--locked" title="Built-in, read-only">Built-in</span>`;
+		if (version.status === 'Draft')
+			return html`<span class="status status--draft">Draft</span>`;
 
-		return this.templates
-			.flatMap(template => template.versions.map(version => ({
-				template,
-				version,
-				generatedCount: countDefinitionInstances(version.parameters),
-			})))
-			.filter(({ version }) => !filter || [
-				version.nameTemplate,
-				version.descriptionTemplate,
-				version.categoryName,
-				version.evaluationPhase,
-				version.status,
-			].some(value => value.toLocaleLowerCase().includes(filter)))
-			.sort((left, right) =>
-				direction * compareRows[this.sortColumn](left, right)
-				|| compareRows.achievement(left, right)
-				|| right.version.versionNumber - left.version.versionNumber);
+		return html`<span class="status status--published">v${ version.versionNumber }</span>`;
 	}
 
-	private renderSortHeader(column: TemplateSortColumn, label: string): TemplateResult {
-		const active = this.sortColumn === column;
+	private renderVersions(template: AchievementTemplateResponse): TemplateResult | typeof nothing {
+		if (template.versions.length < 2)
+			return nothing;
+
+		const versions = [ ...template.versions ].sort(byVersionNumberDescending);
 
 		return html`
-			<th aria-sort=${ active ? this.sortDirection : 'none' }>
-				<button
-					type="button"
-					class="template-table__sort"
-					@click=${ () => this.setSort(column) }
-				>
-					${ label }
-					<span aria-hidden="true">
-						${ active ? this.sortDirection === 'ascending' ? '↑' : '↓' : '↕' }
-					</span>
-				</button>
-			</th>
+			<ul class="versions" aria-label="Versions">
+				${ versions.map(version => {
+					const selected = version.id === this.selectedVersionId;
+
+					return html`
+						<li>
+							<button
+								type="button"
+								class="version"
+								aria-current=${ selected ? 'true' : 'false' }
+								@click=${ () => {
+									if (!selected)
+										this.openTemplate({ templateId: template.id, versionId: version.id });
+								} }
+							>
+								<span>v${ version.versionNumber }</span>
+								<span class="version__status">${ version.status }</span>
+							</button>
+						</li>
+					`;
+				}) }
+			</ul>
 		`;
 	}
 
-	private renderRow({ template, version, generatedCount }: TemplateRow): TemplateResult {
-		const selected = template.id === this.selectedTemplateId
-			&& version.id === this.selectedVersionId;
+	private renderRow({ template, version }: TemplateRow): TemplateResult {
+		const selected = template.id === this.selectedTemplateId;
+		const shownVersion = selected
+			? template.versions.find(item => item.id === this.selectedVersionId) ?? version
+			: version;
+		const count = countDefinitionInstances(shownVersion.parameters);
 
 		return html`
-			<tr class=${ selected ? 'template-table__selected' : '' }>
-				<td>
-					<div class="template-table__identity">
-						<img src=${ getAchievementTierIcon(version.achievementTier) } alt="" />
-						<div>
-							<strong>${ version.nameTemplate || 'Unnamed achievement' }</strong>
-							<span>${ version.descriptionTemplate || 'No description' }</span>
-						</div>
+			<li class="entry ${ selected ? 'entry--selected' : '' }">
+				<button
+					type="button"
+					class="row"
+					aria-current=${ selected ? 'true' : 'false' }
+					title=${ shownVersion.descriptionTemplate }
+					@click=${ () => {
+						if (!selected)
+							this.openTemplate({ templateId: template.id });
+					} }
+				>
+					<img src=${ getAchievementTierIcon(shownVersion.achievementTier) } alt="" />
+					<span class="row__name">${ shownVersion.nameTemplate || 'Unnamed achievement' }</span>
+					${ count > 1 ? html`<span class="row__count" title="Generated achievements">×${ count }</span>` : nothing }
+					${ selected && this.dirty
+						? this.renderDirtyMark()
+						: this.renderStatus(template, shownVersion) }
+				</button>
+				${ selected ? this.renderVersions(template) : nothing }
+			</li>
+		`;
+	}
+
+	private renderDirtyMark(): TemplateResult {
+		return html`
+			<span class="row__dirty" title="Unsaved changes">
+				<span class="visually-hidden">Unsaved changes</span>
+			</span>
+		`;
+	}
+
+	private renderNewDraftRow(): TemplateResult | typeof nothing {
+		if (this.readOnly || this.selectedTemplateId)
+			return nothing;
+
+		return html`
+			<ul class="entries entries--new">
+				<li class="entry entry--selected">
+					<div class="row row--static" aria-current="true">
+						<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
+						<span class="row__name">${ this.newDraftName.trim() || 'New achievement' }</span>
+						${ this.dirty
+							? this.renderDirtyMark()
+							: html`<span class="status status--draft">New</span>` }
 					</div>
-				</td>
-				<td>${ version.categoryName }</td>
-				<td>${ version.evaluationPhase === 'Progression' ? 'Progression' : 'Session' }</td>
-				<td><strong>${ generatedCount }</strong></td>
-				<td>
-					<div class="template-table__version">
-						<strong>v${ version.versionNumber }</strong>
-						<span class="template-table__status template-table__status--${
-							version.status.toLocaleLowerCase()
-						}">
-							${ version.status }
-						</span>
-					</div>
-				</td>
-				<td>
-					<button
-						type="button"
-						class="template-table__open"
-						@click=${ () => this.openTemplate({ templateId: template.id, versionId: version.id }) }
-					>
-						${ version.status === 'Draft' && !template.isBuiltIn && !this.readOnly ? 'Edit' : 'View' }
-					</button>
-				</td>
-			</tr>
+				</li>
+			</ul>
 		`;
 	}
 
 	override render(): TemplateResult {
-		const rows = this.rows;
+		const groups = this.groups;
 
 		return html`
-			<section class="template-library" aria-label="Existing achievements">
-				<div class="template-library__heading">
-					<div>
-						<strong>Achievement library</strong>
-						<span>Select an existing achievement to view or edit.</span>
-					</div>
-					<div class="template-library__actions">
-						${ this.dirty
-							? html`<span class="template-library__dirty">Unsaved changes</span>`
-							: nothing }
-						<aa-button
-							type="button"
-							size="small"
-							variant="secondary"
-							@click=${ () => this.openTemplate({ templateId: '' }) }
-						>
-							Create new achievement
-						</aa-button>
-					</div>
+			<nav class="library" aria-label="Achievement library">
+				<div class="library__top">
+					<input
+						type="search"
+						aria-label="Search achievements"
+						placeholder="Search achievements…"
+						.value=${ this.filter }
+						@input=${ (event: InputEvent) => {
+							this.filter = (event.currentTarget as HTMLInputElement).value;
+						} }
+					/>
+					${ this.readOnly
+						? nothing
+						: html`
+							<button
+								type="button"
+								class="new-button"
+								@click=${ () => this.openTemplate({ templateId: '' }) }
+							>
+								<i class="fa-solid fa-plus" aria-hidden="true"></i>
+								New achievement
+							</button>
+						` }
 				</div>
-				<div class="template-library__controls">
-					<label>
-						<span>Find achievement</span>
-						<input
-							type="search"
-							.value=${ this.filter }
-							@input=${ (event: InputEvent) => {
-								this.filter = (event.currentTarget as HTMLInputElement).value;
-							} }
-							placeholder="Search name, category, description..."
-						/>
-					</label>
-					<span class="template-library__result-count">
-						${ rows.length } version${ rows.length === 1 ? '' : 's' }
-					</span>
+				<div class="library__list">
+					${ this.renderNewDraftRow() }
+					${ groups.map(group => html`
+						<section class="group" aria-label=${ group.name }>
+							<h4>${ group.name }</h4>
+							<ul class="entries">
+								${ group.rows.map(row => this.renderRow(row)) }
+							</ul>
+						</section>
+					`) }
+					${ groups.length === 0
+						? html`
+							<p class="library__empty">
+								${ this.filter.trim()
+									? 'No achievements match your search.'
+									: 'No achievements yet.' }
+							</p>
+						`
+						: nothing }
 				</div>
-				${ rows.length > 0
-					? html`
-						<div class="template-table-wrap">
-							<table class="template-table">
-								<thead>
-									<tr>
-										${ this.renderSortHeader('achievement', 'Achievement') }
-										${ this.renderSortHeader('category', 'Category') }
-										${ this.renderSortHeader('type', 'Type') }
-										${ this.renderSortHeader('generated', 'Generates') }
-										${ this.renderSortHeader('version', 'Version') }
-										<th aria-label="Action"></th>
-									</tr>
-								</thead>
-								<tbody>
-									${ rows.map(row => this.renderRow(row)) }
-								</tbody>
-							</table>
-						</div>
-					`
-					: html`
-						<div class="empty-panel">
-							No achievement versions match your search.
-						</div>
-					` }
-			</section>
+			</nav>
 		`;
 	}
 
 	static override styles = [
 		sharedStyles,
-		unsafeCSS(formStyles),
+		faIcons,
 		unsafeCSS(libraryStyles),
 	];
 

@@ -1,6 +1,6 @@
 import '../../ui/button/aa-button.js';
 
-import { html, LitElement, nothing, TemplateResult, unsafeCSS } from 'lit';
+import { html, LitElement, nothing, PropertyValues, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
 import {
@@ -100,6 +100,12 @@ export class AaAchievementLogicEditor extends LitElement {
 
 	protected override firstUpdated(): void {
 		void this.canvas.fit();
+	}
+
+	protected override updated(changed: PropertyValues<this>): void {
+		// Editable graphs show "+" and remove buttons, so unlocking a version changes its size.
+		if (changed.has('readOnly') && changed.get('readOnly') !== undefined)
+			void this.canvas.fit();
 	}
 
 	private emitChange(detail: AchievementLogicChangeDetail): void {
@@ -920,6 +926,7 @@ export class AaAchievementLogicEditor extends LitElement {
 		return html`
 			<section class="builder-panel logic-builder">
 				<div class="logic-builder__header">
+					<slot name="toolbar-start"></slot>
 					<div class="logic-canvas__controls" aria-label="Canvas controls">
 						<button
 							type="button"

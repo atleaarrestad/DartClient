@@ -62,6 +62,10 @@ export class LogicCanvasController {
 		this.host.requestUpdate();
 	}
 
+	/**
+	 * Scales the graph to fit and pins it to the left edge, centred vertically. The
+	 * graph grows to the right, so blocks added with "+" land in the empty space.
+	 */
 	async fit(): Promise<void> {
 		await this.host.updateComplete;
 		const { viewport, graph } = this.getElements();
@@ -74,7 +78,7 @@ export class LogicCanvasController {
 			(viewport.clientHeight - fitPadding) / graph.offsetHeight,
 		);
 		this.scale = Math.max(minimumScale, scale);
-		this.x = Math.max(defaultOffset, (viewport.clientWidth - graph.offsetWidth * this.scale) / 2);
+		this.x = defaultOffset;
 		this.y = Math.max(defaultOffset, (viewport.clientHeight - graph.offsetHeight * this.scale) / 2);
 		this.host.requestUpdate();
 	}

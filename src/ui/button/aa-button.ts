@@ -26,9 +26,14 @@ export class AaButton extends LitElement {
 	private readonly internals = this.attachInternals();
 	private formDisabled = false;
 
+	/**
+	 * Also called for the element's own `disabled` attribute, which Lit reflects in the
+	 * middle of an update, after `render()`. A requestUpdate() made there is dropped, so the
+	 * inner button would keep its old disabled state; render again once this update is done.
+	 */
 	formDisabledCallback(disabled: boolean): void {
 		this.formDisabled = disabled;
-		this.requestUpdate();
+		void this.updateComplete.then(() => this.requestUpdate());
 	}
 
 	override focus(options?: FocusOptions): void {

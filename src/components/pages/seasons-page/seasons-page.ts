@@ -64,7 +64,7 @@ import type { AaMmrConfigurationEditor } from '../../aa-mmr-configuration-editor
 import type { AaDialog } from '../../aa-dialog/aa-dialog.js';
 import type {
 	AaAchievementBuilder,
-	AchievementBuilderWorkspaceChangeDetail,
+	AchievementBuilderStateChangeDetail,
 } from '../../achievement-builder/achievement-builder.js';
 import type { AchievementCategoryActions } from '../../achievement-category-manager/achievement-category-manager.js';
 import type {
@@ -954,22 +954,18 @@ export class SeasonsPage extends LitElement {
 
 			const builderRef = createRef<AaAchievementBuilder>();
 			let saving = false;
-			let workspace: AchievementBuilderWorkspaceChangeDetail = {
-				tab:            'editor',
-				readOnlyReason: undefined,
-			};
+			let builderState: AchievementBuilderStateChangeDetail = { readOnlyReason: undefined };
 			const getSubmitButtons = (): AaButton[] => [
 				...builderRef.value?.closest('aa-dialog')
 					?.querySelectorAll<AaButton>('[data-achievement-submit]') ?? [],
 			];
-			// Save and Publish are hidden while browsing and disabled, with the reason as a
-			// tooltip, while a read-only version is shown.
+			// Save and Publish are disabled, with the reason as a tooltip, while a read-only
+			// version is shown.
 			const syncSubmitButtons = (): void => {
 				getSubmitButtons().forEach(button => {
-					button.style.display = workspace.tab === 'browse' ? 'none' : '';
 					button.loading = saving;
-					button.disabled = saving || !!workspace.readOnlyReason;
-					button.title = workspace.readOnlyReason ?? '';
+					button.disabled = saving || !!builderState.readOnlyReason;
+					button.title = builderState.readOnlyReason ?? '';
 				});
 			};
 			const submit = async (publish: boolean): Promise<void> => {
@@ -1036,10 +1032,10 @@ export class SeasonsPage extends LitElement {
 						.templates=${ templates }
 						.categoryActions=${ categoryActions }
 						.limits=${ catalog.limits }
-						@achievement-builder-workspace-change=${ (
-							event: CustomEvent<AchievementBuilderWorkspaceChangeDetail>,
+						@achievement-builder-state-change=${ (
+							event: CustomEvent<AchievementBuilderStateChangeDetail>,
 						) => {
-							workspace = event.detail;
+							builderState = event.detail;
 							syncSubmitButtons();
 						} }
 					></aa-achievement-builder>
