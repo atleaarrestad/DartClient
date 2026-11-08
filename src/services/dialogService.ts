@@ -12,6 +12,8 @@ export class DialogService {
 			title?: string;
 			fixedHeight?: boolean;
 			large?: boolean;
+			/** A narrow dialog for a short form or question. */
+			compact?: boolean;
 			canClose?: () => boolean;
 		},
 	): Promise<T | undefined> {
@@ -29,6 +31,8 @@ export class DialogService {
 				dialog.fixedHeight = true;
 			if (options?.large)
 				dialog.large = true;
+			if (options?.compact)
+				dialog.compact = true;
 			if (options?.canClose)
 				dialog.canClose = options.canClose;
 

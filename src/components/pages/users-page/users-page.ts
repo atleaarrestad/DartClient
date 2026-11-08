@@ -160,30 +160,37 @@ export class UsersPage extends LitElement {
 	}
 
 	private async onNewUserButtonClicked() {
-		this.dialogService.open(
+		await this.dialogService.open(
 			newUserTemplate({
-				onSave: (name, alias) => {
-					this.userService.addUser(name, alias)
-						.then(async () => {
-							this.users = await this.userService.getAllUsers({
-								forceRefresh: false,
-								query: {
-									includeSeasonStatistics: true,
-									limitToSeasonId: this.season?.id,
-								},
-							}) ?? [];
-
-							this.sortUsers(this.sortKey, false);
-							this.requestUpdate();
-						})
-						.catch((error: unknown) => this.notificationService.addNotification({
-							type: 'danger',
-							message: getErrorMessage(error, 'Unable to create the user.'),
-						}));
+				// A failed save stays in the dialog, which shows the error.
+				onSave: async (name, alias) => {
+					await this.userService.addUser(name, alias);
+					await this.reloadUsersAfterCreate();
 				},
 			}),
-			{ title: 'Create new user' },
+			{ title: 'New player', compact: true },
 		);
+	}
+
+	private async reloadUsersAfterCreate(): Promise<void> {
+		try {
+			this.users = await this.userService.getAllUsers({
+				forceRefresh: false,
+				query: {
+					includeSeasonStatistics: true,
+					limitToSeasonId: this.season?.id,
+				},
+			}) ?? [];
+			this.sortUsers(this.sortKey, false);
+			this.requestUpdate();
+		}
+		catch (error: unknown) {
+			// The player was created; only the list is stale.
+			this.notificationService.addNotification({
+				type: 'danger',
+				message: getErrorMessage(error, 'The player was created, but the list could not be refreshed.'),
+			});
+		}
 	}
 
 	private renderEmpty() {

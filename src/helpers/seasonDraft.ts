@@ -29,38 +29,13 @@ export const rankValues: readonly Rank[] = Object.values(Rank)
 	.filter((rank): rank is Rank => typeof rank === 'number')
 	.sort((left, right) => left - right);
 
-/** Default minimum MMR per rank, in `rankValues` order. */
-export const defaultRankMinimums: readonly number[] = [
-	0,
-	1250,
-	1500,
-	1750,
-	2000,
-	2250,
-	2500,
-	2750,
-	3000,
-	3250,
-	3500,
-	3750,
-	4000,
-	4250,
-	4500,
-	4750,
-	5000,
-	5250,
-	5500,
-	5750,
-	6000,
-	6250,
-	6500,
-	6750,
-	7000,
-	7250,
-	7500,
-	7750,
-	8000,
-];
+/**
+ * Default minimum MMR per rank, in `rankValues` order: Bronze from 0, then 250 apart from 1250,
+ * so every rank with its three steps covers 1000 (Grandmaster at 10000). Matches the backend's
+ * RankUtils.CreateDefaultRankThresholds.
+ */
+export const defaultRankMinimums: readonly number[] = rankValues
+	.map(rank => rank === Rank.Bronze ? 0 : 1000 + rank * 250);
 
 export const defaultAchievementRewards: Readonly<Record<AchievementTier, number>> = {
 	[AchievementTier.bronze]:   5,

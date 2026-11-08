@@ -28,6 +28,9 @@
 	max-width: min(1400px, 96vw);
 	max-height: min(94vh, 1100px);
 }
+:host([compact]) .dialog {
+	max-width: min(460px, 92vw);
+}
 :host([large][fixed-height]) .dialog {
 	height: min(92vh, 1020px);
 }

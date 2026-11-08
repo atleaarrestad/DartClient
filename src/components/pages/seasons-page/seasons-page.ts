@@ -992,10 +992,10 @@ export class SeasonsPage extends LitElement {
 				summary:       `${ this.draft.rankThresholds.length } rank thresholds`,
 				activateLabel: 'Configure rank thresholds',
 				previewImages: [
-					Rank.Platinum,
-					Rank.Diamond,
+					Rank.Master,
 					Rank.Wizard,
 					Rank.Mythic,
+					Rank.GlennMaster,
 					Rank.Grandmaster,
 				].map(rank => ({ src: getRankIcon(rank) })),
 			},

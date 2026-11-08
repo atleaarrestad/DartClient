@@ -2,7 +2,10 @@ import { html, TemplateResult } from 'lit';
 
 import type { AaDialog } from '../components/aa-dialog/aa-dialog.js';
 import '../ui/button/aa-button.js';
+import '../ui/form-field/aa-form-field.js';
+import type { AaButton } from '../ui/button/aa-button.js';
 import { renderAchievementSummary } from '../helpers/achievementHelper.js';
+import { getErrorMessage } from '../helpers/getErrorMessage.js';
 import { getRankDisplayValue } from '../models/rank.js';
 import { GameResult, User } from '../models/schemas.js';
 import { renderPlayerChips } from './playerChips.js';
@@ -210,39 +213,104 @@ export const confirmNewGameTemplate = (): TemplateResult => html`
 	</aa-button>
 `;
 
-export const newUserTemplate = (options: {
-	onSave: (name: string, alias: string) => void;
-}): TemplateResult => {
-	// The pattern rejects whitespace-only values, which `required` alone accepts.
-	const handleSubmit = (e: SubmitEvent) => {
-		e.preventDefault();
+const newUserFormId = 'new-user-form';
 
-		const data = new FormData(e.currentTarget as HTMLFormElement);
+/**
+ * Name and alias for a new player. The dialog stays open while the player is saved, so a
+ * problem (such as a taken name) shows in the form and can be fixed; it closes on success.
+ * Open it with the dialog service's `compact` option.
+ */
+export const newUserTemplate = (options: {
+	onSave: (name: string, alias: string) => Promise<void>;
+}): TemplateResult => {
+	const handleSubmit = async (event: SubmitEvent): Promise<void> => {
+		event.preventDefault();
+
+		const form = event.currentTarget as HTMLFormElement;
+		const fields = form.querySelector('fieldset')!;
+		const error = form.querySelector<HTMLElement>('.new-user-form__error')!;
+		const submit = form.closest('aa-dialog')?.querySelector<AaButton>(`aa-button[form="${ newUserFormId }"]`);
+		const data = new FormData(form);
 		const name = String(data.get('name') ?? '').trim();
 		const alias = String(data.get('alias') ?? '').trim();
-		if (!name || !alias)
-			return;
 
-		options.onSave(name, alias);
-		closeDialog(e);
+		fields.disabled = true;
+		error.hidden = true;
+		if (submit)
+			submit.loading = true;
+
+		try {
+			await options.onSave(name, alias);
+			closeDialog(event);
+		}
+		catch (saveError: unknown) {
+			error.textContent = getErrorMessage(saveError, 'The player could not be created.');
+			error.hidden = false;
+			fields.disabled = false;
+			form.querySelector<HTMLInputElement>('input')?.focus();
+		}
+		finally {
+			if (submit)
+				submit.loading = false;
+		}
 	};
 
+	// Two text fields and no native submit button: Enter would not submit on its own.
+	const submitOnEnter = (event: KeyboardEvent): void => {
+		if (event.key === 'Enter' && !event.isComposing) {
+			event.preventDefault();
+			(event.currentTarget as HTMLFormElement).requestSubmit();
+		}
+	};
+
+	// The pattern rejects whitespace-only values, which `required` alone accepts.
 	return html`
-		<form class="dialog-content" @submit=${ handleSubmit }>
-			<label>
-				Name:
-				<input type="text" name="name" required pattern=".*\\S.*" autofocus />
-			</label>
-
-			<label>
-				Alias:
-				<input type="text" name="alias" required pattern=".*\\S.*" />
-			</label>
-
-			<div class="actions">
-				<aa-button type="submit" variant="primary">Save</aa-button>
-			</div>
+		<form
+			id=${ newUserFormId }
+			class="new-user-form"
+			@submit=${ handleSubmit }
+			@keydown=${ submitOnEnter }
+		>
+			<fieldset>
+				<aa-form-field label="Name" help="Their full name, shown on their profile.">
+					<input
+						type="text"
+						name="name"
+						required
+						pattern=".*\\S.*"
+						title="Enter a name."
+						autocomplete="off"
+						spellcheck="false"
+						data-autofocus
+					/>
+				</aa-form-field>
+				<aa-form-field label="Alias" help="The short name shown in games and on leaderboards.">
+					<input
+						type="text"
+						name="alias"
+						required
+						pattern=".*\\S.*"
+						title="Enter an alias."
+						autocomplete="off"
+						spellcheck="false"
+					/>
+				</aa-form-field>
+			</fieldset>
+			<p class="new-user-form__error" role="alert" hidden></p>
 		</form>
+
+		<aa-button
+			slot="footer-secondary"
+			type="button"
+			variant="secondary"
+			@click=${ (event: Event) => closeDialog(event) }
+		>
+			Cancel
+		</aa-button>
+		<aa-button slot="footer-primary" type="submit" form=${ newUserFormId } variant="primary">
+			<i class="fa-solid fa-user-plus" aria-hidden="true"></i>
+			Create player
+		</aa-button>
 	`;
 };
 

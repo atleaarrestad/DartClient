@@ -138,6 +138,30 @@
 	--aa-rank-gap: 0;
 }
 
+.new-user-form fieldset {
+	display: grid;
+	gap: 1rem;
+	min-width: 0;
+	margin: 0;
+	padding: 0.25rem 0;
+	border: 0;
+}
+
+.new-user-form__error {
+	margin: 0.85rem 0 0;
+	padding: 0.55rem 0.75rem;
+	background: var(--color-status-danger);
+	border: 2px solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+	font-family: var(--font-family-ui);
+	font-size: var(--font-size-sm);
+	font-weight: 700;
+}
+
+.new-user-form__error[hidden] {
+	display: none;
+}
+
 .confirm-new-game {
 	margin: 0;
 	line-height: 1.45;

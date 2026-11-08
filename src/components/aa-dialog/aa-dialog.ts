@@ -25,6 +25,8 @@ export class AaDialog extends LitElement {
 	@property({ type: Boolean, reflect: true }) closeOnBackdrop = true;
 	@property({ type: Boolean, reflect: true, attribute: 'fixed-height' }) fixedHeight = false;
 	@property({ type: Boolean, reflect: true }) large = false;
+	/** A narrow dialog for a short form or question. */
+	@property({ type: Boolean, reflect: true }) compact = false;
 	/** Return false to keep the dialog open when the user tries to dismiss it. */
 	@property({ attribute: false }) canClose?: () => boolean;
 
