@@ -39,10 +39,11 @@ export function buildGetUserByIdUrl(
 	appendUserQueryOptions(params, options);
 
 	const qs = params.toString();
+	const path = `users/GetById/${encodeURIComponent(id)}`;
 
 	return qs
-		? `users/GetById/${id}?${qs}`
-		: `users/GetById/${id}`;
+		? `${path}?${qs}`
+		: path;
 }
 
 export function buildGetAllUsersUrl(

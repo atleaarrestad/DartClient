@@ -67,7 +67,7 @@ h3 {
 button {
 	border: 2px solid var(--color-border-strong);
 	border-radius: var(--radius-control-sm);
-	background: #fff3cf;
+	background: var(--color-surface-highlight);
 	padding: 0.45rem 0.65rem;
 	font: inherit;
 	font-weight: 800;

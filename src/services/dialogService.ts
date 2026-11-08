@@ -1,13 +1,13 @@
 import { render, TemplateResult } from 'lit';
 import { injectable } from 'tsyringe';
 
-import { AaDialog } from '../components/aa-dialog/aa-dialog.js';
+import type { AaDialog } from '../components/aa-dialog/aa-dialog.js';
 
 @injectable()
 export class DialogService {
 
 	open<T = void>(
-		content: HTMLElement | string | TemplateResult,
+		content: TemplateResult,
 		options?: {
 			title?: string;
 			fixedHeight?: boolean;
@@ -24,7 +24,7 @@ export class DialogService {
 
 			const dialog = document.createElement('aa-dialog') as AaDialog;
 			if (options?.title)
-				dialog.title = options.title;
+				dialog.heading = options.title;
 			if (options?.fixedHeight)
 				dialog.fixedHeight = true;
 			if (options?.large)
@@ -32,17 +32,9 @@ export class DialogService {
 			if (options?.canClose)
 				dialog.canClose = options.canClose;
 
-			if (typeof content === 'string') {
-				dialog.innerHTML += content;
-			}
-			else if (content instanceof HTMLElement) {
-				dialog.appendChild(content);
-			}
-			else {
-				const fragment = document.createDocumentFragment();
-				render(content, fragment);
-				dialog.appendChild(fragment);
-			}
+			const fragment = document.createDocumentFragment();
+			render(content, fragment);
+			dialog.appendChild(fragment);
 
 			dialog.addEventListener('dialog-closed', (e: Event) => {
 				const customEvent = e as CustomEvent<{ result?: T; }>;

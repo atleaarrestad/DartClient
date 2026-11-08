@@ -10,10 +10,15 @@ import {
 	AchievementRuleDraft,
 	AchievementScope,
 	AchievementTemplateDraft,
+	AchievementThrowType,
+	achievementThrowTypeNames,
 	AchievementValueDraft,
 	createAchievementBuilderId,
 	createDefaultAchievementProgression,
 	createDefaultAchievementRule,
+	EditableAchievementRuleType,
+	sequenceTargetCount,
+	throwTypeHasHitLocation,
 } from '../../models/achievementBuilder.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
 import formStyles from './achievement-builder-form.css?inline';
@@ -22,15 +27,12 @@ import {
 	BuilderScope,
 	createDefaultHitLocation,
 	createRule,
-	EditableAchievementRuleType,
 	getAddableRuleTypes,
 	getRuleTypeLabel,
 	getThrowTypePatch,
 	isGroupRule,
 	replaceRule,
 	roundStatusOptions,
-	sequenceTargetCount,
-	throwTypeHasHitLocation,
 	updateRule,
 	ValueEditorRole,
 } from './achievement-draft.js';
@@ -49,14 +51,8 @@ export const achievementLogicChangeEventName = 'achievement-logic-change';
 
 type Option<T extends string> = readonly [ value: T, label: string ];
 
-const throwTypeOptions: Option<'single' | 'double' | 'triple' | 'rim' | 'miss'>[] = [
-	[ 'single', 'Single' ],
-	[ 'double', 'Double' ],
-	[ 'triple', 'Triple' ],
-	[ 'rim', 'Rim' ],
-	[ 'miss', 'Miss' ],
-];
-const countedThrowTypeOptions: Option<'any' | (typeof throwTypeOptions)[number][0]>[] = [
+const throwTypeOptions = Object.entries(achievementThrowTypeNames) as Option<AchievementThrowType>[];
+const countedThrowTypeOptions: Option<'any' | AchievementThrowType>[] = [
 	[ 'any', 'Any type' ],
 	...throwTypeOptions,
 ];
@@ -66,7 +62,7 @@ const winningThrowTypeOptions: Option<'any' | 'single' | 'double' | 'triple'>[] 
 	[ 'double', 'Double or double bull' ],
 	[ 'triple', 'Triple' ],
 ];
-const sequenceThrowTypeOptions: Option<'anyScoring' | (typeof throwTypeOptions)[number][0]>[] = [
+const sequenceThrowTypeOptions: Option<'anyScoring' | AchievementThrowType>[] = [
 	[ 'anyScoring', 'Single, double, or triple' ],
 	...throwTypeOptions,
 ];
@@ -151,8 +147,9 @@ export class AaAchievementLogicEditor extends LitElement {
 		onChange: (value: AchievementValueDraft) => void,
 		scope: BuilderScope,
 		role?: ValueEditorRole,
+		numericOnly = true,
 	): TemplateResult {
-		return renderValueEditor({ value, onChange, scope, role, parameters: this.parameters });
+		return renderValueEditor({ value, onChange, scope, role, numericOnly, parameters: this.parameters });
 	}
 
 	private getRenderedRule(ruleId: string): HTMLElement | undefined {
@@ -678,6 +675,7 @@ export class AaAchievementLogicEditor extends LitElement {
 						left => this.updateRule(rule.id, { left }),
 						scope,
 						'comparison-left',
+						false,
 					) }
 					${ this.renderOperatorSelect(rule, 'Comparison operator') }
 					${ this.renderValue(
@@ -685,6 +683,7 @@ export class AaAchievementLogicEditor extends LitElement {
 						right => this.updateRule(rule.id, { right }),
 						scope,
 						'comparison-right',
+						false,
 					) }
 				</div>
 			`;

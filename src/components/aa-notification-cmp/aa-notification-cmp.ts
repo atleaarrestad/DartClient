@@ -20,12 +20,15 @@ export class NotificationElement extends LitElement {
 
 	override firstUpdated(): void {
 		if (this.promise) {
-			this.promise.finally(() => {
+			// Dismiss on settle either way. The caller owns the rejection;
+			// `finally` would re-throw it here as an unhandled rejection.
+			const dismiss = (): void => {
 				setTimeout(() => {
 					this.visible = false;
 					this.remove();
 				}, 600);
-			});
+			};
+			this.promise.then(dismiss, dismiss);
 		}
 		else {
 			requestAnimationFrame(() => {
@@ -115,8 +118,12 @@ export class NotificationElement extends LitElement {
 		};
 
 		return html`
-			<div class="notification ${this.type === 'achievement' ? 'achievement-notification' : ''}" style=${styleMap(styles)}>
-				<div class="icon">
+			<div
+				class="notification ${this.type === 'achievement' ? 'achievement-notification' : ''}"
+				style=${styleMap(styles)}
+				role=${this.type === 'danger' ? 'alert' : 'status'}
+			>
+				<div class="icon" aria-hidden="true">
 					<i class="${this.getIconClass()}"></i>
 				</div>
 

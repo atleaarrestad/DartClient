@@ -1,51 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
-import type {
-	AchievementInstanceResponse,
-	LastDartHints,
-} from '../models/achievementBuilderApi.js';
-import { RoundStatus, ScoreModifier, ThrowType } from '../models/enums.js';
+import { ScoreModifier, ThrowType } from '../models/enums.js';
+import type { GameTrackerDelta, Round } from '../models/schemas.js';
 import {
-	type GameTrackerDelta,
-	GameTrackerDeltaSchema,
-	type PlayerRounds,
-	type Round,
-} from '../models/schemas.js';
+	createAchievementInstance as createInstance,
+	createLastDartHints as createHints,
+	createPlayer,
+	createRound,
+	testGameId as gameId,
+	testPlayerId as firstPlayerId,
+	testSecondPlayerId as secondPlayerId,
+} from '../test/gameFixtures.js';
 import {
 	applyGameTrackerDelta,
 	GameTrackerState,
 } from './applyGameTrackerDelta.js';
 
-const gameId = '81a3e496-7530-4678-82ff-323a27d50410';
-const firstPlayerId = '11ea5813-f41e-4301-b7ed-881f8466100c';
-const secondPlayerId = '444a1f88-cdb8-4fd7-8cf7-92f9cc2ab0d8';
-
-function createRound(roundIndex: number, cumulativePoints = 0): Round {
-	return {
-		roundIndex,
-		cumulativePoints,
-		roundStatus: RoundStatus.Valid,
-		indexOfVictoryThrow: null,
-		dartThrows: [ 0, 1, 2 ].map(throwIndex => ({
-			hitLocation:        0,
-			throwType:          ThrowType.Single,
-			finalPoints:        0,
-			throwIndex,
-			activatedModifiers: [],
-		})),
-	};
-}
-
-function createPlayer(playerId: string): PlayerRounds {
-	return {
-		playerId,
-		rounds: [
-			createRound(0),
-			createRound(1),
-			createRound(2),
-		],
-	};
-}
+const createThreeRounds = (): Round[] => [ createRound(0), createRound(1), createRound(2) ];
 
 function createState(): GameTrackerState {
 	return {
@@ -54,41 +25,11 @@ function createState(): GameTrackerState {
 		maximumRounds:           10,
 		configuredMaximumRounds: 10,
 		playersRounds: [
-			createPlayer(firstPlayerId),
-			createPlayer(secondPlayerId),
+			createPlayer(firstPlayerId, createThreeRounds()),
+			createPlayer(secondPlayerId, createThreeRounds()),
 		],
 		projectedV2AchievementsByPlayer: {},
 		lastDartHintsByPlayer:           {},
-	};
-}
-
-function createInstance(id: string, renderedName: string): AchievementInstanceResponse {
-	return {
-		id,
-		templateId:          '0f6a2a6e-5a8c-4c43-9a43-5b0b8f2f7d10',
-		templateVersionId:   'a1c1d7e5-1c35-4a8e-9a43-2c7f4b8e5e21',
-		versionNumber:       1,
-		seasonId:            'c3d6a9f2-7b1e-4c5d-8e9f-0a1b2c3d4e5f',
-		binding:             {},
-		bindingHash:         '',
-		renderedName,
-		renderedDescription: '',
-		evaluationPhase:     'Live',
-		achievementTier:     1,
-		categoryId:          'd4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70',
-		categoryName:        'Custom',
-		categoryIsArchived:  false,
-	};
-}
-
-function createHints(achievement: AchievementInstanceResponse): LastDartHints {
-	return {
-		roundIndex: 2,
-		totalCount: 1,
-		hints:      [ {
-			achievement,
-			winningHits: [ { hitLocation: 20, throwType: ThrowType.Triple } ],
-		} ],
 	};
 }
 
@@ -113,7 +54,7 @@ function createDelta(rounds: Round[]): GameTrackerDelta {
 describe('applyGameTrackerDelta', () => {
 	it('replaces only the authoritative tail for the changed player', () => {
 		const state = createState();
-		const changedRound = createRound(1, 69);
+		const changedRound = createRound(1, { cumulativePoints: 69 });
 		changedRound.dartThrows[2] = {
 			hitLocation:        20,
 			throwType:          ThrowType.Single,
@@ -121,7 +62,7 @@ describe('applyGameTrackerDelta', () => {
 			throwIndex:         2,
 			activatedModifiers: [ ScoreModifier.DoublePointsAt69 ],
 		};
-		const trailingRound = createRound(2, 109);
+		const trailingRound = createRound(2, { cumulativePoints: 109 });
 
 		const result = applyGameTrackerDelta(
 			state,
@@ -176,17 +117,10 @@ describe('applyGameTrackerDelta', () => {
 		const delta = createDelta([ createRound(0) ]);
 		delta.baseRevision = 5;
 		delta.revision = 6;
+		const snapshot = structuredClone(state);
 
 		expect(applyGameTrackerDelta(state, delta)).toEqual({ status: 'gap' });
-	});
-
-	it('ignores stale or duplicate deltas', () => {
-		const state = createState();
-		const delta = createDelta([ createRound(0) ]);
-		delta.baseRevision = 3;
-		delta.revision = 4;
-
-		expect(applyGameTrackerDelta(state, delta)).toEqual({ status: 'stale' });
+		expect(state).toEqual(snapshot);
 	});
 
 	it('replaces the projection of players in the delta and keeps the others', () => {
@@ -211,19 +145,6 @@ describe('applyGameTrackerDelta', () => {
 			[secondPlayerId]: [ kept ],
 		});
 		expect(state.projectedV2AchievementsByPlayer[firstPlayerId]).toEqual([ revoked ]);
-	});
-
-	it('parses the server projection field and defaults it when absent', () => {
-		const instance = createInstance('7c2a4b5e-0d8c-4d3a-9e4f-5e6f7a8b9c03', 'Projected');
-		const { projectedV2AchievementsByPlayer: _omitted, ...withoutProjection } =
-			createDelta([ createRound(2) ]);
-
-		expect(GameTrackerDeltaSchema.parse(withoutProjection).projectedV2AchievementsByPlayer)
-			.toEqual({});
-		expect(GameTrackerDeltaSchema.parse({
-			...withoutProjection,
-			projectedV2AchievementsByPlayer: { [firstPlayerId]: [ instance ] },
-		}).projectedV2AchievementsByPlayer).toEqual({ [firstPlayerId]: [ instance ] });
 	});
 
 	it('sets, replaces and clears last-dart hints and keeps unchanged players', () => {
@@ -261,13 +182,48 @@ describe('applyGameTrackerDelta', () => {
 		});
 	});
 
-	it('parses null hint entries as clears and defaults the field when absent', () => {
-		const { lastDartHintsByPlayer: _omitted, ...withoutHints } = createDelta([ createRound(2) ]);
+	it('ignores stale or duplicate deltas without changing local state', () => {
+		const state = createState();
+		const snapshot = structuredClone(state);
+		const delta = createDelta([ createRound(0) ]);
+		delta.baseRevision = 3;
+		delta.revision = 4;
 
-		expect(GameTrackerDeltaSchema.parse(withoutHints).lastDartHintsByPlayer).toEqual({});
-		expect(GameTrackerDeltaSchema.parse({
-			...withoutHints,
-			lastDartHintsByPlayer: { [firstPlayerId]: null },
-		}).lastDartHintsByPlayer).toEqual({ [firstPlayerId]: null });
+		expect(applyGameTrackerDelta(state, delta)).toEqual({ status: 'stale' });
+		delta.baseRevision = 2;
+		delta.revision = 3;
+		expect(applyGameTrackerDelta(state, delta)).toEqual({ status: 'stale' });
+		expect(state).toEqual(snapshot);
+	});
+
+	it('rejects a delta for another game', () => {
+		const delta = createDelta([ createRound(2) ]);
+		delta.gameId = '9b0c1d2e-3f4a-4b5c-8d6e-7f8091a2b3c4';
+
+		expect(applyGameTrackerDelta(createState(), delta)).toEqual({ status: 'invalid' });
+	});
+
+	it('rejects a delta for a player who is not in the game', () => {
+		const delta = createDelta([ createRound(2) ]);
+		delta.playerRoundDeltas[0]!.playerId = '5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f';
+
+		expect(applyGameTrackerDelta(createState(), delta)).toEqual({ status: 'invalid' });
+	});
+
+	it('rejects a tail that starts after the rounds known locally', () => {
+		const state = createState();
+		const snapshot = structuredClone(state);
+
+		expect(applyGameTrackerDelta(state, createDelta([ createRound(4) ])))
+			.toEqual({ status: 'invalid' });
+		expect(state).toEqual(snapshot);
+	});
+
+	it('accepts a tail that starts right after the last local round', () => {
+		const result = applyGameTrackerDelta(createState(), createDelta([ createRound(3) ]));
+
+		expect(result.status).toBe('applied');
+		if (result.status === 'applied')
+			expect(result.state.playersRounds[0]!.rounds.map(round => round.roundIndex)).toEqual([ 0, 1, 2, 3 ]);
 	});
 });

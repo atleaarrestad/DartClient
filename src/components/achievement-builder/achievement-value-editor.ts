@@ -7,6 +7,7 @@ import type {
 } from '../../models/achievementBuilder.js';
 import {
 	BuilderScope,
+	canUseParameterAs,
 	getAvailableValueSources,
 	isParameterValueSource,
 	ValueEditorRole,
@@ -24,9 +25,12 @@ const parseValueEditorChoice = (
 ): AchievementValueDraft => {
 	const separator = choice.indexOf(':');
 	if (separator < 0) {
+		// A number starts at 0 unless it already was one; a parameter key is not a number.
+		const keepsNumber = choice === 'constant' && current.source === 'constant' && current.value;
+
 		return {
 			source: choice as AchievementValueSource,
-			value:  choice === 'constant' ? current.value || '0' : '',
+			value:  keepsNumber ? current.value : choice === 'constant' ? '0' : '',
 		};
 	}
 
@@ -40,12 +44,14 @@ const parseValueEditorChoice = (
 	return { source, value, offset: keepsOffset ? current.offset ?? 1 : 1 };
 };
 
-export interface ValueEditorOptions {
-	value:      AchievementValueDraft;
-	parameters: AchievementParameterDraft[];
-	scope:      BuilderScope;
-	role?:      ValueEditorRole;
-	onChange:   (value: AchievementValueDraft) => void;
+interface ValueEditorOptions {
+	value:        AchievementValueDraft;
+	parameters:   AchievementParameterDraft[];
+	scope:        BuilderScope;
+	role?:        ValueEditorRole;
+	/** Only number parameters fit; comparisons also take text and yes/no parameters. */
+	numericOnly?: boolean;
+	onChange:     (value: AchievementValueDraft) => void;
 }
 
 export const renderValueEditor = ({
@@ -53,12 +59,22 @@ export const renderValueEditor = ({
 	parameters,
 	scope,
 	role = 'hit-location',
+	numericOnly = true,
 	onChange,
 }: ValueEditorOptions): TemplateResult => {
 	const available = getAvailableValueSources(scope, role);
 	const fixedSources = valueSources.filter(source =>
 		available.includes(source.value) && !isParameterValueSource(source.value));
-	const integerParameters = parameters.filter(parameter => parameter.valueType === 'integer');
+	// The current choice stays listed even when it doesn't fit, so the select still shows it.
+	const parametersFor = (source: AchievementValueSource): AchievementParameterDraft[] =>
+		parameters.filter(parameter => canUseParameterAs(parameter, source, numericOnly)
+			|| (value.source === source && value.value === parameter.key));
+	const directParameters = parametersFor('parameter');
+	const offsetParameters = parametersFor('parameter.offset');
+	const neighborParameters = parameters.filter(parameter =>
+		canUseParameterAs(parameter, 'board.leftNeighbor', numericOnly)
+		|| (value.value === parameter.key
+			&& (value.source === 'board.leftNeighbor' || value.source === 'board.rightNeighbor')));
 
 	return html`
 		<div class="value-editor">
@@ -73,24 +89,28 @@ export const renderValueEditor = ({
 				${ fixedSources.map(source => html`
 					<option value=${ source.value }>${ source.label }</option>
 				`) }
-				${ parameters.length > 0
+				${ directParameters.length > 0
 					? html`
 						<optgroup label="Achievement values">
-							${ parameters.map(parameter => html`
+							${ directParameters.map(parameter => html`
 								<option value=${ `parameter:${ parameter.key }` }>
 									${ parameter.key }
 								</option>
 							`) }
 						</optgroup>
+					`
+					: nothing }
+				${ offsetParameters.length > 0 || neighborParameters.length > 0
+					? html`
 						<optgroup label="Adjusted achievement values">
-							${ integerParameters.map(parameter => html`
+							${ offsetParameters.map(parameter => html`
 								<option value=${ `parameter.offset:${ parameter.key }` }>
 									${ parameter.key } with offset
 								</option>
 							`) }
 						</optgroup>
 						<optgroup label="Dartboard neighbors">
-							${ integerParameters.map(parameter => html`
+							${ neighborParameters.map(parameter => html`
 								<option value=${ `board.leftNeighbor:${ parameter.key }` }>
 									Left of ${ parameter.key }
 								</option>

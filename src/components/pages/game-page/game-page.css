@@ -9,6 +9,16 @@ aa-loading-state {
 	--aa-loading-min-height: 100%;
 }
 
+.load-error-shell {
+	display: grid;
+	place-items: center;
+	padding: 1rem;
+}
+
+.load-error {
+	width: min(430px, 100%);
+}
+
 .page-shell {
 	/* Shared by the dock and the strip .player-container keeps free for it. */
 	--last-dart-dock-height: 7rem;
@@ -469,8 +479,7 @@ aa-loading-state {
 	text-align: left;
 }
 
-.shortcut-keys,
-.rematch-keys {
+.shortcut-keys {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.35rem;
@@ -540,55 +549,11 @@ aa-loading-state {
 	font-size: 0.8rem;
 }
 
-.bottom-bar {
-	display: flex;
-	justify-content: center;
-	padding: 0 1rem 1rem;
-}
-
-.rematch-callout {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.65rem;
-	flex-wrap: wrap;
-	padding: 0.8rem 1rem;
-	background: var(--color-surface-warning-subtle);
-	border: 2px solid var(--color-border-strong);
-	border-radius: var(--radius-xl);
-	font-weight: 800;
-	text-align: center;
-	box-shadow: var(--shadow-brutal-control);
-	max-width: min(100%, 900px);
-}
-
-.rematch-callout.compact {
-	padding: 0.5rem 0.75rem;
-	border-radius: var(--radius-panel);
-	gap: 0.45rem 0.55rem;
-	max-width: min(100%, 780px);
-}
-
-.rematch-label {
-	opacity: 0.75;
-}
-
-.rematch-text {
-	font-weight: 900;
-}
-
 .rematch-player-list {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.5rem;
 	justify-content: flex-start;
-}
-
-.rematch-player-list.compact {
-	display: inline-flex;
-	gap: 0.35rem;
-	align-items: center;
-	justify-content: center;
 }
 
 .rematch-player-list aa-player-chip::part(chip)::before {
@@ -598,10 +563,6 @@ aa-loading-state {
 .rematch-player-list aa-rank-display {
 	--aa-rank-icon-size: 1.35rem;
 	--aa-rank-gap: 0;
-}
-
-.rematch-player-list.compact aa-rank-display {
-	--aa-rank-icon-size: 1.1rem;
 }
 
 .player-name {

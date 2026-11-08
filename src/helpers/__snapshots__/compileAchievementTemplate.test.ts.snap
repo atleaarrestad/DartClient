@@ -1,0 +1,1411 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden compiled definitions > compiles game values to the stored shape 1`] = `
+{
+  "kind": "and",
+  "operands": [
+    {
+      "kind": "and",
+      "operands": [
+        {
+          "kind": "greaterThan",
+          "left": {
+            "collection": {
+              "kind": "field",
+              "path": "rounds",
+            },
+            "kind": "count",
+            "predicate": {
+              "kind": "notEqual",
+              "left": {
+                "kind": "field",
+                "path": "round.status",
+              },
+              "right": {
+                "kind": "status",
+                "value": "Unplayed",
+              },
+            },
+          },
+          "right": {
+            "kind": "boardNeighbor",
+            "number": {
+              "kind": "parameter",
+              "name": "n",
+            },
+            "offset": -1,
+          },
+        },
+        {
+          "kind": "greaterThan",
+          "left": {
+            "kind": "field",
+            "path": "placement",
+          },
+          "right": {
+            "kind": "boardNeighbor",
+            "number": {
+              "kind": "parameter",
+              "name": "n",
+            },
+            "offset": -1,
+          },
+        },
+        {
+          "kind": "greaterThan",
+          "left": {
+            "collection": {
+              "kind": "field",
+              "path": "rounds",
+            },
+            "kind": "count",
+            "predicate": {
+              "kind": "equal",
+              "left": {
+                "kind": "field",
+                "path": "round.status",
+              },
+              "right": {
+                "kind": "status",
+                "value": "Valid",
+              },
+            },
+          },
+          "right": {
+            "kind": "boardNeighbor",
+            "number": {
+              "kind": "parameter",
+              "name": "n",
+            },
+            "offset": -1,
+          },
+        },
+        {
+          "kind": "greaterThan",
+          "left": {
+            "collection": {
+              "kind": "field",
+              "path": "rounds",
+            },
+            "kind": "count",
+            "predicate": {
+              "kind": "equal",
+              "left": {
+                "kind": "field",
+                "path": "round.status",
+              },
+              "right": {
+                "kind": "status",
+                "value": "Victory",
+              },
+            },
+          },
+          "right": {
+            "kind": "boardNeighbor",
+            "number": {
+              "kind": "parameter",
+              "name": "n",
+            },
+            "offset": -1,
+          },
+        },
+        {
+          "kind": "greaterThan",
+          "left": {
+            "collection": {
+              "kind": "field",
+              "path": "rounds",
+            },
+            "kind": "count",
+            "predicate": {
+              "kind": "equal",
+              "left": {
+                "kind": "field",
+                "path": "round.status",
+              },
+              "right": {
+                "kind": "status",
+                "value": "Overshoot",
+              },
+            },
+          },
+          "right": {
+            "kind": "boardNeighbor",
+            "number": {
+              "kind": "parameter",
+              "name": "n",
+            },
+            "offset": -1,
+          },
+        },
+        {
+          "kind": "greaterThan",
+          "left": {
+            "collection": {
+              "kind": "field",
+              "path": "rounds",
+            },
+            "kind": "count",
+            "predicate": {
+              "kind": "equal",
+              "left": {
+                "kind": "field",
+                "path": "round.status",
+              },
+              "right": {
+                "kind": "status",
+                "value": "WinConditionFailed",
+              },
+            },
+          },
+          "right": {
+            "kind": "boardNeighbor",
+            "number": {
+              "kind": "parameter",
+              "name": "n",
+            },
+            "offset": -1,
+          },
+        },
+        {
+          "kind": "greaterThan",
+          "left": {
+            "collection": {
+              "kind": "field",
+              "path": "rounds",
+            },
+            "kind": "sum",
+            "selector": {
+              "collection": {
+                "kind": "field",
+                "path": "round.throws",
+              },
+              "kind": "count",
+              "predicate": {
+                "kind": "and",
+                "operands": [
+                  {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                  {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.throwType",
+                    },
+                    "right": {
+                      "kind": "constant",
+                      "value": "Double",
+                      "valueType": "throwType",
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          "right": {
+            "kind": "boardNeighbor",
+            "number": {
+              "kind": "parameter",
+              "name": "n",
+            },
+            "offset": -1,
+          },
+        },
+        {
+          "kind": "greaterThan",
+          "left": {
+            "collection": {
+              "kind": "field",
+              "path": "rounds",
+            },
+            "kind": "sum",
+            "selector": {
+              "collection": {
+                "kind": "field",
+                "path": "round.throws",
+              },
+              "kind": "count",
+              "predicate": {
+                "kind": "and",
+                "operands": [
+                  {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                  {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.throwType",
+                    },
+                    "right": {
+                      "kind": "constant",
+                      "value": "Triple",
+                      "valueType": "throwType",
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          "right": {
+            "kind": "boardNeighbor",
+            "number": {
+              "kind": "parameter",
+              "name": "n",
+            },
+            "offset": -1,
+          },
+        },
+        {
+          "kind": "greaterThan",
+          "left": {
+            "collection": {
+              "kind": "field",
+              "path": "rounds",
+            },
+            "kind": "sum",
+            "selector": {
+              "collection": {
+                "kind": "field",
+                "path": "round.throws",
+              },
+              "kind": "count",
+              "predicate": {
+                "kind": "and",
+                "operands": [
+                  {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                  {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.throwType",
+                    },
+                    "right": {
+                      "kind": "constant",
+                      "value": "Rim",
+                      "valueType": "throwType",
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          "right": {
+            "kind": "boardNeighbor",
+            "number": {
+              "kind": "parameter",
+              "name": "n",
+            },
+            "offset": -1,
+          },
+        },
+        {
+          "kind": "greaterThan",
+          "left": {
+            "collection": {
+              "kind": "field",
+              "path": "rounds",
+            },
+            "kind": "sum",
+            "selector": {
+              "collection": {
+                "kind": "field",
+                "path": "round.throws",
+              },
+              "kind": "count",
+              "predicate": {
+                "kind": "and",
+                "operands": [
+                  {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                  {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.throwType",
+                    },
+                    "right": {
+                      "kind": "constant",
+                      "value": "Miss",
+                      "valueType": "throwType",
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          "right": {
+            "kind": "boardNeighbor",
+            "number": {
+              "kind": "parameter",
+              "name": "n",
+            },
+            "offset": -1,
+          },
+        },
+      ],
+    },
+  ],
+}
+`;
+
+exports[`golden compiled definitions > compiles not + any to the stored shape 1`] = `
+{
+  "kind": "and",
+  "operands": [
+    {
+      "kind": "not",
+      "operand": {
+        "kind": "or",
+        "operands": [
+          {
+            "kind": "greaterThan",
+            "left": {
+              "kind": "field",
+              "path": "placement",
+            },
+            "right": {
+              "kind": "constant",
+              "value": 1,
+              "valueType": "integer",
+            },
+          },
+          {
+            "kind": "greaterThan",
+            "left": {
+              "collection": {
+                "kind": "field",
+                "path": "rounds",
+              },
+              "kind": "sum",
+              "selector": {
+                "collection": {
+                  "kind": "field",
+                  "path": "round.throws",
+                },
+                "kind": "count",
+                "predicate": {
+                  "kind": "and",
+                  "operands": [
+                    {
+                      "kind": "field",
+                      "path": "throw.isPlayed",
+                    },
+                    {
+                      "kind": "equal",
+                      "left": {
+                        "kind": "field",
+                        "path": "throw.throwType",
+                      },
+                      "right": {
+                        "kind": "constant",
+                        "value": "Miss",
+                        "valueType": "throwType",
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+            "right": {
+              "kind": "constant",
+              "value": 2,
+              "valueType": "integer",
+            },
+          },
+        ],
+      },
+    },
+  ],
+}
+`;
+
+exports[`golden compiled definitions > compiles round any + throw any to the stored shape 1`] = `
+{
+  "kind": "and",
+  "operands": [
+    {
+      "collection": {
+        "kind": "field",
+        "path": "rounds",
+      },
+      "kind": "any",
+      "predicate": {
+        "kind": "and",
+        "operands": [
+          {
+            "kind": "or",
+            "operands": [
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "field",
+                  "path": "round.status",
+                },
+                "right": {
+                  "kind": "status",
+                  "value": "Valid",
+                },
+              },
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "field",
+                  "path": "round.status",
+                },
+                "right": {
+                  "kind": "status",
+                  "value": "Victory",
+                },
+              },
+            ],
+          },
+          {
+            "collection": {
+              "kind": "field",
+              "path": "round.throws",
+            },
+            "kind": "any",
+            "predicate": {
+              "kind": "and",
+              "operands": [
+                {
+                  "kind": "field",
+                  "path": "throw.isPlayed",
+                },
+                {
+                  "kind": "and",
+                  "operands": [
+                    {
+                      "kind": "equal",
+                      "left": {
+                        "kind": "field",
+                        "path": "throw.throwType",
+                      },
+                      "right": {
+                        "kind": "constant",
+                        "value": "Triple",
+                        "valueType": "throwType",
+                      },
+                    },
+                    {
+                      "kind": "equal",
+                      "left": {
+                        "kind": "field",
+                        "path": "throw.hitLocation",
+                      },
+                      "right": {
+                        "kind": "parameter",
+                        "name": "n",
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+}
+`;
+
+exports[`golden compiled definitions > compiles round every + throw every to the stored shape 1`] = `
+{
+  "kind": "and",
+  "operands": [
+    {
+      "kind": "and",
+      "operands": [
+        {
+          "collection": {
+            "kind": "field",
+            "path": "rounds",
+          },
+          "kind": "any",
+          "predicate": {
+            "kind": "or",
+            "operands": [
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "field",
+                  "path": "round.status",
+                },
+                "right": {
+                  "kind": "status",
+                  "value": "Valid",
+                },
+              },
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "field",
+                  "path": "round.status",
+                },
+                "right": {
+                  "kind": "status",
+                  "value": "Victory",
+                },
+              },
+            ],
+          },
+        },
+        {
+          "collection": {
+            "kind": "field",
+            "path": "rounds",
+          },
+          "kind": "all",
+          "predicate": {
+            "kind": "or",
+            "operands": [
+              {
+                "kind": "not",
+                "operand": {
+                  "kind": "or",
+                  "operands": [
+                    {
+                      "kind": "equal",
+                      "left": {
+                        "kind": "field",
+                        "path": "round.status",
+                      },
+                      "right": {
+                        "kind": "status",
+                        "value": "Valid",
+                      },
+                    },
+                    {
+                      "kind": "equal",
+                      "left": {
+                        "kind": "field",
+                        "path": "round.status",
+                      },
+                      "right": {
+                        "kind": "status",
+                        "value": "Victory",
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                "kind": "and",
+                "operands": [
+                  {
+                    "collection": {
+                      "kind": "field",
+                      "path": "round.throws",
+                    },
+                    "kind": "any",
+                    "predicate": {
+                      "kind": "field",
+                      "path": "throw.isPlayed",
+                    },
+                  },
+                  {
+                    "collection": {
+                      "kind": "field",
+                      "path": "round.throws",
+                    },
+                    "kind": "all",
+                    "predicate": {
+                      "kind": "or",
+                      "operands": [
+                        {
+                          "kind": "not",
+                          "operand": {
+                            "kind": "field",
+                            "path": "throw.isPlayed",
+                          },
+                        },
+                        {
+                          "kind": "equal",
+                          "left": {
+                            "kind": "field",
+                            "path": "throw.hitLocation",
+                          },
+                          "right": {
+                            "kind": "parameter",
+                            "name": "n",
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ],
+}
+`;
+
+exports[`golden compiled definitions > compiles round values to the stored shape 1`] = `
+{
+  "kind": "and",
+  "operands": [
+    {
+      "collection": {
+        "kind": "field",
+        "path": "rounds",
+      },
+      "kind": "any",
+      "predicate": {
+        "kind": "and",
+        "operands": [
+          {
+            "kind": "or",
+            "operands": [
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "field",
+                  "path": "round.status",
+                },
+                "right": {
+                  "kind": "status",
+                  "value": "Valid",
+                },
+              },
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "field",
+                  "path": "round.status",
+                },
+                "right": {
+                  "kind": "status",
+                  "value": "WinConditionFailed",
+                },
+              },
+            ],
+          },
+          {
+            "kind": "and",
+            "operands": [
+              {
+                "kind": "greaterThan",
+                "left": {
+                  "collection": {
+                    "kind": "field",
+                    "path": "round.throws",
+                  },
+                  "kind": "count",
+                  "predicate": {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                },
+                "right": {
+                  "kind": "constant",
+                  "value": 2,
+                  "valueType": "integer",
+                },
+              },
+              {
+                "kind": "greaterThan",
+                "left": {
+                  "collection": {
+                    "kind": "field",
+                    "path": "round.throws",
+                  },
+                  "kind": "count",
+                  "predicate": {
+                    "kind": "greaterThan",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.modifierCount",
+                    },
+                    "right": {
+                      "kind": "constant",
+                      "value": 0,
+                      "valueType": "integer",
+                    },
+                  },
+                },
+                "right": {
+                  "kind": "constant",
+                  "value": 2,
+                  "valueType": "integer",
+                },
+              },
+              {
+                "kind": "greaterThan",
+                "left": {
+                  "kind": "add",
+                  "left": {
+                    "kind": "field",
+                    "path": "round.index",
+                  },
+                  "right": {
+                    "kind": "constant",
+                    "value": 1,
+                    "valueType": "integer",
+                  },
+                },
+                "right": {
+                  "kind": "constant",
+                  "value": 2,
+                  "valueType": "integer",
+                },
+              },
+              {
+                "kind": "greaterThan",
+                "left": {
+                  "collection": {
+                    "kind": "field",
+                    "path": "round.throws",
+                  },
+                  "kind": "sum",
+                  "predicate": {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                  "selector": {
+                    "kind": "field",
+                    "path": "throw.finalPoints",
+                  },
+                },
+                "right": {
+                  "kind": "constant",
+                  "value": 2,
+                  "valueType": "integer",
+                },
+              },
+              {
+                "kind": "greaterThan",
+                "left": {
+                  "collection": {
+                    "kind": "field",
+                    "path": "round.throws",
+                  },
+                  "kind": "distinctCount",
+                  "predicate": {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                  "selector": {
+                    "kind": "field",
+                    "path": "throw.rawPoints",
+                  },
+                },
+                "right": {
+                  "kind": "constant",
+                  "value": 2,
+                  "valueType": "integer",
+                },
+              },
+              {
+                "kind": "and",
+                "operands": [
+                  {
+                    "collection": {
+                      "kind": "field",
+                      "path": "round.throws",
+                    },
+                    "kind": "any",
+                    "predicate": {
+                      "kind": "field",
+                      "path": "throw.isPlayed",
+                    },
+                  },
+                  {
+                    "collection": {
+                      "kind": "field",
+                      "path": "round.throws",
+                    },
+                    "kind": "all",
+                    "predicate": {
+                      "kind": "or",
+                      "operands": [
+                        {
+                          "kind": "not",
+                          "operand": {
+                            "kind": "field",
+                            "path": "throw.isPlayed",
+                          },
+                        },
+                        {
+                          "kind": "greaterThan",
+                          "left": {
+                            "kind": "field",
+                            "path": "throw.rawPoints",
+                          },
+                          "right": {
+                            "kind": "constant",
+                            "value": 2,
+                            "valueType": "integer",
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              {
+                "kind": "greaterThan",
+                "left": {
+                  "collection": {
+                    "kind": "field",
+                    "path": "round.throws",
+                  },
+                  "kind": "count",
+                  "predicate": {
+                    "kind": "and",
+                    "operands": [
+                      {
+                        "kind": "field",
+                        "path": "throw.isPlayed",
+                      },
+                      {
+                        "kind": "equal",
+                        "left": {
+                          "kind": "field",
+                          "path": "throw.throwType",
+                        },
+                        "right": {
+                          "kind": "constant",
+                          "value": "Single",
+                          "valueType": "throwType",
+                        },
+                      },
+                    ],
+                  },
+                },
+                "right": {
+                  "kind": "constant",
+                  "value": 2,
+                  "valueType": "integer",
+                },
+              },
+              {
+                "kind": "greaterThan",
+                "left": {
+                  "collection": {
+                    "kind": "field",
+                    "path": "round.throws",
+                  },
+                  "kind": "count",
+                  "predicate": {
+                    "kind": "and",
+                    "operands": [
+                      {
+                        "kind": "field",
+                        "path": "throw.isPlayed",
+                      },
+                      {
+                        "kind": "equal",
+                        "left": {
+                          "kind": "field",
+                          "path": "throw.throwType",
+                        },
+                        "right": {
+                          "kind": "constant",
+                          "value": "Double",
+                          "valueType": "throwType",
+                        },
+                      },
+                    ],
+                  },
+                },
+                "right": {
+                  "kind": "constant",
+                  "value": 2,
+                  "valueType": "integer",
+                },
+              },
+              {
+                "kind": "greaterThan",
+                "left": {
+                  "collection": {
+                    "kind": "field",
+                    "path": "round.throws",
+                  },
+                  "kind": "count",
+                  "predicate": {
+                    "kind": "and",
+                    "operands": [
+                      {
+                        "kind": "field",
+                        "path": "throw.isPlayed",
+                      },
+                      {
+                        "kind": "equal",
+                        "left": {
+                          "kind": "field",
+                          "path": "throw.throwType",
+                        },
+                        "right": {
+                          "kind": "constant",
+                          "value": "Triple",
+                          "valueType": "throwType",
+                        },
+                      },
+                    ],
+                  },
+                },
+                "right": {
+                  "kind": "constant",
+                  "value": 2,
+                  "valueType": "integer",
+                },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+}
+`;
+
+exports[`golden compiled definitions > compiles sequence to the stored shape 1`] = `
+{
+  "kind": "and",
+  "operands": [
+    {
+      "collection": {
+        "kind": "field",
+        "path": "rounds",
+      },
+      "kind": "any",
+      "predicate": {
+        "kind": "and",
+        "operands": [
+          {
+            "kind": "or",
+            "operands": [
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "field",
+                  "path": "round.status",
+                },
+                "right": {
+                  "kind": "status",
+                  "value": "Valid",
+                },
+              },
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "field",
+                  "path": "round.status",
+                },
+                "right": {
+                  "kind": "status",
+                  "value": "Victory",
+                },
+              },
+            ],
+          },
+          {
+            "collection": {
+              "kind": "field",
+              "path": "round.throws",
+            },
+            "items": [
+              {
+                "kind": "and",
+                "operands": [
+                  {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                  {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.hitLocation",
+                    },
+                    "right": {
+                      "kind": "parameter",
+                      "name": "n",
+                    },
+                  },
+                  {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.throwType",
+                    },
+                    "right": {
+                      "kind": "constant",
+                      "value": "Single",
+                      "valueType": "throwType",
+                    },
+                  },
+                ],
+              },
+              {
+                "kind": "and",
+                "operands": [
+                  {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                  {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.hitLocation",
+                    },
+                    "right": {
+                      "kind": "subtract",
+                      "left": {
+                        "kind": "parameter",
+                        "name": "n",
+                      },
+                      "right": {
+                        "kind": "constant",
+                        "value": 1,
+                        "valueType": "integer",
+                      },
+                    },
+                  },
+                  {
+                    "kind": "or",
+                    "operands": [
+                      {
+                        "kind": "equal",
+                        "left": {
+                          "kind": "field",
+                          "path": "throw.throwType",
+                        },
+                        "right": {
+                          "kind": "constant",
+                          "value": "Single",
+                          "valueType": "throwType",
+                        },
+                      },
+                      {
+                        "kind": "equal",
+                        "left": {
+                          "kind": "field",
+                          "path": "throw.throwType",
+                        },
+                        "right": {
+                          "kind": "constant",
+                          "value": "Double",
+                          "valueType": "throwType",
+                        },
+                      },
+                      {
+                        "kind": "equal",
+                        "left": {
+                          "kind": "field",
+                          "path": "throw.throwType",
+                        },
+                        "right": {
+                          "kind": "constant",
+                          "value": "Triple",
+                          "valueType": "throwType",
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                "kind": "and",
+                "operands": [
+                  {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                  {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.throwType",
+                    },
+                    "right": {
+                      "kind": "constant",
+                      "value": "Rim",
+                      "valueType": "throwType",
+                    },
+                  },
+                ],
+              },
+            ],
+            "kind": "sequence",
+          },
+        ],
+      },
+    },
+  ],
+}
+`;
+
+exports[`golden compiled definitions > compiles throw count to the stored shape 1`] = `
+{
+  "kind": "and",
+  "operands": [
+    {
+      "collection": {
+        "kind": "field",
+        "path": "rounds",
+      },
+      "kind": "any",
+      "predicate": {
+        "kind": "and",
+        "operands": [
+          {
+            "kind": "or",
+            "operands": [
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "field",
+                  "path": "round.status",
+                },
+                "right": {
+                  "kind": "status",
+                  "value": "Valid",
+                },
+              },
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "field",
+                  "path": "round.status",
+                },
+                "right": {
+                  "kind": "status",
+                  "value": "Victory",
+                },
+              },
+            ],
+          },
+          {
+            "kind": "lessThan",
+            "left": {
+              "collection": {
+                "kind": "field",
+                "path": "round.throws",
+              },
+              "kind": "count",
+              "predicate": {
+                "kind": "and",
+                "operands": [
+                  {
+                    "kind": "field",
+                    "path": "throw.isPlayed",
+                  },
+                  {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.hitLocation",
+                    },
+                    "right": {
+                      "kind": "boardNeighbor",
+                      "number": {
+                        "kind": "parameter",
+                        "name": "n",
+                      },
+                      "offset": 1,
+                    },
+                  },
+                  {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "field",
+                      "path": "throw.throwType",
+                    },
+                    "right": {
+                      "kind": "constant",
+                      "value": "Double",
+                      "valueType": "throwType",
+                    },
+                  },
+                ],
+              },
+            },
+            "right": {
+              "kind": "parameter",
+              "name": "n",
+            },
+          },
+        ],
+      },
+    },
+  ],
+}
+`;
+
+exports[`golden compiled definitions > compiles throw type only to the stored shape 1`] = `
+{
+  "kind": "and",
+  "operands": [
+    {
+      "collection": {
+        "kind": "field",
+        "path": "rounds",
+      },
+      "kind": "any",
+      "predicate": {
+        "kind": "and",
+        "operands": [
+          {
+            "kind": "equal",
+            "left": {
+              "kind": "field",
+              "path": "round.status",
+            },
+            "right": {
+              "kind": "status",
+              "value": "Overshoot",
+            },
+          },
+          {
+            "collection": {
+              "kind": "field",
+              "path": "round.throws",
+            },
+            "kind": "any",
+            "predicate": {
+              "kind": "and",
+              "operands": [
+                {
+                  "kind": "field",
+                  "path": "throw.isPlayed",
+                },
+                {
+                  "kind": "equal",
+                  "left": {
+                    "kind": "field",
+                    "path": "throw.throwType",
+                  },
+                  "right": {
+                    "kind": "constant",
+                    "value": "Miss",
+                    "valueType": "throwType",
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+}
+`;
+
+exports[`golden compiled definitions > compiles winning throw double to the stored shape 1`] = `
+{
+  "kind": "and",
+  "operands": [
+    {
+      "collection": {
+        "kind": "field",
+        "path": "rounds",
+      },
+      "kind": "any",
+      "predicate": {
+        "collection": {
+          "kind": "field",
+          "path": "round.throws",
+        },
+        "kind": "any",
+        "predicate": {
+          "kind": "and",
+          "operands": [
+            {
+              "kind": "field",
+              "path": "throw.isVictoryThrow",
+            },
+            {
+              "kind": "or",
+              "operands": [
+                {
+                  "kind": "equal",
+                  "left": {
+                    "kind": "field",
+                    "path": "throw.throwType",
+                  },
+                  "right": {
+                    "kind": "constant",
+                    "value": "Double",
+                    "valueType": "throwType",
+                  },
+                },
+                {
+                  "kind": "equal",
+                  "left": {
+                    "kind": "field",
+                    "path": "throw.hitLocation",
+                  },
+                  "right": {
+                    "kind": "constant",
+                    "value": 50,
+                    "valueType": "integer",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  ],
+}
+`;
+
+exports[`golden compiled definitions > compiles winning throw target to the stored shape 1`] = `
+{
+  "kind": "and",
+  "operands": [
+    {
+      "collection": {
+        "kind": "field",
+        "path": "rounds",
+      },
+      "kind": "any",
+      "predicate": {
+        "collection": {
+          "kind": "field",
+          "path": "round.throws",
+        },
+        "kind": "any",
+        "predicate": {
+          "kind": "and",
+          "operands": [
+            {
+              "kind": "field",
+              "path": "throw.isVictoryThrow",
+            },
+            {
+              "kind": "equal",
+              "left": {
+                "kind": "field",
+                "path": "throw.hitLocation",
+              },
+              "right": {
+                "kind": "constant",
+                "value": 25,
+                "valueType": "integer",
+              },
+            },
+          ],
+        },
+      },
+    },
+  ],
+}
+`;

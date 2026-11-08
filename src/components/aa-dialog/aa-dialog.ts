@@ -1,13 +1,27 @@
-import { html, LitElement, unsafeCSS } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { html, LitElement, nothing, unsafeCSS } from 'lit';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
 
+import {
+	containsComposed,
+	getDeepActiveElement,
+	getTabbableElements,
+} from '../../ui/focus-utils.js';
+import { slotHasContent } from '../../ui/slot-utils.js';
 import dialogStyles from './aa-dialog.css?inline';
+
+const footerSlotNames = [
+	'footer',
+	'footer-tools',
+	'footer-tertiary',
+	'footer-secondary',
+	'footer-primary',
+];
 
 @customElement('aa-dialog')
 export class AaDialog extends LitElement {
 
-	@property({ type: String }) override title: string = '';
+	@property({ type: String }) heading = '';
 	@property({ type: Boolean, reflect: true }) closeOnBackdrop = true;
 	@property({ type: Boolean, reflect: true, attribute: 'fixed-height' }) fixedHeight = false;
 	@property({ type: Boolean, reflect: true }) large = false;
@@ -17,16 +31,20 @@ export class AaDialog extends LitElement {
 	@state() private hasHeaderActions = false;
 	@state() private hasFooter = false;
 
-	private _prevOverflow?: string;
+	@query('#dialog') private dialogElement?: HTMLElement;
+
+	/** The element that had focus when the dialog opened; focus returns there on close. */
+	private opener?: HTMLElement;
 
 	override connectedCallback(): void {
 		super.connectedCallback();
 
+		const active = getDeepActiveElement();
+		this.opener = active instanceof HTMLElement ? active : undefined;
+
 		window.addEventListener('keydown', this.onKeyDown);
 		this.addEventListener('pointerdown', this.onBackdropPointerDown);
-		this._prevOverflow = document.body.style.overflow;
-		document.body.style.overflow = 'hidden';
-		queueMicrotask(() => this.shadowRoot?.getElementById('dialog')?.focus());
+		queueMicrotask(() => this.dialogElement?.focus());
 	}
 
 	override disconnectedCallback(): void {
@@ -34,7 +52,11 @@ export class AaDialog extends LitElement {
 
 		window.removeEventListener('keydown', this.onKeyDown);
 		this.removeEventListener('pointerdown', this.onBackdropPointerDown);
-		document.body.style.overflow = this._prevOverflow ?? '';
+
+		const opener = this.opener;
+		this.opener = undefined;
+		if (opener?.isConnected)
+			opener.focus({ preventScroll: true });
 	}
 
 	private onKeyDown = (e: KeyboardEvent) => {
@@ -42,7 +64,39 @@ export class AaDialog extends LitElement {
 			e.preventDefault();
 			this.close();
 		}
+		else if (e.key === 'Tab') {
+			this.trapTab(e);
+		}
 	};
+
+	/** Keeps Tab and Shift+Tab cycling inside the dialog. */
+	private trapTab(e: KeyboardEvent): void {
+		const dialog = this.dialogElement;
+		if (!dialog)
+			return;
+
+		const tabbables = getTabbableElements(dialog);
+		const first = tabbables[0];
+		const last = tabbables.at(-1);
+		const active = getDeepActiveElement();
+
+		if (!first || !last) {
+			e.preventDefault();
+			dialog.focus();
+
+			return;
+		}
+
+		const outside = active === dialog || !containsComposed(this, active);
+		if (e.shiftKey && (outside || active === first)) {
+			e.preventDefault();
+			last.focus();
+		}
+		else if (!e.shiftKey && (outside || active === last)) {
+			e.preventDefault();
+			first.focus();
+		}
+	}
 
 	private onBackdropPointerDown = () => {
 		if (this.closeOnBackdrop)
@@ -56,18 +110,11 @@ export class AaDialog extends LitElement {
 	}
 
 	private onHeaderActionsSlotChange = (event: Event): void => {
-		const slot = event.currentTarget as HTMLSlotElement;
-		this.hasHeaderActions = slot.assignedNodes({ flatten: true }).length > 0;
+		this.hasHeaderActions = slotHasContent(event);
 	};
 
 	private onFooterSlotChange = (): void => {
-		this.hasFooter = [
-			'footer',
-			'footer-tools',
-			'footer-tertiary',
-			'footer-secondary',
-			'footer-primary',
-		].some(slotName => this.hasAssigned(slotName));
+		this.hasFooter = footerSlotNames.some(slotName => this.hasAssigned(slotName));
 	};
 
 	close(result?: unknown): void {
@@ -84,31 +131,36 @@ export class AaDialog extends LitElement {
 	}
 
 	override render(): unknown {
+		const hasCustomHeader = this.hasAssigned('header');
+
 		return html`
       <div
         id="dialog"
         class="dialog"
         role="dialog"
         aria-modal="true"
+        aria-labelledby=${ hasCustomHeader ? nothing : 'dialog-title' }
+        aria-label=${ hasCustomHeader && this.heading ? this.heading : nothing }
         tabindex="-1"
         @pointerdown=${ (e: Event) => e.stopPropagation() }
         @click=${ (e: Event) => e.stopPropagation() }
       >
         <slot name="header" @slotchange=${ this.requestUpdate }></slot>
-        ${ when(!this.hasAssigned('header'), () => html`
+        ${ when(!hasCustomHeader, () => html`
 			<div class="bar">
-				<div class="title">
-					<slot name="title">${ this.title }</slot>
+				<div class="title" id="dialog-title">
+					<slot name="title">${ this.heading }</slot>
 				</div>
 				<div class="header-actions" ?hidden=${ !this.hasHeaderActions }>
 					<slot name="actions" @slotchange=${ this.onHeaderActionsSlotChange }></slot>
 				</div>
 				<button
+					type="button"
 					aria-label="Close dialog"
 					class="btn close-btn"
 					@click=${ () => this.close() }
 				>
-					x
+					<span aria-hidden="true">x</span>
 				</button>
 			</div>
 			`) }

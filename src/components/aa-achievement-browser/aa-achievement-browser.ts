@@ -7,7 +7,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
 import type { AchievementInstanceResponse } from '../../models/achievementBuilderApi.js';
-import { AchievementTier, ThrowType } from '../../models/enums.js';
+import { AchievementTier, achievementTiersAscending, ThrowType } from '../../models/enums.js';
 import {
 	AchievementProgressionProgress,
 	AchievementProgressionTarget,
@@ -260,7 +260,7 @@ export class AaAchievementBrowser extends LitElement {
 
 	private getTypeAchievements(
 		tiers: Map<AchievementTier, TierProgress> | undefined,
-		tierOrder: AchievementTier[],
+		tierOrder: readonly AchievementTier[],
 	): AchievementEntry[] {
 		if (!tiers)
 			return [];
@@ -319,7 +319,8 @@ export class AaAchievementBrowser extends LitElement {
 				achievementTier: instance.achievementTier,
 			},
 			unlocked:  unlockedIds.has(instance.id),
-			typeKey:  `${instance.evaluationPhase}:${instance.categoryId}`,
+			// Session and progression achievements in a category share its tab.
+			typeKey:   instance.categoryId,
 			typeLabel: instance.categoryName,
 			progress:  progressByInstance.get(instance.id),
 		}));
@@ -363,13 +364,7 @@ export class AaAchievementBrowser extends LitElement {
 			}
 		}
 
-		const tierOrder = [
-			AchievementTier.bronze,
-			AchievementTier.silver,
-			AchievementTier.gold,
-			AchievementTier.platinum,
-			AchievementTier.diamond,
-		];
+		const tierOrder = achievementTiersAscending;
 		const typeEntries = [...byType.entries()].sort(([left], [right]) =>
 			(typeLabels.get(left) ?? left).localeCompare(typeLabels.get(right) ?? right));
 		const typeTabs: AaTabItem[] = typeEntries.map(([type, tiers]) => {

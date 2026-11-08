@@ -1,5 +1,7 @@
 import '../../aa-loading-state/aa-loading-state.js';
 import '../../aa-last-dart-hints/aa-last-dart-hints.js';
+import '../../../ui/button/aa-button.js';
+import '../../../ui/error-state/aa-error-state.js';
 
 import { html, unsafeCSS } from 'lit';
 import type { PropertyValues } from 'lit';
@@ -17,7 +19,7 @@ import {
 } from '../../../helpers/applyGameTrackerDelta.js';
 import { isLastDartWindowOpen } from '../../../helpers/lastDartHints.js';
 import { sum } from '../../../helpers/sum.js';
-import { AchievementTier, RoundStatus } from '../../../models/enums.js';
+import { AchievementTier, achievementTiersAscending, RoundStatus } from '../../../models/enums.js';
 import { GameTracker, GameTrackerDelta, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../../models/schemas.js';
 import { DataService } from '../../../services/dataService.js';
 import { DialogService } from '../../../services/dialogService.js';
@@ -49,6 +51,7 @@ export class GamePage extends LitElement {
 
 	@state() protected season?: Season;
 	@state() protected loading: boolean = true;
+	@state() protected loadError?: string;
 	@state() protected isReadOnly: boolean = true;
 	@state() protected syncStatus: SignalRConnectionStatus = 'disconnected';
 	@state() protected syncStatusMessage = 'Live sync offline';
@@ -74,7 +77,7 @@ export class GamePage extends LitElement {
 	protected creatingGame: boolean = false;
 	protected selectedId?: string;
 	protected selectedCellElement?: aaDartThrow = undefined;
-	protected isActiveGame: boolean = false;
+	@state() protected isActiveGame: boolean = false;
 	protected projectedV2AchievementsByPlayer: Record<string, AchievementInstanceResponse[]> = {};
 	// Breaks ties when several players have hints, for example while correcting old rounds.
 	private lastHintedPlayerId?: string;
@@ -83,6 +86,8 @@ export class GamePage extends LitElement {
 	protected gameLiveService: GameLiveService;
 	private removeSignalRStatusListener?: () => void;
 	private v2AchievementSubscription?: SignalRSubscription;
+	// Bumped on every (un)subscribe, so a subscribe that was overtaken while awaiting backs off.
+	private achievementSubscriptionGeneration = 0;
 	private lifecycleGeneration = 0;
 	private observedPlayerContainer?: HTMLElement;
 	private readonly playerContainerResizeObserver = new ResizeObserver(() =>
@@ -141,34 +146,57 @@ export class GamePage extends LitElement {
 	}
 
 	protected async initialize(generation: number): Promise<void> {
+		const isCurrent = () => this.isConnected && generation === this.lifecycleGeneration;
+
 		this.loading = true;
+		this.loadError = undefined;
 
-		await this.healthCheckServer();
-		await this.GetLatestSeason();
-		await this.loadUsers({
-			query: {includeSeasonStatistics: true, limitToSeasonId: this.season!.id},
-		});
+		try {
+			await this.healthCheckServer();
+			if (!isCurrent())
+				return;
 
-		const locallyCachedGameSessionId = this.gameService.getCachedGameId();
-		if (locallyCachedGameSessionId !== undefined) {
-			const gameTracker = await this.gameService.getActiveGame(locallyCachedGameSessionId);
-			if (gameTracker) {
-				this.gameIdFromLocalStorage = locallyCachedGameSessionId;
-				this.updateGameState(gameTracker);
-				this.isActiveGame = true;
+			await this.GetLatestSeason();
+			if (!isCurrent())
+				return;
+			if (!this.season)
+				throw new Error('There is no active season.');
+
+			await this.loadUsers({
+				query: {includeSeasonStatistics: true, limitToSeasonId: this.season.id},
+			});
+			if (!isCurrent())
+				return;
+
+			const initialGameId = this.getInitialGameId();
+			if (initialGameId !== undefined) {
+				const gameTracker = await this.gameService.getActiveGame(initialGameId);
+				if (!isCurrent())
+					return;
+
+				if (gameTracker) {
+					this.gameIdFromLocalStorage = initialGameId;
+					this.updateGameState(gameTracker);
+					this.isActiveGame = true;
+				}
+				else {
+					this.gameIdFromLocalStorage = undefined;
+					this.handleInitialGameMissing();
+				}
 			}
-			else {
-				this.gameIdFromLocalStorage = undefined;
-				this.gameService.removeCachedGameId();
-			}
+		}
+		catch (error) {
+			if (!isCurrent())
+				return;
+
+			this.loadError = getErrorMessage(error, 'Unable to set up the play area.');
+			this.loading = false;
+			return;
 		}
 
 		this.loading = false;
 
 		void this.scrollToEndInPlayerRounds();
-
-		if (!this.isConnected || generation !== this.lifecycleGeneration)
-			return;
 
 		this.bindSignalRState();
 
@@ -180,8 +208,25 @@ export class GamePage extends LitElement {
 		}
 	}
 
+	/** The game to show on load: the player's own cached game. */
+	protected getInitialGameId(): string | undefined {
+		return this.gameService.getCachedGameId();
+	}
+
+	/** The game from `getInitialGameId` is no longer active. */
+	protected handleInitialGameMissing(): void {
+		this.gameService.removeCachedGameId();
+	}
+
+	private retryInitialize(): void {
+		void this.initialize(++this.lifecycleGeneration);
+	}
+
 	public async subscribeToAchievementEvents(gameId: string): Promise<void> {
-		await this.unsubscribeFromAchievementEvents();
+		const generation = ++this.achievementSubscriptionGeneration;
+		await this.disposeAchievementSubscription();
+		if (!this.isConnected || generation !== this.achievementSubscriptionGeneration)
+			return;
 
 		const v2Subscription = this.gameLiveService.subscribeToV2Achievements(
 			gameId,
@@ -192,6 +237,11 @@ export class GamePage extends LitElement {
 	}
 
 	public async unsubscribeFromAchievementEvents(): Promise<void> {
+		this.achievementSubscriptionGeneration++;
+		await this.disposeAchievementSubscription();
+	}
+
+	private async disposeAchievementSubscription(): Promise<void> {
 		const v2Subscription = this.v2AchievementSubscription;
 		this.v2AchievementSubscription = undefined;
 		await v2Subscription?.dispose();
@@ -727,10 +777,6 @@ export class GamePage extends LitElement {
 		return null;
 	}
 
-	protected renderBottomContent(): unknown {
-		return null;
-	}
-
 	protected isPlayerActive(_playerIndex: number): boolean {
 		return false;
 	}
@@ -809,19 +855,10 @@ export class GamePage extends LitElement {
 		if (countsByTier.size === 0)
 			return null;
 
-		const tierOrder = [
-			AchievementTier.diamond,
-			AchievementTier.platinum,
-			AchievementTier.gold,
-			AchievementTier.silver,
-			AchievementTier.bronze,
-		];
-
-		const groupedTiers = tierOrder.filter(tier => countsByTier.has(tier));
-		const total = groupedTiers.reduce(
-			(sum, tier) => sum + (countsByTier.get(tier) ?? 0),
-			0,
-		);
+		const groupedTiers = [ ...achievementTiersAscending ]
+			.reverse()
+			.filter(tier => countsByTier.has(tier));
+		const total = sum(groupedTiers, tier => countsByTier.get(tier) ?? 0);
 		const breakdown = groupedTiers
 			.map(tier => `${ countsByTier.get(tier) } ${ AchievementTier[tier] }`)
 			.join(', ');
@@ -863,6 +900,27 @@ export class GamePage extends LitElement {
 	}
 
 	override render(): unknown {
+		if (this.loadError && !this.loading) {
+			return html`
+				<div class="load-error-shell">
+					<aa-error-state
+						class="load-error"
+						heading="Unable to set up the play area"
+						message=${ this.loadError }
+					>
+						<aa-button
+							slot="actions"
+							type="button"
+							variant="primary"
+							@click=${ this.retryInitialize }
+						>
+							Try again
+						</aa-button>
+					</aa-error-state>
+				</div>
+			`;
+		}
+
 		const isLoading = this.loading || !this.season;
 
 		return html`
@@ -1092,8 +1150,6 @@ export class GamePage extends LitElement {
 							`);
 						})}
 					</div>
-
-					${this.renderBottomContent()}
 				</div>
 			</div>
 		`;

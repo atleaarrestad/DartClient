@@ -14,13 +14,16 @@ export interface AchievementParameterDraft {
 	values: string[];
 }
 
-export type AchievementComparisonOperator =
-	| 'equal'
-	| 'notEqual'
-	| 'greaterThan'
-	| 'greaterThanOrEqual'
-	| 'lessThan'
-	| 'lessThanOrEqual';
+export const achievementComparisonOperators = [
+	'equal',
+	'notEqual',
+	'greaterThan',
+	'greaterThanOrEqual',
+	'lessThan',
+	'lessThanOrEqual',
+] as const;
+
+export type AchievementComparisonOperator = (typeof achievementComparisonOperators)[number];
 
 export type AchievementValueSource =
 	| 'constant'
@@ -48,7 +51,62 @@ export type AchievementValueSource =
 	| 'game.rimCount'
 	| 'game.missCount';
 
+/** Display labels for every value source; also the order the value editor lists them in. */
+export const achievementValueSourceLabels: Record<AchievementValueSource, string> = {
+	'constant':                     'Number',
+	'parameter':                    'Parameter',
+	'parameter.offset':             'Parameter with numeric offset',
+	'board.leftNeighbor':           'Left dartboard neighbor of parameter',
+	'board.rightNeighbor':          'Right dartboard neighbor of parameter',
+	'round.throwCount':             'Round throw count',
+	'round.modifiedThrowCount':     'Throws using seasonal modifiers',
+	'round.number':                 'Round number',
+	'round.finalPoints':            'Round final points',
+	'round.rawPointsDistinctCount': 'Number of unique unmodified throw scores',
+	'round.minimumRawPoints':       'Lowest unmodified throw score',
+	'round.singleCount':            'Singles in round',
+	'round.doubleCount':            'Doubles in round',
+	'round.tripleCount':            'Triples in round',
+	'game.roundsPlayed':            'Rounds played',
+	'game.placement':               'Final placement',
+	'game.validRoundCount':         'Valid rounds',
+	'game.victoryCount':            'Victory rounds',
+	'game.overshootCount':          'Overshoot rounds',
+	'game.failedWinConditionCount': 'Failed-win rounds',
+	'game.doubleCount':             'Double hits',
+	'game.tripleCount':             'Triple hits',
+	'game.rimCount':                'Rim hits',
+	'game.missCount':               'Misses',
+};
+
 export type AchievementRoundStatus = 'valid' | 'victory' | 'overshoot' | 'failedWinCondition';
+
+export const achievementRoundStatusLabels: Record<AchievementRoundStatus, string> = {
+	valid:              'Valid',
+	victory:            'Victory',
+	overshoot:          'Overshoot',
+	failedWinCondition: 'Failed win',
+};
+
+/** Draft throw types with their backend AST names, which the editor also shows as labels. */
+export const achievementThrowTypeNames = {
+	single: 'Single',
+	double: 'Double',
+	triple: 'Triple',
+	rim:    'Rim',
+	miss:   'Miss',
+} as const;
+
+export type AchievementThrowType = keyof typeof achievementThrowTypeNames;
+
+/** Rim and miss throws have no hit location; every other throw type needs one. */
+export const throwTypeHasHitLocation = (throwType: string): boolean =>
+	throwType !== 'rim' && throwType !== 'miss';
+
+export const sequenceTargetCount = 3;
+
+/** Where a block is evaluated: once per game, or once per round inside a round block. */
+export type AchievementRuleScope = 'root' | 'round';
 
 export interface AchievementValueDraft {
 	source: AchievementValueSource;
@@ -82,7 +140,7 @@ export interface AchievementThrowRuleDraft {
 	quantifier: 'any' | 'all';
 	scope: 'currentRound';
 	hitLocation?: AchievementValueDraft;
-	throwType: 'any' | 'single' | 'double' | 'triple' | 'rim' | 'miss';
+	throwType: 'any' | AchievementThrowType;
 }
 
 export interface AchievementComparisonRuleDraft {
@@ -97,7 +155,7 @@ export interface AchievementThrowCountRuleDraft {
 	id: string;
 	type: 'throwCount';
 	hitLocation?: AchievementValueDraft;
-	throwType: 'any' | 'single' | 'double' | 'triple' | 'rim' | 'miss';
+	throwType: 'any' | AchievementThrowType;
 	operator: AchievementComparisonOperator;
 	count: AchievementValueDraft;
 }
@@ -112,7 +170,7 @@ export interface AchievementWinningThrowRuleDraft {
 export interface AchievementSequenceTargetDraft {
 	id: string;
 	hitLocation: AchievementValueDraft;
-	throwType: 'anyScoring' | 'single' | 'double' | 'triple' | 'rim' | 'miss';
+	throwType: 'anyScoring' | AchievementThrowType;
 }
 
 export interface AchievementSequenceRuleDraft {
@@ -138,6 +196,42 @@ export type AchievementRuleDraft =
 	| AchievementWinningThrowRuleDraft
 	| AchievementSequenceRuleDraft
 	| AchievementRawRuleDraft;
+
+export type EditableAchievementRuleType = Exclude<AchievementRuleDraft['type'], 'raw'>;
+
+/**
+ * Where each block may appear. The draft editor, the validator and the compiler all read
+ * this table, so a block can't be offered somewhere the compiler then rejects.
+ */
+export const achievementRulePlacements: Record<
+	EditableAchievementRuleType,
+	{ scopes: readonly AchievementRuleScope[]; message?: string; }
+> = {
+	all:          { scopes: [ 'root', 'round' ] },
+	any:          { scopes: [ 'root', 'round' ] },
+	not:          { scopes: [ 'root', 'round' ] },
+	compare:      { scopes: [ 'root', 'round' ] },
+	round:        { scopes: [ 'root' ], message: 'Round blocks cannot be nested inside another round block.' },
+	winningThrow: { scopes: [ 'root' ], message: 'Winning-throw blocks must be used at the game level.' },
+	throw:        { scopes: [ 'round' ], message: 'Throw blocks must be nested inside a round block.' },
+	throwCount:   { scopes: [ 'round' ], message: 'Throw-count blocks must be nested inside a round block.' },
+	sequence:     { scopes: [ 'round' ], message: 'Sequence blocks must be nested inside a round block.' },
+};
+
+/** Why a block can't be used in the given scope, or undefined when it can. */
+export const getRulePlacementError = (
+	type: AchievementRuleDraft['type'],
+	scope: AchievementRuleScope,
+): string | undefined => {
+	if (type === 'raw')
+		return undefined;
+
+	const placement = achievementRulePlacements[type];
+
+	return placement.scopes.includes(scope)
+		? undefined
+		: placement.message ?? 'This block cannot be used here.';
+};
 
 export interface AchievementTemplateDraft {
 	id?: string;
@@ -169,7 +263,8 @@ export interface AchievementProgressionDraft {
 	targets: AchievementProgressionTargetDraft[];
 	/**
 	 * Stored progression logic the target editor cannot represent. It is saved back
-	 * verbatim, so opening and saving such a template never replaces its logic.
+	 * verbatim as the definition's root and reducers, so opening and saving such a
+	 * template never replaces its logic. It is never stored in the editor tree.
 	 */
 	raw?: { root: unknown; reducers: unknown; };
 }

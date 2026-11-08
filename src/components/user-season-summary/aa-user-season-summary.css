@@ -78,7 +78,7 @@
 }
 
 .summary-cell:nth-child(1) {
-	background: #e8f0ff;
+	background: var(--color-surface-info-soft);
 }
 
 .summary-cell:nth-child(2) {
@@ -98,7 +98,7 @@
 }
 
 .summary-cell:nth-child(6) {
-	background: #fff3cf;
+	background: var(--color-surface-highlight);
 }
 
 .summary-cell:nth-child(7) {

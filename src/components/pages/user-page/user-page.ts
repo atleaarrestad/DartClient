@@ -1,10 +1,12 @@
 import type { RouterLocation } from '@vaadin/router';
 import { html, unsafeCSS, TemplateResult } from 'lit';
 import { LitElement } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
 import { UserQueryOptions } from '../../../api/users.requests.js';
+import { getErrorMessage } from '../../../helpers/getErrorMessage.js';
+import { sum } from '../../../helpers/sum.js';
 import type { AchievementInstanceResponse } from '../../../models/achievementBuilderApi.js';
 import { Season, SeasonStatistics, User } from '../../../models/schemas.js';
 import { DialogService } from '../../../services/dialogService.js';
@@ -31,6 +33,7 @@ import '../../aa-achievement-browser/aa-achievement-browser.js';
 import '../../achievement-builder/achievement-builder.js';
 import '../../aa-loading-state/aa-loading-state.js';
 import '../../../ui/button/aa-button.js';
+import '../../../ui/error-state/aa-error-state.js';
 
 interface AchievementProgress {
 	earned:            number;
@@ -42,8 +45,6 @@ interface AchievementProgress {
 @customElement('user-page')
 export class UserPage extends LitElement {
 
-	@property({ type: Array }) users: User[] = [];
-
 	@state() private userId!: string;
 	@state() private currentSeason?: Season;
 	@state() private seasons?: Season[];
@@ -52,6 +53,7 @@ export class UserPage extends LitElement {
 	@state() private achievementsUnavailable = false;
 	@state() private isLoadingSeasonStats = false;
 	@state() private hitDistributionView: HitDistributionView = 'bars';
+	@state() private loadError?: string;
 
 	private seasonService: SeasonService;
 	private userService: UserService;
@@ -60,6 +62,7 @@ export class UserPage extends LitElement {
 	private dialogService: DialogService;
 	private notificationService: NotificationService;
 	private seasonStatsRequestId = 0;
+	private loadRequestId = 0;
 
 	constructor() {
 		super();
@@ -72,22 +75,47 @@ export class UserPage extends LitElement {
 
 	onBeforeEnter(location: RouterLocation): void {
 		this.userId = location.params['id'] as string;
+		void this.load();
 	}
 
-	override async connectedCallback(): Promise<void> {
-		super.connectedCallback();
+	private async load(): Promise<void> {
+		const requestId = ++this.loadRequestId;
+		this.loadError = undefined;
 
-		const [currentSeason, seasons] = await Promise.all([
-			this.seasonService.getCurrentSeason(),
-			this.seasonService.getAll(),
-		]);
+		try {
+			const [currentSeason, seasons] = await Promise.all([
+				this.seasonService.getCurrentSeason(),
+				this.seasonService.getAll(),
+			]);
+			if (requestId !== this.loadRequestId)
+				return;
 
-		this.currentSeason = currentSeason;
-		this.seasons = seasons;
-		this.selectedSeason = this.seasons.find(s => s.id === this.currentSeason?.id) || this.seasons[0];
-		if (this.selectedSeason) {
-			await this.loadUserForSeason(this.selectedSeason.id);
+			this.currentSeason = currentSeason;
+			this.seasons = seasons;
+			this.selectedSeason = this.seasons.find(s => s.id === this.currentSeason?.id) || this.seasons[0];
 		}
+		catch (error) {
+			if (requestId !== this.loadRequestId)
+				return;
+
+			console.error('Unable to load seasons.', error);
+			this.loadError = getErrorMessage(error, 'Unable to load seasons.');
+			return;
+		}
+
+		if (!this.selectedSeason) {
+			this.loadError = 'There are no seasons to show statistics for.';
+			return;
+		}
+
+		await this.loadUserForSeason(this.selectedSeason.id);
+	}
+
+	private retryLoad(): void {
+		if (this.seasons?.length && this.selectedSeason)
+			void this.loadUserForSeason(this.selectedSeason.id);
+		else
+			void this.load();
 	}
 
 	private async handleSeasonChange(event: UserSeasonChangedEvent): Promise<void> {
@@ -112,6 +140,7 @@ export class UserPage extends LitElement {
 	private async loadUserForSeason(seasonId: string): Promise<void> {
 		const requestId = ++this.seasonStatsRequestId;
 		this.isLoadingSeasonStats = true;
+		this.loadError = undefined;
 
 		try {
 			const options = this.getSeasonScopedUserQueryOptions(seasonId);
@@ -127,13 +156,12 @@ export class UserPage extends LitElement {
 
 			if (user.status === 'fulfilled') {
 				this.user = user.value ?? undefined;
+				if (!this.user)
+					this.loadError = 'This player could not be found.';
 			}
 			else {
 				console.error('Unable to load player statistics.', user.reason);
-				this.notificationService.addNotification({
-					type:    'danger',
-					message: 'Unable to load player statistics.',
-				});
+				this.loadError = getErrorMessage(user.reason, 'Unable to load player statistics.');
 			}
 
 			this.achievementsUnavailable = instances.status === 'rejected';
@@ -221,10 +249,9 @@ export class UserPage extends LitElement {
 		return {
 			earned:            earnedV2.length,
 			total:             v2Achievements.size,
-			earnedCapIncrease: earnedV2.reduce((sum, definition) =>
-				sum + getCapIncrease(definition.achievementTier), 0),
-			totalCapIncrease:  [ ...v2Achievements.values() ].reduce((sum, definition) =>
-				sum + getCapIncrease(definition.achievementTier), 0),
+			earnedCapIncrease: sum(earnedV2, definition => getCapIncrease(definition.achievementTier)),
+			totalCapIncrease:  sum([ ...v2Achievements.values() ], definition =>
+				getCapIncrease(definition.achievementTier)),
 		};
 	}
 
@@ -282,7 +309,7 @@ export class UserPage extends LitElement {
 			console.error('Unable to open achievements dialog.', error);
 			this.notificationService.addNotification({
 				type:    'danger',
-				message: error instanceof Error ? error.message : 'Unable to open the achievement.',
+				message: getErrorMessage(error, 'Unable to open the achievement.'),
 			});
 		}
 	}
@@ -416,6 +443,26 @@ export class UserPage extends LitElement {
 	}
 
 	override render(): unknown {
+		if (this.loadError && !this.isLoadingSeasonStats) {
+			return html`
+				<div class="page-shell">
+					<aa-error-state
+						heading="Unable to load player stats"
+						message=${ this.loadError }
+					>
+						<aa-button
+							slot="actions"
+							type="button"
+							variant="primary"
+							@click=${ this.retryLoad }
+						>
+							Try again
+						</aa-button>
+					</aa-error-state>
+				</div>
+			`;
+		}
+
 		const isLoading =
 			this.isLoadingSeasonStats ||
 			!this.user ||

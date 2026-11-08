@@ -64,7 +64,7 @@ thead th {
 	position: sticky;
 	z-index: 1;
 	top: 0;
-	background: #fff7ea;
+	background: var(--color-surface-table-header);
 	font-size: 0.84rem;
 	font-weight: 900;
 	letter-spacing: 0.03em;
@@ -174,7 +174,7 @@ th.cell--right .sort-button {
 	display: flex;
 	justify-content: flex-end;
 	padding: 0.65rem 0.85rem;
-	background: #fff7ea;
+	background: var(--color-surface-table-header);
 }
 
 .table-footer[hidden] {

@@ -1,3 +1,4 @@
+import { Router } from '@vaadin/router';
 import { html, unsafeCSS } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 
@@ -18,16 +19,21 @@ export class SpectateGamePage extends GamePage {
 	private readonly onGameDelta = (gameId: string, delta: GameTrackerDelta) => void this.HandleOnGameDelta(gameId, delta);
 	private readonly onGameFinished = (gameId: string, gameResult: GameResult) => this.HandleOnGameFinished(gameId, gameResult);
 	private synchronizationPromise?: Promise<void>;
-	constructor() {
-		super();
-	}
 
 	override async initialize(generation: number): Promise<void> {
-		this.gameId = this.getGameIdFromRoute() ?? this.gameService.getCachedGameId() ?? '';
-		if (this.gameId)
-			this.gameService.setCachedGameId(this.gameId);
+		// The spectated game never goes into the player's cached game id, which belongs to
+		// the game they play on the index page.
+		this.gameId = this.getGameIdFromRoute() ?? '';
 
 		await super.initialize(generation);
+	}
+
+	protected override getInitialGameId(): string | undefined {
+		return this.gameId || undefined;
+	}
+
+	protected override handleInitialGameMissing(): void {
+		this.returnToActiveGames();
 	}
 
 	private getGameIdFromRoute(): string | undefined {
@@ -102,13 +108,15 @@ export class SpectateGamePage extends GamePage {
 		if (!this.isConnected)
 			return;
 
+		this.returnToActiveGames();
+	}
+
+	private returnToActiveGames(): void {
 		this.notificationService.addNotification({
 			type:    'info',
 			message: 'This game is no longer active. Returning to active games.',
 		});
-		this.gameService.removeCachedGameId();
-		history.pushState({}, '', `${ getAbsoluteBase() }sessions`);
-		window.dispatchEvent(new PopStateEvent('popstate'));
+		Router.go(`${ getAbsoluteBase() }sessions`);
 	}
 
 	private HandleOnGameUpdated(gameId: string, gameTracker: GameTracker): void {

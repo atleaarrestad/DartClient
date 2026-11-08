@@ -43,543 +43,397 @@ import {
 import { getErrorMessage } from '../helpers/getErrorMessage.js';
 
 export type ApiResponse<T> =
-	| { ok: true; data: T; }
+	| { ok: true; status: number; data: T; }
 	| { ok: false; status: number; statusText: string; body: unknown; };
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+
+interface SendOptions<T, F> {
+	/** Prefix of the error thrown for a failed response. */
+	error:         string;
+	/** Parses the response body. Without it the body is ignored. */
+	schema?:       z.ZodType<T>;
+	/** Prefix of the error thrown when the body does not match the schema. */
+	invalid?:      string;
+	body?:         unknown;
+	headers?:      HeadersInit;
+	/** Result for 404 and 204 responses, instead of an error. */
+	whenMissing?:  () => F;
+	/** Messages that replace the generic error for specific statuses. */
+	statusErrors?: Partial<Record<number, string>>;
+}
+
+export interface DataServiceOptions {
+	/** Base delay between submit retries; the n-th retry waits n times this. */
+	submitRetryDelayMs?: number;
+}
+
+/** Template tag that URL-encodes every interpolated value of an endpoint path. */
+const path = (strings: TemplateStringsArray, ...values: (string | number)[]): string =>
+	strings.reduce((result, part, index) =>
+		result + encodeURIComponent(String(values[index - 1])) + part);
 
 @injectable()
 export class DataService {
 	private backendURL = import.meta.env.VITE_SERVER_URL;
-	private abortTimeout = 500000;
+	private requestTimeoutMs = 30_000;
 	private submitAttempts = 3;
-	private submitRetryDelayMs = 750;
+	private submitRetryDelayMs: number;
 	private addThrowQueue: Promise<unknown> = Promise.resolve();
-	private addThrowFailure?: unknown;
+	private pendingThrowSaves = new Map<string, Set<Promise<unknown>>>();
 
-	async Ping(): Promise<string> {
-		const result = await this.get<string>('ping');
-
-		if (result.ok) {
-			return result.data;
-		}
-
-		throw new Error('Unable to reach server');
+	constructor(options: DataServiceOptions = {}) {
+		this.submitRetryDelayMs = options.submitRetryDelayMs ?? 750;
 	}
 
-	async GetRuleDefinitions(): Promise<RuleDefinitionsResponse> {
-		const resp = await this.get<RuleDefinitionsResponse>('rule/definitions');
-
-		if (!resp.ok) {
-			throw new Error(
-				`Failed to fetch ruledefinitions: ${resp.status} ${resp.statusText}`,
-			);
-		}
-
-		try {
-			return RuleDefinitionsResponseSchema.parse(resp.data);
-		}
-		catch {
-			throw new Error('Invalid rule-definition data received from the API');
-		}
+	Ping(): Promise<string> {
+		return this.send('GET', 'ping', {
+			error:   'Unable to reach server',
+			schema:  z.string(),
+			invalid: 'Invalid ping response received from the API',
+		});
 	}
 
-	async RequestNewGame(): Promise<string> {
-		const result = await this.post<undefined, string>('games/sessions/new', undefined);
-
-		if (result.ok) {
-			return result.data;
-		}
-
-		throw this.createApiError('Failed to create new game', result);
+	GetRuleDefinitions(): Promise<RuleDefinitionsResponse> {
+		return this.send('GET', 'rule/definitions', {
+			error:   'Failed to fetch ruledefinitions',
+			schema:  RuleDefinitionsResponseSchema,
+			invalid: 'Invalid rule-definition data received from the API',
+		});
 	}
 
-	async getActiveGameSession(gameId: string): Promise<GameTracker | undefined> {
-		const resp = await this.get<GameTracker>(`games/sessions/${gameId}`);
-
-		if (!resp.ok && resp.status === 404) {
-			return undefined;
-		}
-
-		if (!resp.ok) {
-			throw new Error(
-				`Failed to fetch active game: ${resp.status} ${resp.statusText}`,
-			);
-		}
-
-		try {
-			return GameTrackerSchema.parse(resp.data);
-		}
-		catch {
-			throw new Error('Invalid game tracker data received from the API');
-		}
+	RequestNewGame(): Promise<string> {
+		return this.send('POST', 'games/sessions/new', {
+			error:   'Failed to create new game',
+			schema:  z.string(),
+			invalid: 'Invalid game id received from the API',
+		});
 	}
 
-	async getActiveGameSessions(): Promise<GameTracker[] | undefined> {
-		const resp = await this.get<GameTracker[]>('games/sessions');
-
-		if (!resp.ok && resp.status === 404) {
-			return undefined;
-		}
-
-		if (!resp.ok) {
-			throw new Error(
-				`Failed to fetch active games: ${resp.status} ${resp.statusText}`,
-			);
-		}
-
-		try {
-			return z.array(GameTrackerSchema).parse(resp.data);
-		}
-		catch {
-			throw new Error('Invalid game tracker data received from the API');
-		}
+	getActiveGameSession(gameId: string): Promise<GameTracker | undefined> {
+		return this.send('GET', path`games/sessions/${ gameId }`, {
+			error:       'Failed to fetch active game',
+			schema:      GameTrackerSchema,
+			invalid:     'Invalid game tracker data received from the API',
+			whenMissing: () => undefined,
+		});
 	}
 
-	async AddPlayerToGameSession(gameId: string, playerId: string): Promise<GameTracker> {
-		const result = await this.post<undefined, GameTracker>(
-			`games/sessions/${gameId}/player/${playerId}`,
-			undefined,
-		);
-
-		if (!result.ok) {
-			throw this.createApiError('Failed to add player to active game', result);
-		}
-
-		try {
-			return GameTrackerSchema.parse(result.data);
-		}
-		catch {
-			throw new Error('Invalid game tracker data received from the API');
-		}
+	getActiveGameSessions(): Promise<GameTracker[]> {
+		return this.send('GET', 'games/sessions', {
+			error:       'Failed to fetch active games',
+			schema:      z.array(GameTrackerSchema),
+			invalid:     'Invalid game tracker data received from the API',
+			whenMissing: () => [],
+		});
 	}
 
-	async removePlayerFromGameSession(gameId: string, playerId: string): Promise<GameTracker> {
-		const result = await this.delete<GameTracker>(
-			`games/sessions/${gameId}/player/${playerId}`,
-		);
-
-		if (!result.ok) {
-			throw this.createApiError('Failed to remove player from active game', result);
-		}
-
-		try {
-			return GameTrackerSchema.parse(result.data);
-		}
-		catch {
-			throw new Error('Invalid game tracker data received from the API');
-		}
+	AddPlayerToGameSession(gameId: string, playerId: string): Promise<GameTracker> {
+		return this.send('POST', path`games/sessions/${ gameId }/player/${ playerId }`, {
+			error:   'Failed to add player to active game',
+			schema:  GameTrackerSchema,
+			invalid: 'Invalid game tracker data received from the API',
+		});
 	}
 
-	private enqueueAddThrow<T>(task: () => Promise<T>): Promise<T> {
+	removePlayerFromGameSession(gameId: string, playerId: string): Promise<GameTracker> {
+		return this.send('DELETE', path`games/sessions/${ gameId }/player/${ playerId }`, {
+			error:   'Failed to remove player from active game',
+			schema:  GameTrackerSchema,
+			invalid: 'Invalid game tracker data received from the API',
+		});
+	}
+
+	/**
+	 * Saves run one at a time. Each save is tracked per game until it settles, so
+	 * SubmitGame can wait for in-flight saves and refuse to finalize if one of them fails.
+	 * Earlier failures were already reported to (and resynced by) the caller.
+	 */
+	private enqueueAddThrow<T>(gameId: string, task: () => Promise<T>): Promise<T> {
 		const result = this.addThrowQueue.then(task, task);
-		this.addThrowQueue = result.then(
-			() => undefined,
-			error => {
-				this.addThrowFailure ??= error;
-			},
-		);
+		this.addThrowQueue = result.catch(() => undefined);
+
+		const pending = this.pendingThrowSaves.get(gameId) ?? new Set<Promise<unknown>>();
+		this.pendingThrowSaves.set(gameId, pending);
+		pending.add(result);
+		const settle = (): void => {
+			pending.delete(result);
+			if (pending.size === 0 && this.pendingThrowSaves.get(gameId) === pending)
+				this.pendingThrowSaves.delete(gameId);
+		};
+		result.then(settle, settle);
 
 		return result;
 	}
 
-	async AddDartThrowToGameSession(
+	AddDartThrowToGameSession(
 		gameId: string,
 		playerId: string,
 		roundNumber: number,
 		dartThrow: DartThrow,
 	): Promise<GameTracker | GameTrackerDelta> {
-		return this.enqueueAddThrow(async () => {
-			const request = {
-				HitLocation: dartThrow.hitLocation,
-				ThrowType: dartThrow.throwType,
-			};
+		return this.enqueueAddThrow(gameId, () => this.send(
+			'POST',
+			path`games/sessions/${ gameId }/player/${ playerId }/round/${ roundNumber }/throw/${ dartThrow.throwIndex }`,
+			{
+				error:  'Failed to save dart throw',
+				body:   {
+					HitLocation: dartThrow.hitLocation,
+					ThrowType:   dartThrow.throwType,
+				},
+				// The full tracker is only sent by older servers; current ones always send a delta.
+				schema:  z.union([ GameTrackerDeltaSchema, GameTrackerSchema ]),
+				invalid: 'Invalid game state received from the API',
+			},
+		));
+	}
 
-			const result = await this.post<object, GameTracker | GameTrackerDelta>(
-				`games/sessions/${gameId}/player/${playerId}/round/${roundNumber}/throw/${dartThrow.throwIndex}`,
-				request,
-			);
-
-			if (!result.ok) {
-				throw this.createApiError('Failed to save dart throw', result);
-			}
-
-			const delta = GameTrackerDeltaSchema.safeParse(result.data);
-			if (delta.success)
-				return delta.data;
-			const tracker = GameTrackerSchema.safeParse(result.data);
-			if (tracker.success)
-				return tracker.data;
-
-			throw new Error('Invalid game state received from the API');
+	/** Throws `No active season` when the server has no season running. */
+	getCurrentSeason(): Promise<Season> {
+		return this.send('GET', 'season/latest', {
+			error:       'Failed to fetch latest season from server',
+			schema:      SeasonSchema,
+			invalid:     'Not able to parse season from server',
+			whenMissing: () => {
+				throw new Error('No active season');
+			},
 		});
 	}
 
-	async getCurrentSeason(): Promise<Season> {
-		const resp = await this.get<Season>('season/latest');
-
-		if (!resp.ok) {
-			throw new Error(
-				`Failed to fetch latest season from server: ${resp.status} ${resp.statusText}`,
-			);
-		}
-
-		try {
-			return SeasonSchema.parse(resp.data);
-		}
-		catch {
-			throw new Error('Not able to parse season from server');
-		}
+	GetAllSeasons(): Promise<Season[]> {
+		return this.send('GET', 'season/all', {
+			error:       'Failed to fetch all seasons from server',
+			schema:      z.array(SeasonSchema),
+			invalid:     'Not able to parse season from server',
+		});
 	}
 
-	async GetAllSeasons(): Promise<Season[]> {
-		const resp = await this.get<Season[]>('season/all');
-
-		if (!resp.ok) {
-			throw new Error(
-				`Failed to fetch all seasons from server: ${resp.status} ${resp.statusText}`,
-			);
-		}
-
-		try {
-			return resp.data.map(season => SeasonSchema.parse(season));
-		}
-		catch {
-			throw new Error('Not able to parse season from server');
-		}
+	verifySeasonManagementAccess(adminKey: string): Promise<void> {
+		return this.send('GET', 'season/manage/access', {
+			error:   'Season management access denied',
+			headers: this.getSeasonAdminHeaders(adminKey),
+		});
 	}
 
-	async verifySeasonManagementAccess(adminKey: string): Promise<void> {
-		const response = await this.get<unknown>(
-			'season/manage/access',
-			this.getSeasonAdminHeaders(adminKey),
-		);
-
-		if (!response.ok)
-			throw this.createApiError('Season management access denied', response);
-	}
-
-	async createSeason(
+	createSeason(
 		request: unknown,
 		adminKey: string,
 	): Promise<Season> {
-		const response = await this.post<unknown, Season>(
-			'season',
-			request,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-
-		if (!response.ok)
-			throw this.createApiError('Failed to create season', response);
-
-		return this.parseApiData(
-			SeasonSchema,
-			response.data,
-			'Invalid season data received after creation',
-		);
+		return this.send('POST', 'season', {
+			error:   'Failed to create season',
+			body:    request,
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  SeasonSchema,
+			invalid: 'Invalid season data received after creation',
+		});
 	}
 
-	async updateSeason(
+	updateSeason(
 		request: unknown,
 		adminKey: string,
 	): Promise<Season> {
-		const response = await this.put<unknown, Season>(
-			'season',
-			request,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-
-		if (!response.ok)
-			throw this.createApiError('Failed to update season', response);
-
-		return this.parseApiData(
-			SeasonSchema,
-			response.data,
-			'Invalid season data received after update',
-		);
+		return this.send('PUT', 'season', {
+			error:   'Failed to update season',
+			body:    request,
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  SeasonSchema,
+			invalid: 'Invalid season data received after update',
+		});
 	}
 
-	async getAchievementBuilderCatalog(): Promise<AchievementBuilderCatalog> {
-		const response = await this.get<unknown>('achievement-builder/catalog');
-		if (!response.ok)
-			throw this.createApiError('Failed to load achievement builder catalog', response);
-
-		return this.parseApiData(
-			AchievementBuilderCatalogSchema,
-			response.data,
-			'Invalid achievement builder catalog received from the API',
-		);
+	getAchievementBuilderCatalog(): Promise<AchievementBuilderCatalog> {
+		return this.send('GET', 'achievement-builder/catalog', {
+			error:   'Failed to load achievement builder catalog',
+			schema:  AchievementBuilderCatalogSchema,
+			invalid: 'Invalid achievement builder catalog received from the API',
+		});
 	}
 
 	/** Draft versions are only included when a season admin key is sent. */
-	async getAchievementBuilderTemplates(
+	getAchievementBuilderTemplates(
 		seasonId: string,
 		adminKey?: string,
 	): Promise<AchievementTemplateResponse[]> {
-		const response = await this.get<unknown>(
-			`achievement-builder/templates?seasonId=${ encodeURIComponent(seasonId) }`,
-			adminKey ? this.getSeasonAdminHeaders(adminKey) : undefined,
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to load achievement templates', response);
-
-		return this.parseApiData(
-			z.array(AchievementTemplateResponseSchema),
-			response.data,
-			'Invalid achievement templates received from the API',
-		);
+		return this.send('GET', path`achievement-builder/templates?seasonId=${ seasonId }`, {
+			error:       'Failed to load achievement templates',
+			headers:     adminKey ? this.getSeasonAdminHeaders(adminKey) : undefined,
+			schema:      z.array(AchievementTemplateResponseSchema),
+			invalid:     'Invalid achievement templates received from the API',
+		});
 	}
 
-	async getAchievementCategories(
+	getAchievementCategories(
 		seasonId: string,
 	): Promise<AchievementCategoryResponse[]> {
-		const response = await this.get<unknown>(
-			`achievement-builder/categories?seasonId=${ encodeURIComponent(seasonId) }`,
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to load achievement categories', response);
-
-		return this.parseApiData(
-			z.array(AchievementCategoryResponseSchema),
-			response.data,
-			'Invalid achievement categories received from the API',
-		);
+		return this.send('GET', path`achievement-builder/categories?seasonId=${ seasonId }`, {
+			error:       'Failed to load achievement categories',
+			schema:      z.array(AchievementCategoryResponseSchema),
+			invalid:     'Invalid achievement categories received from the API',
+		});
 	}
 
-	async createAchievementCategory(
+	createAchievementCategory(
 		request: CreateAchievementCategoryRequest,
 		adminKey: string,
 	): Promise<AchievementCategoryResponse> {
-		const response = await this.post<CreateAchievementCategoryRequest, unknown>(
-			'achievement-builder/categories',
-			request,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to create achievement category', response);
-
-		return this.parseApiData(
-			AchievementCategoryResponseSchema,
-			response.data,
-			'Invalid achievement category received after creation',
-		);
+		return this.send('POST', 'achievement-builder/categories', {
+			error:   'Failed to create achievement category',
+			body:    request,
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  AchievementCategoryResponseSchema,
+			invalid: 'Invalid achievement category received after creation',
+		});
 	}
 
-	async updateAchievementCategory(
+	updateAchievementCategory(
 		categoryId: string,
 		request: UpdateAchievementCategoryRequest,
 		adminKey: string,
 	): Promise<AchievementCategoryResponse> {
-		const response = await this.put<UpdateAchievementCategoryRequest, unknown>(
-			`achievement-builder/categories/${ encodeURIComponent(categoryId) }`,
-			request,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to update achievement category', response);
-
-		return this.parseApiData(
-			AchievementCategoryResponseSchema,
-			response.data,
-			'Invalid achievement category received after update',
-		);
+		return this.send('PUT', path`achievement-builder/categories/${ categoryId }`, {
+			error:   'Failed to update achievement category',
+			body:    request,
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  AchievementCategoryResponseSchema,
+			invalid: 'Invalid achievement category received after update',
+		});
 	}
 
-	async reorderAchievementCategories(
+	reorderAchievementCategories(
 		request: ReorderAchievementCategoriesRequest,
 		adminKey: string,
 	): Promise<AchievementCategoryResponse[]> {
-		const response = await this.put<ReorderAchievementCategoriesRequest, unknown>(
-			'achievement-builder/categories/order',
-			request,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to reorder achievement categories', response);
-
-		return this.parseApiData(
-			z.array(AchievementCategoryResponseSchema),
-			response.data,
-			'Invalid achievement categories received after reordering',
-		);
+		return this.send('PUT', 'achievement-builder/categories/order', {
+			error:   'Failed to reorder achievement categories',
+			body:    request,
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  z.array(AchievementCategoryResponseSchema),
+			invalid: 'Invalid achievement categories received after reordering',
+		});
 	}
 
-	async archiveAchievementCategory(
+	archiveAchievementCategory(
 		categoryId: string,
 		adminKey: string,
 	): Promise<AchievementCategoryResponse> {
-		const response = await this.post<undefined, unknown>(
-			`achievement-builder/categories/${ encodeURIComponent(categoryId) }/archive`,
-			undefined,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to archive achievement category', response);
-
-		return this.parseApiData(
-			AchievementCategoryResponseSchema,
-			response.data,
-			'Invalid achievement category received after archiving',
-		);
+		return this.send('POST', path`achievement-builder/categories/${ categoryId }/archive`, {
+			error:   'Failed to archive achievement category',
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  AchievementCategoryResponseSchema,
+			invalid: 'Invalid achievement category received after archiving',
+		});
 	}
 
-	async restoreAchievementCategory(
+	restoreAchievementCategory(
 		categoryId: string,
 		adminKey: string,
 	): Promise<AchievementCategoryResponse> {
-		const response = await this.post<undefined, unknown>(
-			`achievement-builder/categories/${ encodeURIComponent(categoryId) }/restore`,
-			undefined,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to restore achievement category', response);
-
-		return this.parseApiData(
-			AchievementCategoryResponseSchema,
-			response.data,
-			'Invalid achievement category received after restoring',
-		);
+		return this.send('POST', path`achievement-builder/categories/${ categoryId }/restore`, {
+			error:   'Failed to restore achievement category',
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  AchievementCategoryResponseSchema,
+			invalid: 'Invalid achievement category received after restoring',
+		});
 	}
 
 	async deleteAchievementCategory(
 		categoryId: string,
 		adminKey: string,
 	): Promise<boolean> {
-		const response = await this.delete<unknown>(
-			`achievement-builder/categories/${ encodeURIComponent(categoryId) }`,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to delete achievement category', response);
+		await this.send('DELETE', path`achievement-builder/categories/${ categoryId }`, {
+			error:   'Failed to delete achievement category',
+			headers: this.getSeasonAdminHeaders(adminKey),
+		});
 
 		return true;
 	}
 
-	async getAchievementBuilderInstances(
+	getAchievementBuilderInstances(
 		seasonId: string,
 	): Promise<AchievementInstanceResponse[]> {
-		const response = await this.get<unknown>(
-			`achievement-builder/instances?seasonId=${ encodeURIComponent(seasonId) }`,
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to load achievement instances', response);
-
-		return this.parseApiData(
-			z.array(AchievementInstanceResponseSchema),
-			response.data,
-			'Invalid achievement instances received from the API',
-		);
+		return this.send('GET', path`achievement-builder/instances?seasonId=${ seasonId }`, {
+			error:       'Failed to load achievement instances',
+			schema:      z.array(AchievementInstanceResponseSchema),
+			invalid:     'Invalid achievement instances received from the API',
+		});
 	}
 
-	async createAchievementBuilderTemplate(
+	createAchievementBuilderTemplate(
 		request: UpsertAchievementTemplateRequest,
 		adminKey: string,
 	): Promise<AchievementTemplateResponse> {
-		const response = await this.post<UpsertAchievementTemplateRequest, unknown>(
-			'achievement-builder/templates',
-			request,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to create achievement template', response);
-
-		return this.parseApiData(
-			AchievementTemplateResponseSchema,
-			response.data,
-			'Invalid achievement template received after creation',
-		);
+		return this.send('POST', 'achievement-builder/templates', {
+			error:   'Failed to create achievement template',
+			body:    request,
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  AchievementTemplateResponseSchema,
+			invalid: 'Invalid achievement template received after creation',
+		});
 	}
 
-	async updateAchievementBuilderTemplate(
+	updateAchievementBuilderTemplate(
 		templateId: string,
 		request: UpsertAchievementTemplateRequest,
 		adminKey: string,
 	): Promise<AchievementTemplateResponse> {
-		const response = await this.put<UpsertAchievementTemplateRequest, unknown>(
-			`achievement-builder/templates/${ encodeURIComponent(templateId) }`,
-			request,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to update achievement template', response);
-
-		return this.parseApiData(
-			AchievementTemplateResponseSchema,
-			response.data,
-			'Invalid achievement template received after update',
-		);
+		return this.send('PUT', path`achievement-builder/templates/${ templateId }`, {
+			error:   'Failed to update achievement template',
+			body:    request,
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  AchievementTemplateResponseSchema,
+			invalid: 'Invalid achievement template received after update',
+		});
 	}
 
-	async validateAchievementBuilderTemplate(
+	validateAchievementBuilderTemplate(
 		templateId: string,
+		adminKey: string,
 	): Promise<AchievementValidationResponse> {
-		const response = await this.post<undefined, unknown>(
-			`achievement-builder/templates/${ encodeURIComponent(templateId) }/validate`,
-			undefined,
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to validate achievement template', response);
-
-		return this.parseApiData(
-			AchievementValidationResponseSchema,
-			response.data,
-			'Invalid achievement validation response received from the API',
-		);
+		return this.send('POST', path`achievement-builder/templates/${ templateId }/validate`, {
+			error:   'Failed to validate achievement template',
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  AchievementValidationResponseSchema,
+			invalid: 'Invalid achievement validation response received from the API',
+		});
 	}
 
-	async publishAchievementBuilderTemplate(
+	publishAchievementBuilderTemplate(
 		templateId: string,
 		adminKey: string,
 	): Promise<AchievementTemplateResponse> {
-		const response = await this.post<undefined, unknown>(
-			`achievement-builder/templates/${ encodeURIComponent(templateId) }/publish`,
-			undefined,
-			this.getSeasonAdminHeaders(adminKey),
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to publish achievement template', response);
-
-		return this.parseApiData(
-			AchievementTemplateResponseSchema,
-			response.data,
-			'Invalid achievement template received after publishing',
-		);
+		return this.send('POST', path`achievement-builder/templates/${ templateId }/publish`, {
+			error:   'Failed to publish achievement template',
+			headers: this.getSeasonAdminHeaders(adminKey),
+			schema:  AchievementTemplateResponseSchema,
+			invalid: 'Invalid achievement template received after publishing',
+		});
 	}
 
-	async predictAchievementThrows(
+	predictAchievementThrows(
 		request: PredictAchievementThrowsRequest,
 	): Promise<PredictAchievementThrowsResponse> {
-		const response = await this.post<PredictAchievementThrowsRequest, unknown>(
-			'achievement-builder/predict-next-throw',
-			request,
-		);
-		if (!response.ok)
-			throw this.createApiError('Failed to predict achievement throws', response);
-
-		return this.parseApiData(
-			PredictAchievementThrowsResponseSchema,
-			response.data,
-			'Invalid achievement prediction received from the API',
-		);
+		return this.send('POST', 'achievement-builder/predict-next-throw', {
+			error:   'Failed to predict achievement throws',
+			body:    request,
+			schema:  PredictAchievementThrowsResponseSchema,
+			invalid: 'Invalid achievement prediction received from the API',
+		});
 	}
 
 	async SubmitGame(gameId: string): Promise<GameResult> {
-		await this.addThrowQueue;
-		if (this.addThrowFailure !== undefined) {
-			const failure = this.addThrowFailure;
-			this.addThrowFailure = undefined;
-			throw failure;
-		}
+		const pendingSaves = [ ...this.pendingThrowSaves.get(gameId) ?? [] ];
+		const failedSave = (await Promise.allSettled(pendingSaves))
+			.find(result => result.status === 'rejected');
+		if (failedSave)
+			throw failedSave.reason;
 
 		// A repeated submit returns the stored result instead of saving the game twice, so a
 		// server error or a lost connection (e.g. a finalize that lost a race) is retried.
 		for (let attempt = 1; ; attempt++) {
 			const isLastAttempt = attempt >= this.submitAttempts;
-			let response: ApiResponse<GameResult>;
+			let response: ApiResponse<unknown>;
 			try {
-				response = await this.post<undefined, GameResult>(
-					`games/sessions/${gameId}`,
-					undefined,
-				);
+				response = await this.request('POST', path`games/sessions/${ gameId }`);
 			}
 			catch (error) {
 				if (isLastAttempt)
@@ -594,16 +448,14 @@ export class DataService {
 				continue;
 			}
 
-			if (!response.ok) {
+			if (!response.ok)
 				throw this.createApiError('Failed to submit game', response);
-			}
 
-			try {
-				return GameResultSchema.parse(response.data);
-			}
-			catch {
-				throw new Error('Unable to parse game result from server');
-			}
+			return this.parseApiData(
+				GameResultSchema,
+				response.data,
+				'Unable to parse game result from server',
+			);
 		}
 	}
 
@@ -611,57 +463,64 @@ export class DataService {
 		return new Promise(resolve => setTimeout(resolve, milliseconds));
 	}
 
-	async addUser(name: string, alias: string): Promise<void> {
-		const request = { name, alias };
-		const resp = await this.post<object, undefined>('users/add', request);
-
-		if (!resp.ok) {
-			if (resp.status === 409) {
-				throw new Error('A user with same name/alias already exists');
-			}
-
-			throw new Error('An error occured when creating a new user');
-		}
+	addUser(name: string, alias: string): Promise<void> {
+		return this.send('POST', 'users/add', {
+			error:        'An error occured when creating a new user',
+			body:         { name, alias },
+			statusErrors: { 409: 'A user with same name/alias already exists' },
+		});
 	}
 
-	async getAllUsers(options?: UserQueryOptions): Promise<User[]> {
-		const url = buildGetAllUsersUrl(options);
-		const resp = await this.get<User[]>(url);
-
-		if (!resp.ok) {
-			throw new Error(
-				`Failed to fetch users from server: ${resp.status} ${resp.statusText}`,
-			);
-		}
-
-		return this.parseApiData(
-			z.array(UserSchema),
-			resp.data,
-			'Invalid user data received from the API',
-		);
+	getAllUsers(options?: UserQueryOptions): Promise<User[]> {
+		return this.send('GET', buildGetAllUsersUrl(options), {
+			error:       'Failed to fetch users from server',
+			schema:      z.array(UserSchema),
+			invalid:     'Invalid user data received from the API',
+		});
 	}
 
-	async getUserById(
+	getUserById(
 		userId: string,
 		options?: UserQueryOptions,
 	): Promise<User | null> {
-		const url = buildGetUserByIdUrl(userId, options);
-		const resp = await this.get<User>(url);
+		return this.send('GET', buildGetUserByIdUrl(userId, options), {
+			error:       'Failed to fetch user from server',
+			schema:      UserSchema,
+			invalid:     'Invalid user data received from the API',
+			whenMissing: () => null,
+		});
+	}
 
-		if (!resp.ok && resp.status === 404) {
-			return null;
+	/**
+	 * Sends a request and turns the response into data or an error:
+	 * a failed status throws `${error}: <server detail or status>`, and a body that
+	 * does not match `schema` throws `${invalid} (<zod issues>)`.
+	 */
+	private async send<T = void, F = never>(
+		method: HttpMethod,
+		endpoint: string,
+		options: SendOptions<T, F>,
+	): Promise<T | F> {
+		const response = await this.request(method, endpoint, options.body, options.headers);
+
+		if (options.whenMissing && (response.status === 404 || response.status === 204))
+			return options.whenMissing();
+
+		if (!response.ok) {
+			const statusError = options.statusErrors?.[response.status];
+			if (statusError)
+				throw new Error(statusError);
+
+			throw this.createApiError(options.error, response);
 		}
 
-		if (!resp.ok) {
-			throw new Error(
-				`Failed to fetch user from server: ${resp.status} ${resp.statusText}`,
-			);
-		}
+		if (!options.schema)
+			return undefined as T;
 
 		return this.parseApiData(
-			UserSchema,
-			resp.data,
-			'Invalid user data received from the API',
+			options.schema,
+			response.data,
+			options.invalid ?? 'Invalid data received from the API',
 		);
 	}
 
@@ -685,98 +544,64 @@ export class DataService {
 		return parsed.data;
 	}
 
-	private async request<T>(
+	private async request(
+		method: HttpMethod,
 		endpoint: string,
-		options: RequestInit,
-	): Promise<ApiResponse<T>> {
-		const hasBody = options.body !== undefined && options.body !== null;
+		body?: unknown,
+		extraHeaders?: HeadersInit,
+	): Promise<ApiResponse<unknown>> {
+		const hasBody = body !== undefined && body !== null;
 		const headers = {
 			...(hasBody ? { 'Content-Type': 'application/json' } : {}),
-			...(options.headers || {}),
+			...(extraHeaders || {}),
 		};
 
 		let res: Response;
+		let text: string;
 		try {
 			res = await fetch(`${this.backendURL}${endpoint}`, {
-				...options,
+				method,
+				body:        hasBody ? JSON.stringify(body) : undefined,
 				headers,
 				credentials: 'include',
-				signal: this.createTimeoutSignal(this.abortTimeout),
+				signal:      AbortSignal.timeout(this.requestTimeoutMs),
 			});
+			text = await res.text();
 		}
 		catch (error) {
-			if (error instanceof DOMException && error.name === 'AbortError')
+			if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError'))
 				throw new Error('The server took too long to respond. Please try again.');
 
 			throw new Error(getErrorMessage(error, 'Unable to reach the server. Check your connection and try again.'));
 		}
 
-		const text = await res.text();
-		let body: unknown;
+		let data: unknown;
 
 		try {
-			body = JSON.parse(text);
+			data = JSON.parse(text);
 		}
 		catch {
-			body = text;
+			data = text;
 		}
 
 		if (!res.ok) {
 			return {
-				ok: false,
-				status: res.status,
+				ok:         false,
+				status:     res.status,
 				statusText: res.statusText,
-				body,
+				body:       data,
 			};
 		}
 
 		return {
-			ok: true,
-			data: body as T,
+			ok:     true,
+			status: res.status,
+			data,
 		};
-	}
-
-	async post<Req, Res>(
-		endpoint: string,
-		body: Req,
-		headers?: HeadersInit,
-	): Promise<ApiResponse<Res>> {
-		return this.request<Res>(endpoint, {
-			method: 'POST',
-			body: JSON.stringify(body),
-			headers,
-		});
-	}
-
-	async get<T>(endpoint: string, headers?: HeadersInit): Promise<ApiResponse<T>> {
-		return this.request<T>(endpoint, { method: 'GET', headers });
-	}
-
-	async put<Req, Res>(
-		endpoint: string,
-		body: Req,
-		headers?: HeadersInit,
-	): Promise<ApiResponse<Res>> {
-		return this.request<Res>(endpoint, {
-			method: 'PUT',
-			body: JSON.stringify(body),
-			headers,
-		});
-	}
-
-	async delete<T>(endpoint: string, headers?: HeadersInit): Promise<ApiResponse<T>> {
-		return this.request<T>(endpoint, { method: 'DELETE', headers });
 	}
 
 	private getSeasonAdminHeaders(adminKey: string): HeadersInit {
 		return { 'X-Season-Admin-Key': adminKey };
-	}
-
-	private createTimeoutSignal(timeout: number): AbortSignal {
-		const controller = new AbortController();
-		setTimeout(() => controller.abort(), timeout);
-
-		return controller.signal;
 	}
 
 	private createApiError<T>(
@@ -790,23 +615,45 @@ export class DataService {
 		return new Error(`${ prefix }: ${ suffix }`);
 	}
 
+	/**
+	 * Reads a plain-text body or a ProblemDetails object, including the field errors of
+	 * an ASP.NET ValidationProblemDetails and a problem nested under `value`.
+	 */
 	private getApiErrorDetail(body: unknown): string | undefined {
-		if (typeof body === 'string' && body.trim().length > 0)
-			return body;
+		if (typeof body === 'string')
+			return body.trim().length > 0 ? body : undefined;
 
-		if (body && typeof body === 'object') {
-			const problem = body as {
-				detail?:  unknown;
-				message?: unknown;
-				title?:   unknown;
-			};
+		if (!body || typeof body !== 'object')
+			return undefined;
 
-			for (const value of [ problem.detail, problem.message, problem.title ]) {
-				if (typeof value === 'string' && value.trim().length > 0)
-					return value;
-			}
+		const problem = body as {
+			detail?:  unknown;
+			message?: unknown;
+			title?:   unknown;
+			errors?:  unknown;
+			value?:   unknown;
+		};
+
+		for (const value of [ problem.detail, problem.message ]) {
+			if (typeof value === 'string' && value.trim().length > 0)
+				return value;
 		}
 
-		return undefined;
+		return this.getValidationErrors(problem.errors)
+			?? (typeof problem.value === 'object' ? this.getApiErrorDetail(problem.value) : undefined)
+			?? (typeof problem.title === 'string' && problem.title.trim().length > 0 ? problem.title : undefined);
+	}
+
+	/** Flattens `{ field: [ message, … ] }` into `field: message; …`. */
+	private getValidationErrors(errors: unknown): string | undefined {
+		if (!errors || typeof errors !== 'object' || Array.isArray(errors))
+			return undefined;
+
+		const messages = Object.entries(errors).flatMap(([ field, fieldErrors ]) =>
+			(Array.isArray(fieldErrors) ? fieldErrors : [ fieldErrors ])
+				.filter((message): message is string => typeof message === 'string' && message.trim().length > 0)
+				.map(message => field ? `${ field }: ${ message }` : message));
+
+		return messages.length > 0 ? messages.join('; ') : undefined;
 	}
 }

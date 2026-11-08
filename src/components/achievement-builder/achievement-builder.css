@@ -64,6 +64,16 @@
 	font-size: 0.75rem;
 }
 
+.published-notice--conflict {
+	flex-wrap: wrap;
+}
+
+.published-notice__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
 .builder-content[inert] {
 	opacity: 0.72;
 }

@@ -1,80 +1,15 @@
 import { html, TemplateResult } from 'lit';
-import { createRef, ref } from 'lit/directives/ref.js';
 
-import { AaDialog } from '../components/aa-dialog/aa-dialog.js';
-import '../components/player-chip/aa-player-chip.js';
-import '../components/rank-display/aa-rank-display.js';
+import type { AaDialog } from '../components/aa-dialog/aa-dialog.js';
 import '../ui/button/aa-button.js';
-import { defaultMmrConfiguration } from '../models/mmr.js';
-import { getRankDisplayValue, getRankIcon, Rank } from '../models/rank.js';
-import { GameResult, User, RuleDefinition } from '../models/schemas.js';
-import { renderAchievementSummary } from "../helpers/achievementHelper.js";
+import { renderAchievementSummary } from '../helpers/achievementHelper.js';
+import { getRankDisplayValue } from '../models/rank.js';
+import { GameResult, User } from '../models/schemas.js';
+import { renderPlayerChips } from './playerChips.js';
 
-export interface SeasonRuleDialogItem {
-	value: number;
-	execOrder?: number;
-}
-
-interface SeasonRuleDialogTemplateOptions {
-	title: string;
-	description?: string;
-	items: SeasonRuleDialogItem[];
-	definitions: RuleDefinition[];
-	renderRuleCode: (code: string) => TemplateResult;
-}
-
-export const seasonRuleDialogTemplate = ({
-	title,
-	description,
-	items,
-	definitions,
-	renderRuleCode,
-}: SeasonRuleDialogTemplateOptions): TemplateResult => {
-	const resolvedRules = items
-		.map((item) => ({
-			item,
-			definition: definitions.find((def) => def.value === item.value),
-		}))
-		.filter((x): x is { item: SeasonRuleDialogItem; definition: RuleDefinition } => !!x.definition);
-
-	const closeDialog = (e: Event) => {
-		const dialog = (e.currentTarget as HTMLElement).closest('aa-dialog') as any;
-		dialog?.close();
-	};
-
-	return html`
-		<div class="rules-dialog">
-			${description ? html`<p class="rules-dialog-intro">${description}</p>` : null}
-
-			<div class="rules-dialog-list">
-				${resolvedRules.map(
-					({ item, definition }) => html`
-						<article class="rules-dialog-card">
-							<div class="rules-dialog-card-header">
-								<div class="rules-dialog-title-row">
-									${item.execOrder !== undefined
-										? html`<span class="rules-dialog-pill">Order #${item.execOrder}</span>`
-										: html`<span class="rules-dialog-pill">Rule</span>`}
-									<div class="rules-dialog-title">${definition.name}</div>
-								</div>
-								<p class="rules-dialog-description">${definition.description}</p>
-							</div>
-
-							<div class="rules-dialog-body">
-								${renderRuleCode(definition.codeImplementation)}
-							</div>
-						</article>
-					`,
-				)}
-			</div>
-
-			<div class="rules-dialog-footer">
-				<aa-button type="button" variant="secondary" size="small" @click=${closeDialog}>
-					Close
-				</aa-button>
-			</div>
-		</div>
-	`;
+/** Closes the dialog that contains the event's current target. */
+const closeDialog = (event: Event, result?: unknown): void => {
+	(event.currentTarget as HTMLElement).closest<AaDialog>('aa-dialog')?.close(result);
 };
 
 interface ShortcutEntry {
@@ -215,102 +150,100 @@ const getOrdinal = (n: number): string => {
 };
 
 export const selectUserTemplate = (users: User[]): TemplateResult => {
-	const handleUserSelected = (e: CustomEvent, user: User) => {
-		const dialog = (e.currentTarget as HTMLElement).closest('aa-dialog') as any;
-		dialog?.close(user);
-	};
-
 	return html`
 		<aa-user-picker
 			class="select-user-dialog"
 			.users=${ users }
-			@user-selected=${ (e: CustomEvent<User>) => handleUserSelected(e, e.detail) }
+			@user-selected=${ (e: CustomEvent<User>) => closeDialog(e, e.detail) }
 		></aa-user-picker>
 	`;
 };
 
-export const confirmRematchTemplate = (users: User[]): TemplateResult => {
-	const closeDialog = (result?: boolean) => {
-		const dialog = document.querySelector('aa-dialog');
-		if (!dialog)
-			return;
-
-		dialog.dispatchEvent(new CustomEvent('dialog-closed', {
-			detail: { result },
-			bubbles: true,
-			composed: true,
-		}));
-	};
-
-	return html`
-		<div class="confirm-rematch">
-			<div class="rematch-roster">
-				<div class="roster-label">Rematch players</div>
-				<div class="player-list">
-					${users.map(user => html`
-						<aa-player-chip>
-							<aa-rank-display
-								.rank=${ user.seasonStatistics[0]?.currentRank }
-								icon-only
-							></aa-rank-display>
-							<span>${ user.alias || user.name }</span>
-						</aa-player-chip>
-					`)}
-				</div>
-			</div>
+export const confirmRematchTemplate = (users: readonly User[]): TemplateResult => html`
+	<div class="confirm-rematch">
+		<div class="rematch-roster">
+			<div class="roster-label">Rematch players</div>
+			${ renderPlayerChips(users, 'player-list') }
 		</div>
+	</div>
 
-		<aa-button
-			slot="footer-secondary"
-			type="button"
-			variant="secondary"
-			@click=${() => closeDialog(false)}
-		>
-			No, keep game
-		</aa-button>
-		<aa-button
-			slot="footer-primary"
-			type="button"
-			variant="primary"
-			data-autofocus
-			@click=${() => closeDialog(true)}
-		>
-			Yes, rematch
-		</aa-button>
-	`;
-};
+	<aa-button
+		slot="footer-secondary"
+		type="button"
+		variant="secondary"
+		@click=${ (e: Event) => closeDialog(e, false) }
+	>
+		No, keep game
+	</aa-button>
+	<aa-button
+		slot="footer-primary"
+		type="button"
+		variant="primary"
+		data-autofocus
+		@click=${ (e: Event) => closeDialog(e, true) }
+	>
+		Yes, rematch
+	</aa-button>
+`;
+
+export const confirmNewGameTemplate = (): TemplateResult => html`
+	<p class="confirm-new-game">
+		A game is in progress. Starting a new game leaves it unfinished.
+	</p>
+
+	<aa-button
+		slot="footer-secondary"
+		type="button"
+		variant="secondary"
+		@click=${ (e: Event) => closeDialog(e, false) }
+	>
+		No, keep game
+	</aa-button>
+	<aa-button
+		slot="footer-primary"
+		type="button"
+		variant="primary"
+		data-autofocus
+		@click=${ (e: Event) => closeDialog(e, true) }
+	>
+		Yes, new game
+	</aa-button>
+`;
 
 export const newUserTemplate = (options: {
 	onSave: (name: string, alias: string) => void;
 }): TemplateResult => {
-	const nameRef = createRef<HTMLInputElement>();
-	const aliasRef = createRef<HTMLInputElement>();
+	// The pattern rejects whitespace-only values, which `required` alone accepts.
+	const handleSubmit = (e: SubmitEvent) => {
+		e.preventDefault();
 
-	const handleSave = () => {
-		const name = nameRef.value?.value.trim() ?? '';
-		const alias = aliasRef.value?.value.trim() ?? '';
+		const data = new FormData(e.currentTarget as HTMLFormElement);
+		const name = String(data.get('name') ?? '').trim();
+		const alias = String(data.get('alias') ?? '').trim();
+		if (!name || !alias)
+			return;
+
 		options.onSave(name, alias);
-		const dialog = document.querySelector('aa-dialog') as AaDialog || undefined;
-		dialog?.close();
+		closeDialog(e);
 	};
 
 	return html`
-    <div class="dialog-content">
-      <label>
-        Name:
-        <input type="text" ${ ref(nameRef) } autofocus />
-      </label>
+		<form class="dialog-content" @submit=${ handleSubmit }>
+			<label>
+				Name:
+				<input type="text" name="name" required pattern=".*\\S.*" autofocus />
+			</label>
 
-      <label>
-        Alias:
-        <input type="text" ${ ref(aliasRef) } />
-      </label>
+			<label>
+				Alias:
+				<input type="text" name="alias" required pattern=".*\\S.*" />
+			</label>
 
-      <div class="actions">
-        <aa-button type="button" variant="primary" @click=${ handleSave }>Save</aa-button>
-      </div>
-    </div>
-  `;
+			<div class="actions">
+				<aa-button type="submit" variant="primary">Save</aa-button>
+			</div>
+		</form>
+	`;
 };
 
 export const postGameTemplate = (
@@ -425,193 +358,4 @@ export const seasonSpotlightDialogTemplate = (options: {
 				`}
 		</div>
 	`;
-};
-
-
-
-export const gameResultDummyData = {
-	date:             new Date('2025-03-24T01:14:58.205118Z'),
-	playerRoundsList: [],
-	playerResults:    [
-		{
-			id:           25,
-			userId:       '0b147800-1282-405f-875b-2687ce257bdf',
-			placement:    1,
-			totalScore:   250,
-			averageScore: 50,
-			overShoots:   0,
-			roundsPlayed: 5,
-			oldMMR:       2000,
-			newMMR:       2250,
-			oldRank:      4,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-		{
-			id:           26,
-			userId:       '9c94fabb-f322-450b-a345-235c814afb8e',
-			placement:    0,
-			totalScore:   240,
-			averageScore: 40,
-			overShoots:   1,
-			roundsPlayed: 6,
-			oldMMR:       2350,
-			newMMR:       2330,
-			oldRank:      5,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-		{
-			id:           26,
-			userId:       '9c94fabb-f322-450b-a345-235c814afb81',
-			placement:    0,
-			totalScore:   240,
-			averageScore: 40,
-			overShoots:   1,
-			roundsPlayed: 6,
-			oldMMR:       2350,
-			newMMR:       2330,
-			oldRank:      5,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-		{
-			id:           26,
-			userId:       '9c94fabb-f322-450b-a345-235c814afb82',
-			placement:    0,
-			totalScore:   240,
-			averageScore: 40,
-			overShoots:   1,
-			roundsPlayed: 6,
-			oldMMR:       2350,
-			newMMR:       2330,
-			oldRank:      5,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-		{
-			id:           26,
-			userId:       '9c94fabb-f322-450b-a345-235c814afb83',
-			placement:    0,
-			totalScore:   240,
-			averageScore: 40,
-			overShoots:   1,
-			roundsPlayed: 6,
-			oldMMR:       2350,
-			newMMR:       2330,
-			oldRank:      5,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-		{
-			id:           26,
-			userId:       '9c94fabb-f322-450b-a345-235c814afb84',
-			placement:    0,
-			totalScore:   240,
-			averageScore: 40,
-			overShoots:   1,
-			roundsPlayed: 6,
-			oldMMR:       2350,
-			newMMR:       2330,
-			oldRank:      5,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-		{
-			id:           26,
-			userId:       '9c94fabb-f322-450b-a345-235c814afb85',
-			placement:    0,
-			totalScore:   240,
-			averageScore: 40,
-			overShoots:   1,
-			roundsPlayed: 6,
-			oldMMR:       2350,
-			newMMR:       2330,
-			oldRank:      5,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-		{
-			id:           26,
-			userId:       '9c94fabb-f322-450b-a345-235c814afb86',
-			placement:    0,
-			totalScore:   240,
-			averageScore: 40,
-			overShoots:   1,
-			roundsPlayed: 6,
-			oldMMR:       2350,
-			newMMR:       2330,
-			oldRank:      5,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-		{
-			id:           26,
-			userId:       '9c94fabb-f322-450b-a345-235c814afb87',
-			placement:    0,
-			totalScore:   240,
-			averageScore: 40,
-			overShoots:   1,
-			roundsPlayed: 6,
-			oldMMR:       2350,
-			newMMR:       2330,
-			oldRank:      5,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-		{
-			id:           26,
-			userId:       '9c94fabb-f322-450b-a345-235c814afb88',
-			placement:    0,
-			totalScore:   240,
-			averageScore: 40,
-			overShoots:   1,
-			roundsPlayed: 6,
-			oldMMR:       2350,
-			newMMR:       2330,
-			oldRank:      5,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-		{
-			id:           26,
-			userId:       '9c94fabb-f322-450b-a345-235c814afb89',
-			placement:    0,
-			totalScore:   240,
-			averageScore: 40,
-			overShoots:   1,
-			roundsPlayed: 6,
-			oldMMR:       2350,
-			newMMR:       2330,
-			oldRank:      5,
-			newRank:      5,
-			unlockedV2Achievements: [],
-		},
-	],
-	season: {
-		id:                 'e0292748-c383-4d32-b1b4-522df3fa85c9',
-		name:               'sallanSmud',
-		startDate:          new Date('2025-03-20T20:19:01.9651849'),
-		endDate:            new Date('2025-06-08T20:19:01.9652317'),
-		scoreModifierRules: [
-			{
-				scoreModifier:  0,
-				executionOrder: 0,
-			},
-		],
-		winConditionRules: [
-			{
-				winCondition: 0,
-			},
-			{
-				winCondition: 1,
-			},
-		],
-		gameConstraintRules: [],
-		rankThresholds: [],
-		achievementTierRewards: [],
-		mmrConfiguration: { ...defaultMmrConfiguration },
-		goal: 250,
-	},
-	goal: 250,
 };

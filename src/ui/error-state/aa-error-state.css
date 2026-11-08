@@ -30,6 +30,10 @@ h2 {
 	font-family: var(--font-family-body);
 }
 
+.message p {
+	margin: 0;
+}
+
 .actions {
 	display: flex;
 	flex-wrap: wrap;

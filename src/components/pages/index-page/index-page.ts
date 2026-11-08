@@ -1,27 +1,85 @@
 import { html } from 'lit';
 import { customElement } from 'lit/decorators.js';
-import { classMap } from 'lit/directives/class-map.js';
 
-import { RoundStatus } from '../../../models/enums.js';
-import type { GameResult, Round, User } from '../../../models/schemas.js';
 import {
+	clampThrowPosition,
+	getArrowKeyDirection,
+	getFirstUnplayedThrow,
+	getFocusAfterPlayerRemoval,
+	getNextThrowFocus,
+	getNextTurnStart,
+	getThrowElementId,
+	parseThrowElementId,
+	type FocusDirection,
+	type ThrowPosition,
+} from '../../../helpers/throwFocusNavigation.js';
+import { RoundStatus } from '../../../models/enums.js';
+import type { GameResult, PlayerRounds, Round, User } from '../../../models/schemas.js';
+import {
+	confirmNewGameTemplate,
 	confirmRematchTemplate,
 	gameplayShortcutsTemplate,
 	postGameTemplate,
 	selectUserTemplate,
 } from '../../../templates/dialogTemplates.js';
-import type { AaCombobox } from '../../aa-combobox-cmp/aa-combobox-cmp.js';
+import { renderPlayerChips } from '../../../templates/playerChips.js';
 import type { aaDartThrow } from '../../aa-dart-throw-cmp/aa-dart-throw-cmp.js';
 import { GamePage } from '../game-page/game-page.js';
 import { DartThrow } from '../../../models/dartThrowSchema.js';
-import '../../player-chip/aa-player-chip.js';
-import '../../rank-display/aa-rank-display.js';
 
-interface ElementDetails {
-	type: 'throw' | 'nothing';
-	playerIndex?: number;
-	rowIndex?: number;
-	throwIndex?: number;
+type DartThrowPatch = Pick<DartThrow, 'hitLocation' | 'throwType'>;
+
+/** Patches by player id, then round index, then throw index. */
+type DartThrowPatches = Map<string, Map<number, Map<number, DartThrowPatch>>>;
+
+function addDartThrowPatch(
+	patches: DartThrowPatches,
+	playerId: string,
+	roundIndex: number,
+	throwIndex: number,
+	patch: DartThrowPatch,
+): void {
+	const byRound = patches.get(playerId) ?? new Map<number, Map<number, DartThrowPatch>>();
+	const byThrow = byRound.get(roundIndex) ?? new Map<number, DartThrowPatch>();
+
+	byThrow.set(throwIndex, patch);
+	byRound.set(roundIndex, byThrow);
+	patches.set(playerId, byRound);
+}
+
+/**
+ * Applies the patches to the matching throws. Players and rounds without a patch keep
+ * their identity, so their rendering stays cached.
+ */
+function patchDartThrows(players: PlayerRounds[], patches: DartThrowPatches): PlayerRounds[] {
+	return players.map(player => {
+		const roundPatches = patches.get(player.playerId);
+		if (!roundPatches)
+			return player;
+
+		return {
+			...player,
+			rounds: player.rounds.map((round, roundIndex) => {
+				const throwPatches = roundPatches.get(roundIndex);
+				if (!throwPatches)
+					return round;
+
+				return {
+					...round,
+					dartThrows: round.dartThrows.map((dartThrow, throwIndex) => {
+						const patch = throwPatches.get(throwIndex);
+						return patch
+							? {
+								...dartThrow,
+								hitLocation: patch.hitLocation,
+								throwType:   patch.throwType,
+							}
+							: dartThrow;
+					}),
+				};
+			}),
+		};
+	});
 }
 
 @customElement('index-page')
@@ -42,9 +100,9 @@ export class IndexPage extends GamePage {
 		window.addEventListener('keydown', this.onKeyDown);
 	}
 
-	override async disconnectedCallback(): Promise<void> {
-		await super.disconnectedCallback();
+	override disconnectedCallback(): Promise<void> {
 		window.removeEventListener('keydown', this.onKeyDown);
+		return super.disconnectedCallback();
 	}
 
 	protected override async handleThrowUpdated(
@@ -131,75 +189,45 @@ export class IndexPage extends GamePage {
 		if (this.pendingDartThrowUpdates.size === 0)
 			return;
 
-		const pendingByPlayerId = new Map<string, Map<number, Map<number, DartThrow>>>();
+		const patches: DartThrowPatches = new Map();
 		for (const [ key, pending ] of this.pendingDartThrowUpdates) {
 			const [ gameId, playerId, roundIndexText, throwIndexText ] = key.split(':');
 			if (gameId !== this.gameIdFromLocalStorage)
 				continue;
 
-			const roundIndex = Number(roundIndexText);
-			const throwIndex = Number(throwIndexText);
-			const byRound = pendingByPlayerId.get(playerId!)
-				?? new Map<number, Map<number, DartThrow>>();
-			const byThrow = byRound.get(roundIndex) ?? new Map<number, DartThrow>();
-
-			byThrow.set(throwIndex, pending.dartThrow);
-			byRound.set(roundIndex, byThrow);
-			pendingByPlayerId.set(playerId!, byRound);
+			addDartThrowPatch(
+				patches,
+				playerId!,
+				Number(roundIndexText),
+				Number(throwIndexText),
+				pending.dartThrow,
+			);
 		}
 
-		this.players = this.players.map(player => {
-			const pendingRounds = pendingByPlayerId.get(player.playerId);
-			if (!pendingRounds)
-				return player;
-
-			return {
-				...player,
-				rounds: player.rounds.map((round, roundIndex) => {
-					const pendingThrows = pendingRounds.get(roundIndex);
-					if (!pendingThrows)
-						return round;
-
-					return {
-						...round,
-						dartThrows: round.dartThrows.map((dartThrow, throwIndex) => {
-							const pendingThrow = pendingThrows.get(throwIndex);
-							return pendingThrow
-								? {
-									...dartThrow,
-									hitLocation: pendingThrow.hitLocation,
-									throwType:   pendingThrow.throwType,
-								}
-								: dartThrow;
-						}),
-					};
-				}),
-			};
-		});
+		this.players = patchDartThrows(this.players, patches);
 	}
 
 	private getFocusedDartThrowDraft(): {
 		playerId: string;
-		roundIndex: number;
-		throwIndex: number;
-		hitLocation: number;
-		throwType: DartThrow['throwType'];
+		position: ThrowPosition;
+		patch:    DartThrowPatch;
 	} | undefined {
-		const details = this.getSelectedElementDetails();
+		const position = this.getSelectedThrow();
 		const dartThrow = this.selectedCellElement?.dartThrow;
-		if (details.type !== 'throw' || !dartThrow)
+		if (!position || !dartThrow)
 			return undefined;
 
-		const playerId = this.players[details.playerIndex!]?.playerId;
+		const playerId = this.players[position.playerIndex]?.playerId;
 		if (!playerId)
 			return undefined;
 
 		return {
 			playerId,
-			roundIndex:  details.rowIndex!,
-			throwIndex:  details.throwIndex!,
-			hitLocation: dartThrow.hitLocation,
-			throwType:   dartThrow.throwType,
+			position,
+			patch: {
+				hitLocation: dartThrow.hitLocation,
+				throwType:   dartThrow.throwType,
+			},
 		};
 	}
 
@@ -209,30 +237,15 @@ export class IndexPage extends GamePage {
 		if (!draft)
 			return;
 
-		this.players = this.players.map(player => {
-			if (player.playerId !== draft.playerId)
-				return player;
-
-			return {
-				...player,
-				rounds: player.rounds.map((round, roundIndex) => {
-					if (roundIndex !== draft.roundIndex)
-						return round;
-
-					return {
-						...round,
-						dartThrows: round.dartThrows.map((dartThrow, throwIndex) =>
-							throwIndex === draft.throwIndex
-								? {
-									...dartThrow,
-									hitLocation: draft.hitLocation,
-									throwType:   draft.throwType,
-								}
-								: dartThrow),
-					};
-				}),
-			};
-		});
+		const patches: DartThrowPatches = new Map();
+		addDartThrowPatch(
+			patches,
+			draft.playerId,
+			draft.position.roundIndex,
+			draft.position.throwIndex,
+			draft.patch,
+		);
+		this.players = patchDartThrows(this.players, patches);
 	}
 
 	private async synchronizeGameState(): Promise<void> {
@@ -264,15 +277,11 @@ export class IndexPage extends GamePage {
 			return;
 
 		if (event.shiftKey) {
-			switch (event.code) {
-				case 'ArrowUp':
-				case 'ArrowLeft':
-				case 'ArrowRight':
-				case 'ArrowDown': {
-					this.moveFreeFocus(event.code);
-					event.preventDefault();
-					return;
-				}
+			const arrowDirection = getArrowKeyDirection(event.code);
+			if (arrowDirection) {
+				this.moveFreeFocus(arrowDirection);
+				event.preventDefault();
+				return;
 			}
 
 			if (event.repeat)
@@ -281,13 +290,15 @@ export class IndexPage extends GamePage {
 			switch (event.code) {
 				case 'Minus':
 				case 'NumpadAdd':
-					void this.addNewPlayer();
+					this.addNewPlayer()
+						.catch(error => this.reportError(error, 'Unable to add the player.'));
 					event.preventDefault();
 					break;
 
 				case 'Slash':
 				case 'NumpadSubtract':
-					void this.removeFocusedPlayer();
+					this.removeFocusedPlayer()
+						.catch(error => this.reportError(error, 'Unable to remove the player.'));
 					event.preventDefault();
 					break;
 
@@ -334,12 +345,7 @@ export class IndexPage extends GamePage {
 	}
 
 	protected override isPlayerActive(playerIndex: number): boolean {
-		const selectedElementDetails = this.getSelectedElementDetails();
-
-		if (selectedElementDetails.type !== 'throw')
-			return false;
-
-		return selectedElementDetails.playerIndex === playerIndex;
+		return this.getSelectedThrow()?.playerIndex === playerIndex;
 	}
 
 	private isRematchPermissible(): boolean {
@@ -365,10 +371,11 @@ export class IndexPage extends GamePage {
 
 		if (this.isActiveGame) {
 			const confirmed = await this.confirmRematch();
-			if (!confirmed)
+			if (!confirmed || this.creatingGame)
 				return;
 		}
 
+		this.creatingGame = true;
 		try {
 			this.players = [];
 			this.isActiveGame = true;
@@ -380,8 +387,12 @@ export class IndexPage extends GamePage {
 				await this.addNewPlayer(user);
 			}
 		}
-		catch {
+		catch (error) {
 			this.isActiveGame = false;
+			this.reportError(error, 'Unable to start the rematch.');
+		}
+		finally {
+			this.creatingGame = false;
 		}
 	}
 
@@ -398,39 +409,25 @@ export class IndexPage extends GamePage {
 		};
 	})();
 
-	protected moveFreeFocus(code: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): void {
-		const direction
-			= code === 'ArrowUp' ? 'upward'
-				: code === 'ArrowDown' ? 'downward'
-					: code === 'ArrowRight' ? 'forward'
-						: code === 'ArrowLeft' ? 'backward' : '';
-
-		if (!direction)
-			return;
-
+	/** Shift+arrows: move around the grid, ignoring turn order. */
+	protected moveFreeFocus(direction: FocusDirection): void {
 		this.blockThrowUpdates = true;
 
-		const selectedElementDetails = this.getSelectedElementDetails();
-
-		if (selectedElementDetails.type === 'nothing') {
-			this.focusDartThrow(0, 0, 0);
+		const selectedThrow = this.getSelectedThrow();
+		if (!selectedThrow) {
+			this.focusDartThrow({ playerIndex: 0, roundIndex: 0, throwIndex: 0 });
 		}
-		else if (selectedElementDetails.type === 'throw') {
-			const nextThrow = this.getNextFocusForDartThrow(
+		else {
+			const nextThrow = getNextThrowFocus(
+				this.players,
+				this.maximumRounds,
 				direction,
-				selectedElementDetails.playerIndex!,
-				selectedElementDetails.rowIndex!,
-				selectedElementDetails.throwIndex!,
+				selectedThrow,
 				true,
 			);
 
-			if (nextThrow) {
-				this.focusDartThrow(
-					nextThrow.nextPlayerIndex,
-					nextThrow.nextRoundIndex,
-					nextThrow.nextThrowIndex,
-				);
-			}
+			if (nextThrow)
+				this.focusDartThrow(nextThrow);
 		}
 
 		this.debounceBlockThrowUpdates();
@@ -455,59 +452,34 @@ export class IndexPage extends GamePage {
 		return newGameID;
 	}
 
+	/** Tab / Enter / Shift+Tab: move through the throws in turn order. */
 	protected moveFocus(direction: 'forward' | 'backward'): void {
-		const selectedElementDetails = this.getSelectedElementDetails();
-
-		if (selectedElementDetails.type === 'nothing') {
-			this.focusDartThrow(0, 0, 0);
+		const selectedThrow = this.getSelectedThrow();
+		if (!selectedThrow) {
+			this.focusDartThrow({ playerIndex: 0, roundIndex: 0, throwIndex: 0 });
+			return;
 		}
-		else if (selectedElementDetails.type === 'throw') {
-			const nextThrow = this.getNextFocusForDartThrow(
-				direction,
-				selectedElementDetails.playerIndex!,
-				selectedElementDetails.rowIndex!,
-				selectedElementDetails.throwIndex!,
-			);
 
-			if (nextThrow) {
-				this.focusDartThrow(
-					nextThrow.nextPlayerIndex,
-					nextThrow.nextRoundIndex,
-					nextThrow.nextThrowIndex,
-				);
-			}
-			else if (direction === 'forward') {
-				this.selectedCellElement?.blur();
-			}
-		}
+		const nextThrow = getNextThrowFocus(
+			this.players,
+			this.maximumRounds,
+			direction,
+			selectedThrow,
+		);
+
+		if (nextThrow)
+			this.focusDartThrow(nextThrow);
+		else if (direction === 'forward')
+			this.selectedCellElement?.blur();
 	}
 
-	protected getSelectedElementDetails(): ElementDetails {
-		const result: ElementDetails = {
-			type: 'nothing',
-			playerIndex: undefined,
-			rowIndex: undefined,
-			throwIndex: undefined,
-		};
-
-		if (!this.selectedId)
-			return result;
-
-		const idParts = this.selectedId.split('-');
-		result.type = idParts[0]! as 'throw' | 'nothing';
-
-		if (result.type === 'throw') {
-			result.throwIndex = parseInt(idParts.pop()!, 10);
-			result.rowIndex = parseInt(idParts.pop()!, 10);
-			result.playerIndex = parseInt(idParts.pop()!, 10);
-		}
-
-		return result;
+	protected getSelectedThrow(): ThrowPosition | undefined {
+		return parseThrowElementId(this.selectedId);
 	}
 
-	protected async getNewPlayer(): Promise<User | undefined> {
+	protected async getNewPlayer(players: readonly PlayerRounds[] = this.players): Promise<User | undefined> {
 		const filteredUsers = this.users.filter(
-			user => !this.players.some(player => player.playerId === user.id),
+			user => !players.some(player => player.playerId === user.id),
 		);
 
 		return this.dialogService.open<User>(
@@ -554,67 +526,41 @@ export class IndexPage extends GamePage {
 		if (!this.isActiveGame)
 			return;
 
-		const selectedElementDetails = this.getSelectedElementDetails();
-		if (selectedElementDetails.type !== 'throw')
+		const selectedThrow = this.getSelectedThrow();
+		if (!selectedThrow)
 			return;
 
-		const playerIndex = selectedElementDetails.playerIndex;
-		if (playerIndex === undefined)
-			return;
-
-		const playerId = this.players[playerIndex]?.playerId;
+		const playerId = this.players[selectedThrow.playerIndex]?.playerId;
 		if (playerId && this.gameIdFromLocalStorage) {
-			const targetFocus = this.getFocusTargetAfterPlayerRemoval(
-				playerIndex,
-				selectedElementDetails.rowIndex ?? 0,
-				selectedElementDetails.throwIndex ?? 0,
-			);
+			const targetFocus = getFocusAfterPlayerRemoval(this.players.length, selectedThrow);
 
 			const gameTracker = await this.gameService.removePlayer(this.gameIdFromLocalStorage, playerId);
 			this.updateGameState(gameTracker);
 
 			if (!targetFocus) {
-				this.selectedId = undefined;
-				this.selectedCellElement = undefined;
-				this.requestUpdate();
+				this.clearSelectedThrow();
 				return;
 			}
 
 			await this.updateComplete;
-			this.focusClosestDartThrow(targetFocus.playerIndex, targetFocus.rowIndex, targetFocus.throwIndex);
+			this.focusClosestDartThrow(targetFocus);
 		}
 	}
 
-	private getFocusTargetAfterPlayerRemoval(
-		playerIndex: number,
-		rowIndex: number,
-		throwIndex: number,
-	): { playerIndex: number; rowIndex: number; throwIndex: number; } | undefined {
-		const remainingPlayerCount = this.players.length - 1;
-		if (remainingPlayerCount <= 0)
-			return;
-
-		return {
-			playerIndex: Math.min(playerIndex, remainingPlayerCount - 1),
-			rowIndex,
-			throwIndex,
-		};
+	private clearSelectedThrow(): void {
+		this.selectedId = undefined;
+		this.selectedCellElement = undefined;
+		this.requestUpdate();
 	}
 
-	private focusClosestDartThrow(playerIndex: number, rowIndex: number, throwIndex: number): void {
-		const player = this.players[playerIndex];
-		if (!player) {
-			this.selectedId = undefined;
-			this.selectedCellElement = undefined;
-			this.requestUpdate();
+	private focusClosestDartThrow(position: ThrowPosition): void {
+		const closestThrow = clampThrowPosition(this.players, position);
+		if (!closestThrow) {
+			this.clearSelectedThrow();
 			return;
 		}
 
-		const safeRowIndex = Math.min(rowIndex, Math.max(player.rounds.length - 1, 0));
-		const round = player.rounds[safeRowIndex];
-		const safeThrowIndex = Math.min(throwIndex, Math.max((round?.dartThrows.length ?? 1) - 1, 0));
-
-		this.focusDartThrow(playerIndex, safeRowIndex, safeThrowIndex);
+		this.focusDartThrow(closestThrow);
 	}
 
 	private async openShortcutHelp(): Promise<void> {
@@ -627,20 +573,31 @@ export class IndexPage extends GamePage {
 		);
 	}
 
+	private async confirmNewGame(): Promise<boolean> {
+		const confirmed = await this.dialogService.open<boolean>(
+			confirmNewGameTemplate(),
+			{ title: 'Start a New Game?' },
+		);
+
+		return confirmed ?? false;
+	}
+
 	protected async createGame(): Promise<void> {
 		if (this.creatingGame)
 			return;
 
 		this.creatingGame = true;
 		try {
+			if (this.isActiveGame && !await this.confirmNewGame())
+				return;
+
+			// Pick the first player before touching the board, so cancelling keeps the current game.
+			const user = await this.getNewPlayer([]);
+			if (!user)
+				return;
+
 			this.players = [];
 			this.isActiveGame = true;
-
-			const user = await this.getNewPlayer();
-			if (!user) {
-				this.isActiveGame = false;
-				return;
-			}
 
 			await this.requestNewGame();
 			await this.addNewPlayer(user);
@@ -671,7 +628,7 @@ export class IndexPage extends GamePage {
 				return;
 			}
 
-			const gameResult: GameResult = await this.dataService.SubmitGame(this.gameIdFromLocalStorage);
+			const gameResult: GameResult = await this.gameService.submitGame(this.gameIdFromLocalStorage);
 			const lastPlayedUserIds = this.players.map(player => player.playerId);
 
 			await this.unsubscribeFromAchievementEvents();
@@ -707,197 +664,34 @@ export class IndexPage extends GamePage {
 		this.requestUpdate();
 	}
 
-	protected focusCombobox(index: number): void {
-		const element = this.renderRoot.querySelector(`#combobox-${index}`) as AaCombobox;
+	protected focusDartThrow(position: ThrowPosition): void {
+		const element = this.renderRoot.querySelector<aaDartThrow>(`#${ getThrowElementId(position) }`);
 		element?.focus();
 	}
 
-	protected focusDartThrow(playerIndex: number, rowIndex: number, throwIndex: number): void {
-		const element = this.renderRoot.querySelector(`#throw-${playerIndex}-${rowIndex}-${throwIndex}`) as aaDartThrow;
-		element?.focus();
+	protected focusFirstUnplayedRound(): void {
+		this.focusDartThrow(getFirstUnplayedThrow(this.players, this.maximumRounds));
 	}
 
-	protected focusFirstUnplayedRound(): void{
-		const roundLimit = this.maximumRounds ?? Math.max(
-			15,
-			...this.players.map(player => player.rounds.length),
-		);
-
-		for (let roundIndex = 0; roundIndex < roundLimit; roundIndex++) {
-			for (let playerIndex = 0; playerIndex < this.players.length; playerIndex++){
-				const player = this.players[playerIndex];
-				const round = player?.rounds[roundIndex];
-				if (round?.roundStatus === RoundStatus.Unplayed){
-					this.focusDartThrow(playerIndex, roundIndex, 0)
-					return;
-				}
-			}
-		}
-		this.focusDartThrow(0, 0 ,0);
-	}
-
+	/** After an overshoot or a failed win condition the turn passes to the next player. */
 	protected focusNextValidPlayerAfterRoundFailure(playerIndex: number, roundIndex: number): void {
 		const roundStatus = this.players[playerIndex]?.rounds[roundIndex]?.roundStatus;
 		if (roundStatus !== RoundStatus.Overshoot
 			&& roundStatus !== RoundStatus.WinConditionFailed)
 			return;
 
-		const nextTurnStart = this.getNextPlayerTurnStart(playerIndex, roundIndex);
+		const nextTurnStart = getNextTurnStart(this.players, this.maximumRounds, playerIndex, roundIndex);
 		if (!nextTurnStart || this.isFocusAlreadyOnTurn(nextTurnStart))
 			return;
 
-		this.focusDartThrow(
-			nextTurnStart.nextPlayerIndex,
-			nextTurnStart.nextRoundIndex,
-			nextTurnStart.nextThrowIndex,
-		);
+		this.focusDartThrow(nextTurnStart);
 	}
 
-	protected getNextPlayerTurnStart(
-		playerIndex: number,
-		roundIndex: number,
-	): { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number; } | null {
-		const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'forward');
-		const nextRoundIndex = roundIndex + 1;
-		const target = nextFocusablePlayer === undefined
-			? { nextPlayerIndex: playerIndex, nextRoundIndex, nextThrowIndex: 0 }
-			: {
-				nextPlayerIndex: nextFocusablePlayer,
-				nextRoundIndex: nextFocusablePlayer < playerIndex ? nextRoundIndex : roundIndex,
-				nextThrowIndex: 0,
-			};
+	protected isFocusAlreadyOnTurn(target: ThrowPosition): boolean {
+		const selectedThrow = this.getSelectedThrow();
 
-		if (this.maximumRounds !== null && target.nextRoundIndex >= this.maximumRounds)
-			return null;
-
-		return target;
-	}
-
-	protected isFocusAlreadyOnTurn(
-		target: { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number; },
-	): boolean {
-		const selectedElementDetails = this.getSelectedElementDetails();
-		if (selectedElementDetails.type !== 'throw')
-			return false;
-
-		return selectedElementDetails.playerIndex === target.nextPlayerIndex
-			&& selectedElementDetails.rowIndex === target.nextRoundIndex;
-	}
-
-	protected getNextFocusablePlayer(
-		currentPlayerIndex: number,
-		direction: 'forward' | 'backward',
-		ignoreRestrictions = false,
-	): number | undefined {
-		const playerCount = this.players.length;
-		if (playerCount <= 1)
-			return;
-
-		const step = direction === 'forward' ? 1 : -1;
-
-		if (ignoreRestrictions) {
-			const nextPlayerIndex = currentPlayerIndex + step;
-			if (nextPlayerIndex < 0 || nextPlayerIndex >= playerCount)
-				return;
-
-			return nextPlayerIndex;
-		}
-
-		for (let i = 1; i < playerCount; i++) {
-			const nextPlayerIndex = (currentPlayerIndex + step * i + playerCount) % playerCount;
-			const nextPlayer = this.players[nextPlayerIndex];
-
-			if (!ignoreRestrictions) {
-				const nextPlayerHasWon = nextPlayer!.rounds
-					.some(round => round.roundStatus === RoundStatus.Victory);
-
-				if (nextPlayerHasWon)
-					continue;
-			}
-
-			return nextPlayerIndex;
-		}
-
-		return;
-	}
-
-	protected getNextFocusForDartThrow(
-		direction: 'forward' | 'backward' | 'upward' | 'downward',
-		playerIndex: number,
-		roundIndex: number,
-		throwIndex: number,
-		ignoreRestrictions = false,
-	): { nextPlayerIndex: number; nextRoundIndex: number; nextThrowIndex: number; } | null {
-		if (direction === 'forward') {
-			if (throwIndex === 2) {
-				const nextFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'forward', ignoreRestrictions);
-				const nextRoundIndex = roundIndex + 1;
-				let target;
-				if (nextFocusablePlayer === undefined) {
-					if (ignoreRestrictions)
-						return null;
-
-					target = { nextPlayerIndex: playerIndex, nextRoundIndex, nextThrowIndex: 0 };
-				}
-				else
-					target = {
-						nextPlayerIndex: nextFocusablePlayer,
-						nextRoundIndex: nextFocusablePlayer < playerIndex ? nextRoundIndex : roundIndex,
-						nextThrowIndex: 0,
-					};
-
-				if (this.maximumRounds !== null && target.nextRoundIndex >= this.maximumRounds)
-					return null;
-
-				return target;
-			}
-			else {
-				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex + 1 };
-			}
-		}
-		else if (direction === 'backward') {
-			if (playerIndex === 0 && roundIndex === 0 && throwIndex === 0)
-				return null;
-
-			if (throwIndex === 0) {
-				const prevFocusablePlayer = this.getNextFocusablePlayer(playerIndex, 'backward', ignoreRestrictions);
-
-				if (prevFocusablePlayer === undefined) {
-					if (ignoreRestrictions)
-						return null;
-
-					return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
-				}
-
-				if (roundIndex === 0)
-					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
-
-				if (prevFocusablePlayer > playerIndex)
-					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex - 1, nextThrowIndex: 2 };
-				else
-					return { nextPlayerIndex: prevFocusablePlayer, nextRoundIndex: roundIndex, nextThrowIndex: 2 };
-			}
-			else {
-				return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex, nextThrowIndex: throwIndex - 1 };
-			}
-		}
-		else if (direction === 'upward' && ignoreRestrictions) {
-			if (roundIndex === 0)
-				return null;
-
-			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex - 1, nextThrowIndex: throwIndex };
-		}
-		else if (direction === 'downward' && ignoreRestrictions) {
-			const currentPlayer = this.players[playerIndex];
-			const lastRoundIndex = currentPlayer!.rounds.length - 1;
-
-			if (roundIndex >= lastRoundIndex)
-				return null;
-
-			return { nextPlayerIndex: playerIndex, nextRoundIndex: roundIndex + 1, nextThrowIndex: throwIndex };
-		}
-
-		return null;
+		return selectedThrow?.playerIndex === target.playerIndex
+			&& selectedThrow.roundIndex === target.roundIndex;
 	}
 
 	protected validateGameCanBeSubmitted(): boolean {
@@ -920,50 +714,8 @@ export class IndexPage extends GamePage {
 		return this.getLastPlayedUsers().length > 0;
 	}
 
-	protected renderLastPlayedUserBadges(compact = false): unknown {
-		const users = this.getLastPlayedUsers();
-
-		if (users.length === 0)
-			return null;
-
-		return html`
-			<div class=${classMap({
-				'rematch-player-list': true,
-				'compact': compact,
-			})}>
-				${users.map(user => html`
-					<aa-player-chip ?compact=${compact}>
-						<aa-rank-display
-							.rank=${ user.seasonStatistics[0]?.currentRank }
-							icon-only
-						></aa-rank-display>
-						<span>${ user.alias || user.name }</span>
-					</aa-player-chip>
-				`)}
-			</div>
-		`;
-	}
-
-	protected renderRematchShortcut(compact = false): unknown {
-		if (!this.hasRematchPlayers())
-			return null;
-
-		return html`
-			<div class=${classMap({
-				'rematch-callout': true,
-				'compact': compact,
-			})}>
-				<span class="rematch-keys" aria-hidden="true">
-					<span class="keycap">⇧ R</span>
-				</span>
-				<span class="rematch-text">for rematch!</span>
-				${this.renderLastPlayedUserBadges(compact)}
-			</div>
-		`;
-	}
-
 	protected override renderEmptyState(): unknown {
-		const hasRematch = this.hasRematchPlayers();
+		const rematchUsers = this.getLastPlayedUsers();
 
 		return html`
 			<div class="empty-state">
@@ -977,7 +729,7 @@ export class IndexPage extends GamePage {
 						</div>
 					</div>
 
-					${hasRematch ? html`
+					${rematchUsers.length > 0 ? html`
 						<div class="shortcut-divider"></div>
 
 						<div class="shortcut-section">
@@ -988,23 +740,10 @@ export class IndexPage extends GamePage {
 								</span>
 							</div>
 
-							${this.renderLastPlayedUserBadges()}
+							${renderPlayerChips(rematchUsers, 'rematch-player-list')}
 						</div>
 					` : ''}
 				</div>
-			</div>
-		`;
-	}
-
-	protected override renderBottomContent(): unknown {
-		return null;
-		
-		if (!this.isActiveGame)
-			return null;
-
-		return html`
-			<div class="bottom-bar">
-				${this.renderRematchShortcut(true)}
 			</div>
 		`;
 	}

@@ -4,6 +4,7 @@ import {
 	combineSignalRSubscriptions,
 	SignalRService,
 	SignalRSubscription,
+	signalRGroups,
 } from './signalRService.js';
 
 @injectable()
@@ -26,11 +27,7 @@ export class ActiveGamesLiveService {
 				onListeningChanged(true);
 				await onSynchronized();
 			},
-			group:         {
-				join:  'SubscribeActiveGames',
-				leave: 'UnsubscribeActiveGames',
-				args:  [],
-			},
+			group: signalRGroups.activeGames(),
 		});
 		const removeStatusListener = this.signalRService.addStatusListener(status => {
 			if (status !== 'connected')

@@ -1,6 +1,8 @@
 import { html, LitElement, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { ifDefined } from 'lit/directives/if-defined.js';
 
+import { slotHasContent } from '../slot-utils.js';
 import emptyStateStyles from './aa-empty-state.css?inline';
 
 @customElement('aa-empty-state')
@@ -16,7 +18,7 @@ export class AaEmptyState extends LitElement {
 		return html`
 			<section
 				class="empty-state"
-				aria-labelledby=${ this.hasTitle ? 'empty-state-title' : '' }
+				aria-labelledby=${ ifDefined(this.hasTitle ? 'empty-state-title' : undefined) }
 			>
 				<div class="icon" aria-hidden="true" ?hidden=${ !this.hasIcon }>
 					<slot name="icon" @slotchange=${ this.handleIconSlotChange }></slot>
@@ -35,27 +37,21 @@ export class AaEmptyState extends LitElement {
 	}
 
 	private handleIconSlotChange(event: Event): void {
-		this.hasIcon = this.slotHasContent(event);
+		this.hasIcon = slotHasContent(event);
 	}
 
 	private handleTitleSlotChange(event: Event): void {
-		this.hasTitle = this.slotHasContent(event);
+		this.hasTitle = slotHasContent(event);
 	}
 
 	private handleContentSlotChange(event: Event): void {
-		this.hasContent = this.slotHasContent(event);
+		this.hasContent = slotHasContent(event);
 	}
 
 	private handleActionsSlotChange(event: Event): void {
-		this.hasActions = this.slotHasContent(event);
+		this.hasActions = slotHasContent(event);
 	}
 
-	private slotHasContent(event: Event): boolean {
-		const slot = event.currentTarget as HTMLSlotElement;
-
-		return slot.assignedNodes({ flatten: true })
-			.some(node => node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim()));
-	}
 
 	static override styles = unsafeCSS(emptyStateStyles);
 

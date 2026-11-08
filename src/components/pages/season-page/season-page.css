@@ -23,6 +23,11 @@
 	box-shadow: var(--shadow-brutal-deep);
 }
 
+.load-error {
+	width: min(430px, 100%);
+	margin: 2rem auto;
+}
+
 .podium-stage {
 	position: relative;
 	margin: 1rem 0 0.5rem;

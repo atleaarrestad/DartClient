@@ -1,20 +1,20 @@
 import * as signalR from '@microsoft/signalr';
 import { injectable } from 'tsyringe';
 
-import type { AchievementInstanceResponse } from '../models/achievementBuilderApi.js';
-import type { GameResult, GameTracker, GameTrackerDelta } from '../models/schemas.js';
-
 export type SignalRConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
+const hubPath = 'hubs/main';
+
+/** Payloads arrive as raw JSON; consumers parse them before use. */
 export interface SignalRClientEvents {
 	OnActiveGamesChanged: [];
-	OnGameUpdated: [gameId: string, gameTracker: GameTracker];
-	OnGameDelta: [gameId: string, delta: GameTrackerDelta];
-	OnGameFinished: [gameId: string, gameResult: GameResult];
+	OnGameUpdated: [gameId: string, gameTracker: unknown];
+	OnGameDelta: [gameId: string, delta: unknown];
+	OnGameFinished: [gameId: string, gameResult: unknown];
 	OnV2AchievementProjectionAdded: [
 		gameId: string,
 		playerId: string,
-		achievements: AchievementInstanceResponse[],
+		achievements: unknown,
 	];
 }
 
@@ -46,6 +46,24 @@ export type SignalRGroupSubscription =
 		leave: 'UnsubscribeAchievement';
 		args: [gameId: string];
 	};
+
+export const signalRGroups = {
+	activeGames: (): SignalRGroupSubscription => ({
+		join:  'SubscribeActiveGames',
+		leave: 'UnsubscribeActiveGames',
+		args:  [],
+	}),
+	spectate: (gameId: string): SignalRGroupSubscription => ({
+		join:  'SubscribeSpectate',
+		leave: 'UnsubscribeSpectate',
+		args:  [ gameId ],
+	}),
+	achievements: (gameId: string): SignalRGroupSubscription => ({
+		join:  'SubscribeAchievement',
+		leave: 'UnsubscribeAchievement',
+		args:  [ gameId ],
+	}),
+};
 
 export interface SignalRSubscription {
 	readonly ready: Promise<void>;
@@ -83,7 +101,6 @@ interface ManagedGroup {
 @injectable()
 export class SignalRService {
 	private connection?: signalR.HubConnection;
-	private hubUrl = '';
 	private startPromise?: Promise<void>;
 	private retryTimeout?: ReturnType<typeof setTimeout>;
 	private groupRestoreRetryTimeout?: ReturnType<typeof setTimeout>;
@@ -93,8 +110,8 @@ export class SignalRService {
 	private eventHandlers: Map<SignalREventName, Set<(...args: any[]) => void>> = new Map();
 	private allowReconnect = true;
 
-	async ensureConnected(hubUrl = 'hubs/main'): Promise<void> {
-		const connection = await this.ensureConnection(hubUrl);
+	async ensureConnected(): Promise<void> {
+		const connection = this.getOrCreateConnection();
 		if (this.startPromise)
 			return this.startPromise;
 
@@ -135,7 +152,7 @@ export class SignalRService {
 	registerSubscription<EventName extends SignalREventName>(
 		options: SignalRSubscriptionOptions<EventName>,
 	): SignalRSubscription {
-		const connection = this.getOrCreateConnection('hubs/main');
+		const connection = this.getOrCreateConnection();
 		const handler = options.handler as (...args: any[]) => void;
 		const eventHandlers = this.eventHandlers.get(options.event) ?? new Set();
 		if (eventHandlers.has(handler))
@@ -223,30 +240,12 @@ export class SignalRService {
 			.build();
 	}
 
-	private async ensureConnection(hubUrl: string): Promise<signalR.HubConnection> {
-		const absoluteHubUrl = `${ import.meta.env.VITE_SERVER_URL }${ hubUrl }`;
-		if (this.connection && this.hubUrl === absoluteHubUrl)
-			return this.connection;
-
-		if (this.connection)
-			await this.stop();
-
-		return this.configureConnection(absoluteHubUrl);
+	private getOrCreateConnection(): signalR.HubConnection {
+		return this.connection ?? this.configureConnection();
 	}
 
-	private getOrCreateConnection(hubUrl: string): signalR.HubConnection {
-		const absoluteHubUrl = `${ import.meta.env.VITE_SERVER_URL }${ hubUrl }`;
-		if (this.connection && this.hubUrl === absoluteHubUrl)
-			return this.connection;
-
-		if (this.connection)
-			throw new Error('Live sync is already configured for another hub.');
-
-		return this.configureConnection(absoluteHubUrl);
-	}
-
-	private configureConnection(hubUrl: string): signalR.HubConnection {
-		const connection = this.createConnection(hubUrl);
+	private configureConnection(): signalR.HubConnection {
+		const connection = this.createConnection(`${ import.meta.env.VITE_SERVER_URL }${ hubPath }`);
 
 		connection.onreconnecting(error => {
 			this.markGroupsDisconnected();
@@ -273,9 +272,7 @@ export class SignalRService {
 		});
 
 		this.connection = connection;
-		this.hubUrl = hubUrl;
 		this.allowReconnect = true;
-		this.setStatus('disconnected');
 
 		return connection;
 	}

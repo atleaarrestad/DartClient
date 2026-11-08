@@ -1,24 +1,25 @@
 {
-	"name": "lit-simple-starter-kit",
+	"name": "dart-client",
 	"version": "1.0.0",
+	"private": true,
 	"license": "MIT",
 	"type": "module",
-	"main": "index.js",
 	"scripts": {
-		"build": "vite build && node scripts/copy-404.js",
 		"dev": "vite",
-		"lint:fix": "eslint --fix",
-		"test": "vitest run"
+		"build": "vite build && node scripts/copy-404.js",
+		"typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix",
+		"test": "vitest run",
+		"check": "pnpm typecheck && pnpm test"
 	},
 	"dependencies": {
 		"@fortawesome/fontawesome-free": "^7.1.0",
 		"@microsoft/signalr": "^10.0.0",
 		"@vaadin/router": "^2.0.1",
 		"chart.js": "^4.4.9",
-		"highlight.js": "^11.11.1",
 		"lit": "^3.3.1",
 		"reflect-metadata": "^0.2.2",
-		"tslib": "^2.8.1",
 		"tsyringe": "^4.8.0",
 		"zod": "^4.1.13"
 	},

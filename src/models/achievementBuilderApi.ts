@@ -186,6 +186,7 @@ export type AchievementBuilderCatalog = z.infer<typeof AchievementBuilderCatalog
 export type PredictAchievementThrowsResponse = z.infer<
 	typeof PredictAchievementThrowsResponseSchema
 >;
+export type AchievementEvaluationPhase = z.infer<typeof AchievementEvaluationPhaseSchema>;
 export type AchievementLegalHit = z.infer<typeof AchievementLegalHitSchema>;
 export type LastDartHint = z.infer<typeof LastDartHintSchema>;
 export type LastDartHints = z.infer<typeof LastDartHintsSchema>;
@@ -196,7 +197,7 @@ export interface UpsertAchievementTemplateRequest {
 	descriptionTemplate: string;
 	categoryId: string;
 	achievementTier: number;
-	evaluationPhase: 'Live' | 'GameCompleted' | 'Progression';
+	evaluationPhase: AchievementEvaluationPhase;
 	parameters: AchievementParameterDefinition[];
 	definition: Record<string, unknown>;
 }

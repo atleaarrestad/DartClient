@@ -22,7 +22,11 @@ export class AaRankDisplay extends LitElement {
 
 		return html`
 			<span class="rank-display" title=${ name }>
-				<img class="rank-icon" src=${ getRankIcon(this.rank) } alt=${ name } />
+				<img
+					class="rank-icon"
+					src=${ getRankIcon(this.rank) }
+					alt=${ this.iconOnly || this.rank === undefined ? name : '' }
+				/>
 				<span class="rank-copy">
 					${ this.contextLabel
 						? html`<span class="context-label">${ this.contextLabel }</span>`

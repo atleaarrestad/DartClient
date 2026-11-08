@@ -1,31 +1,11 @@
-import type {
+import {
 	AchievementComparisonOperator,
+	achievementRoundStatusLabels,
 	AchievementRuleDraft,
 	AchievementValueDraft,
-	AchievementValueSource,
+	achievementValueSourceLabels,
+	throwTypeHasHitLocation,
 } from '../../models/achievementBuilder.js';
-
-const valueSourceLabels: Partial<Record<AchievementValueSource, string>> = {
-	'round.throwCount':             'Round throw count',
-	'round.modifiedThrowCount':     'Throws using seasonal modifiers',
-	'round.number':                 'Round number',
-	'round.finalPoints':            'Round final points',
-	'round.rawPointsDistinctCount': 'Number of unique unmodified throw scores',
-	'round.minimumRawPoints':       'Lowest unmodified throw score',
-	'round.singleCount':            'Singles in round',
-	'round.doubleCount':            'Doubles in round',
-	'round.tripleCount':            'Triples in round',
-	'game.roundsPlayed':            'Rounds played',
-	'game.placement':               'Final placement',
-	'game.validRoundCount':         'Valid rounds',
-	'game.victoryCount':            'Victory rounds',
-	'game.overshootCount':          'Overshoot rounds',
-	'game.failedWinConditionCount': 'Failed-win rounds',
-	'game.doubleCount':             'Double hits',
-	'game.tripleCount':             'Triple hits',
-	'game.rimCount':                'Rim hits',
-	'game.missCount':               'Misses',
-};
 
 export const operatorLabels: Record<AchievementComparisonOperator, string> = {
 	equal:              '=',
@@ -63,7 +43,7 @@ const asExpressionNode = (value: unknown): ExpressionNode | undefined =>
  * Writes a compiled condition back out as a readable expression, so logic the
  * visual blocks cannot represent can still be checked.
  */
-export const formatAchievementExpression = (value: unknown): string => {
+const formatAchievementExpression = (value: unknown): string => {
 	const node = asExpressionNode(value);
 	if (!node)
 		return String(value);
@@ -149,7 +129,7 @@ export const formatAchievementValue = (value: AchievementValueDraft): string => 
 	case 'board.rightNeighbor':
 		return value.value ? `right of ${ value.value }` : 'Choose right neighbor';
 	default:
-		return valueSourceLabels[value.source] ?? value.source;
+		return achievementValueSourceLabels[value.source];
 	}
 };
 
@@ -164,7 +144,7 @@ export const formatAchievementRule = (rule: AchievementRuleDraft): string => {
 	case 'round': {
 		const quantifier = rule.quantifier === 'any' ? 'Any' : 'Every';
 		const statuses = rule.statuses
-			.map(status => status === 'failedWinCondition' ? 'failed win' : status)
+			.map(status => achievementRoundStatusLabels[status].toLowerCase())
 			.join(' or ');
 
 		return `${ quantifier } ${ statuses || 'matching' } round`;
@@ -250,6 +230,6 @@ export const formatAchievementRule = (rule: AchievementRuleDraft): string => {
 export const formatSequenceTarget = (
 	target: Extract<AchievementRuleDraft, { type: 'sequence'; }>['targets'][number],
 ): string =>
-	target.throwType === 'rim' || target.throwType === 'miss'
-		? throwTypeLabels[target.throwType]
-		: `${ formatAchievementValue(target.hitLocation) } - ${ throwTypeLabels[target.throwType] }`;
+	throwTypeHasHitLocation(target.throwType)
+		? `${ formatAchievementValue(target.hitLocation) } - ${ throwTypeLabels[target.throwType] }`
+		: throwTypeLabels[target.throwType];

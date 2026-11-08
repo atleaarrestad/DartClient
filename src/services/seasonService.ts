@@ -46,12 +46,14 @@ export class SeasonService {
 			return this.currentlyActiveSeasonPromise;
 
 
-		this.currentlyActiveSeasonPromise = this.dataService.getCurrentSeason()
+		const promise = this.dataService.getCurrentSeason()
 			.finally(() => {
-				this.currentlyActiveSeasonPromise = undefined;
+				if (this.currentlyActiveSeasonPromise === promise)
+					this.currentlyActiveSeasonPromise = undefined;
 			});
+		this.currentlyActiveSeasonPromise = promise;
 
-		return this.currentlyActiveSeasonPromise;
+		return promise;
 	}
 
 	async getAll(forceGetFromDatabase: boolean = false): Promise<Season[]> {
@@ -59,12 +61,14 @@ export class SeasonService {
 			return this.seasonsPromise;
 
 
-		this.seasonsPromise = this.dataService.GetAllSeasons()
+		const promise = this.dataService.GetAllSeasons()
 			.finally(() => {
-				this.seasonsPromise = undefined;
+				if (this.seasonsPromise === promise)
+					this.seasonsPromise = undefined;
 			});
+		this.seasonsPromise = promise;
 
-		return this.seasonsPromise;
+		return promise;
 	}
 
 	verifyManagementAccess(adminKey: string): Promise<void> {
@@ -81,6 +85,7 @@ export class SeasonService {
 		);
 
 		this.clearRequests();
+		this.dispatchSeasonUpdated(season);
 
 		return season;
 	}
@@ -98,11 +103,15 @@ export class SeasonService {
 		);
 
 		this.clearRequests();
+		this.dispatchSeasonUpdated(season);
+
+		return season;
+	}
+
+	private dispatchSeasonUpdated(season: Season): void {
 		window.dispatchEvent(new CustomEvent<Season>(seasonUpdatedEventName, {
 			detail: season,
 		}));
-
-		return season;
 	}
 
 	private toRequest(input: SeasonConfigurationInput): object {

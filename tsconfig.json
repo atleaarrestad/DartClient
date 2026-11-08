@@ -3,15 +3,12 @@
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
     "target": "ESNext",
-    "outDir": "./dist",
     "rootDir": ".",
     "baseUrl": ".",
     "incremental": false,
     "types": ["vite/client"],
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "pretty": true,
-    "importHelpers": true,
-    "removeComments": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noPropertyAccessFromIndexSignature": true,
@@ -20,7 +17,6 @@
     "allowSyntheticDefaultImports": true,
     "noImplicitOverride": true,
     "useDefineForClassFields": false,
-    "noEmitOnError": true,
     "allowJs": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -36,10 +32,8 @@
     "noImplicitThis": true,
     "isolatedModules": false, //changed!
     "sourceMap": false,
-    "emitDeclarationOnly": true,
-    "declaration": true, // enables or disables d.ts files from being generated.
-    "declarationMap": true // enables/disables d.ts.map files from being generated.
+    "noEmit": true
   },
-  "include": ["./**/*.ts", "./**/*.d.ts"],
+  "include": ["src", "types.d.ts", "vite.config.ts"],
   "exclude": ["./**/*.test.ts", "./**/*.bench.ts"]
 }

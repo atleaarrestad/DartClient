@@ -71,81 +71,40 @@ export function getRankDisplayValue(rank: Rank | undefined): string {
 	return RankDisplayValues[rank];
 }
 
+const rankIconFiles: Record<Rank, string> = {
+	[Rank.Bronze]:      'bronze.png',
+	[Rank.Bronze1]:     'bronze_1.png',
+	[Rank.Bronze2]:     'bronze_2.png',
+	[Rank.Bronze3]:     'bronze_3.png',
+	[Rank.Silver]:      'silver.png',
+	[Rank.Silver1]:     'silver_1.png',
+	[Rank.Silver2]:     'silver_2.png',
+	[Rank.Silver3]:     'silver_3.png',
+	[Rank.Gold]:        'gold.png',
+	[Rank.Gold1]:       'gold_1.png',
+	[Rank.Gold2]:       'gold_2.png',
+	[Rank.Gold3]:       'gold_3.png',
+	[Rank.Platinum]:    'platinum.png',
+	[Rank.Platinum1]:   'platinum_1.png',
+	[Rank.Platinum2]:   'platinum_2.png',
+	[Rank.Platinum3]:   'platinum_3.png',
+	[Rank.Diamond]:     'diamond.png',
+	[Rank.Diamond1]:    'diamond_1.png',
+	[Rank.Diamond2]:    'diamond_2.png',
+	[Rank.Diamond3]:    'diamond_3.png',
+	[Rank.Wizard]:      'wizard.png',
+	[Rank.Wizard1]:     'wizard_1.png',
+	[Rank.Wizard2]:     'wizard_2.png',
+	[Rank.Wizard3]:     'wizard_3.png',
+	[Rank.Mythic]:      'mythic.png',
+	[Rank.Mythic1]:     'mythic_1.png',
+	[Rank.Mythic2]:     'mythic_2.png',
+	[Rank.Mythic3]:     'mythic_3.png',
+	[Rank.Grandmaster]: 'grandmaster.png',
+};
+
 export function getRankIcon(rank: Rank | undefined): string {
-	const base = getAbsoluteBase();
+	const file = rank === undefined ? undefined : rankIconFiles[rank];
 
-	const url = (() => {
-		switch (rank) {
-		case Rank.Bronze1:
-			return './icons/bronze_1.png';
-		case Rank.Bronze2:
-			return './icons/bronze_2.png';
-		case Rank.Bronze3:
-			return './icons/bronze_3.png';
-		case Rank.Bronze:
-			return './icons/bronze.png';
-
-		case Rank.Silver1:
-			return './icons/silver_1.png';
-		case Rank.Silver2:
-			return './icons/silver_2.png';
-		case Rank.Silver3:
-			return './icons/silver_3.png';
-		case Rank.Silver:
-			return './icons/silver.png';
-
-		case Rank.Gold1:
-			return './icons/gold_1.png';
-		case Rank.Gold2:
-			return './icons/gold_2.png';
-		case Rank.Gold3:
-			return './icons/gold_3.png';
-		case Rank.Gold:
-			return './icons/gold.png';
-
-		case Rank.Platinum1:
-			return './icons/platinum_1.png';
-		case Rank.Platinum2:
-			return './icons/platinum_2.png';
-		case Rank.Platinum3:
-			return './icons/platinum_3.png';
-		case Rank.Platinum:
-			return './icons/platinum.png';
-
-		case Rank.Diamond1:
-			return './icons/diamond_1.png';
-		case Rank.Diamond2:
-			return './icons/diamond_2.png';
-		case Rank.Diamond3:
-			return './icons/diamond_3.png';
-		case Rank.Diamond:
-			return './icons/diamond.png';
-
-		case Rank.Wizard1:
-			return './icons/wizard_1.png';
-		case Rank.Wizard2:
-			return './icons/wizard_2.png';
-		case Rank.Wizard3:
-			return './icons/wizard_3.png';
-		case Rank.Wizard:
-			return './icons/wizard.png';
-
-		case Rank.Mythic1:
-			return './icons/mythic_1.png';
-		case Rank.Mythic2:
-			return './icons/mythic_2.png';
-		case Rank.Mythic3:
-			return './icons/mythic_3.png';
-		case Rank.Mythic:
-			return './icons/mythic.png';
-
-		case Rank.Grandmaster:
-			return './icons/grandmaster.png';
-
-		default:
-			return './icons/rank_unranked.png';
-		}
-	})();
-
-	return `${ base }${ url }`;
+	return `${ getAbsoluteBase() }icons/${ file ?? 'rank_unranked.png' }`;
 }

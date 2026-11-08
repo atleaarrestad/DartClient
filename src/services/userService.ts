@@ -32,11 +32,11 @@ export class UserService {
 			}
 		}
 
-		const promise = (async () => {
-			return this.dataService.getAllUsers(query);
-		})().finally(() => {
-			this.usersPromiseCache.delete(cacheKey);
-		});
+		const promise = this.dataService.getAllUsers(query)
+			.finally(() => {
+				if (this.usersPromiseCache.get(cacheKey) === promise)
+					this.usersPromiseCache.delete(cacheKey);
+			});
 
 		this.usersPromiseCache.set(cacheKey, promise);
 

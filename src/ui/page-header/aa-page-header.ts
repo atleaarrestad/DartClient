@@ -1,6 +1,7 @@
 import { html, LitElement, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
+import { slotHasContent } from '../slot-utils.js';
 import pageHeaderStyles from './aa-page-header.css?inline';
 
 @customElement('aa-page-header')
@@ -37,27 +38,21 @@ export class AaPageHeader extends LitElement {
 	}
 
 	private handleTitleSlotChange(event: Event): void {
-		this.hasTitle = this.slotHasContent(event);
+		this.hasTitle = slotHasContent(event);
 	}
 
 	private handleDescriptionSlotChange(event: Event): void {
-		this.hasDescription = this.slotHasContent(event);
+		this.hasDescription = slotHasContent(event);
 	}
 
 	private handleMetadataSlotChange(event: Event): void {
-		this.hasMetadata = this.slotHasContent(event);
+		this.hasMetadata = slotHasContent(event);
 	}
 
 	private handleActionsSlotChange(event: Event): void {
-		this.hasActions = this.slotHasContent(event);
+		this.hasActions = slotHasContent(event);
 	}
 
-	private slotHasContent(event: Event): boolean {
-		const slot = event.currentTarget as HTMLSlotElement;
-
-		return slot.assignedNodes({ flatten: true })
-			.some(node => node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim()));
-	}
 
 	static override styles = unsafeCSS(pageHeaderStyles);
 

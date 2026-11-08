@@ -1,6 +1,7 @@
 import { html, LitElement, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
+import { slotHasContent } from '../slot-utils.js';
 import cardStyles from './aa-card.css?inline';
 
 export type AaCardVariant = 'flat' | 'raised' | 'interactive';
@@ -29,19 +30,13 @@ export class AaCard extends LitElement {
 	}
 
 	private handleHeaderSlotChange(event: Event): void {
-		this.hasHeader = this.slotHasContent(event);
+		this.hasHeader = slotHasContent(event);
 	}
 
 	private handleFooterSlotChange(event: Event): void {
-		this.hasFooter = this.slotHasContent(event);
+		this.hasFooter = slotHasContent(event);
 	}
 
-	private slotHasContent(event: Event): boolean {
-		const slot = event.currentTarget as HTMLSlotElement;
-
-		return slot.assignedNodes({ flatten: true })
-			.some(node => node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim()));
-	}
 
 	static override styles = unsafeCSS(cardStyles);
 

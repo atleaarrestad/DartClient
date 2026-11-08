@@ -14,6 +14,7 @@ import {
 } from '../../helpers/lastDartHints.js';
 import type { LastDartHint, LastDartHints } from '../../models/achievementBuilderApi.js';
 import { AchievementTier } from '../../models/enums.js';
+import { visuallyHiddenStyles } from '../../styles/shared-styles.js';
 import lastDartHintsStyles from './aa-last-dart-hints.css?inline';
 
 interface DisplayedHints {
@@ -133,7 +134,10 @@ export class AaLastDartHints extends LitElement {
 		return names.join('\n');
 	}
 
-	static override styles = unsafeCSS(lastDartHintsStyles);
+	static override styles = [
+		visuallyHiddenStyles,
+		unsafeCSS(lastDartHintsStyles),
+	];
 
 }
 

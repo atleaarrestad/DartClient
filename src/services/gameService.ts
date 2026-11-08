@@ -1,7 +1,7 @@
 import { container, injectable } from 'tsyringe';
 
 import { DartThrow } from '../models/dartThrowSchema.js';
-import { GameTracker, GameTrackerDelta } from '../models/schemas.js';
+import { GameResult, GameTracker, GameTrackerDelta } from '../models/schemas.js';
 import { CacheService } from './cacheService.js';
 import { DataService } from './dataService.js';
 
@@ -41,20 +41,21 @@ export class GameService {
 		return this.dataService.AddDartThrowToGameSession(gameId, playerId, roundNumber, dartThrow);
 	}
 
+	/** Waits for pending dart-throw saves before finalizing the game. */
+	submitGame(gameId: string): Promise<GameResult> {
+		return this.dataService.SubmitGame(gameId);
+	}
+
 	async getActiveGame(gameId: string): Promise<GameTracker | undefined> {
 		return await this.dataService.getActiveGameSession(gameId);
 	}
 
-	async getActiveGames(): Promise<GameTracker[] | undefined> {
+	async getActiveGames(): Promise<GameTracker[]> {
 		return this.dataService.getActiveGameSessions();
 	}
 
 	getCachedGameId(): string | undefined {
 		return this.cacheService.GetGameId();
-	}
-
-	setCachedGameId(gameId: string): void {
-		return this.cacheService.SetGameId(gameId);
 	}
 
 	removeCachedGameId(): void {

@@ -1,4 +1,4 @@
-import { html, LitElement, svg, unsafeCSS } from 'lit';
+import { html, LitElement, type PropertyValues, svg, unsafeCSS } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
 import { ThrowType } from '../../models/enums.js';
@@ -35,22 +35,40 @@ export class AaDartboardHeatmap extends LitElement {
 
 	private readonly center = 165;
 
+	/** Hit counts keyed by `throwType:hitLocation`, rebuilt when `hits` changes. */
+	private countsByZone = new Map<string, number>();
+	/** On-board hit counts (everything but rim and miss) per location. */
+	private boardCountsByLocation = new Map<number, number>();
+	private countsByThrowType = new Map<ThrowType, number>();
+
+	override willUpdate(changed: PropertyValues<this>): void {
+		if (!changed.has('hits'))
+			return;
+
+		const addTo = <K>(map: Map<K, number>, key: K, count: number): void => {
+			map.set(key, (map.get(key) ?? 0) + count);
+		};
+
+		this.countsByZone = new Map();
+		this.boardCountsByLocation = new Map();
+		this.countsByThrowType = new Map();
+		for (const hit of this.hits) {
+			addTo(this.countsByZone, `${ hit.throwType }:${ hit.hitLocation }`, hit.count);
+			addTo(this.countsByThrowType, hit.throwType, hit.count);
+			if (hit.throwType !== ThrowType.Rim && hit.throwType !== ThrowType.Miss)
+				addTo(this.boardCountsByLocation, hit.hitLocation, hit.count);
+		}
+	}
+
 	private getCount(hitLocation: number, throwType?: ThrowType): number {
-		return this.hits
-			.filter(hit =>
-				hit.hitLocation === hitLocation
-				&& (
-					throwType === undefined
-						? hit.throwType !== ThrowType.Rim && hit.throwType !== ThrowType.Miss
-						: hit.throwType === throwType
-				))
-			.reduce((total, hit) => total + hit.count, 0);
+		if (throwType === undefined)
+			return this.boardCountsByLocation.get(hitLocation) ?? 0;
+
+		return this.countsByZone.get(`${ throwType }:${ hitLocation }`) ?? 0;
 	}
 
 	private getThrowTypeTotal(throwType: ThrowType): number {
-		return this.hits
-			.filter(hit => hit.throwType === throwType)
-			.reduce((total, hit) => total + hit.count, 0);
+		return this.countsByThrowType.get(throwType) ?? 0;
 	}
 
 	private getMaximumBoardCount(): number {

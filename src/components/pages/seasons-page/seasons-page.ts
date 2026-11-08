@@ -16,27 +16,37 @@ import { getAchievementTierIcon } from '../../../helpers/achievementHelper.js';
 import {
 	compileAchievementTemplate,
 } from '../../../helpers/compileAchievementTemplate.js';
+import { getErrorMessage } from '../../../helpers/getErrorMessage.js';
+import {
+	createDraftFromSeason,
+	createNewSeasonDraft,
+	findCurrentSeason,
+	getAchievementRewardErrors,
+	getGameConstraintErrors,
+	getGameConstraintSummary,
+	getRuleNames,
+	getScoreModifierErrors,
+	getThresholdErrors,
+	isManagementAccessError,
+	serializeDraft,
+	sortSeasons,
+	validateSeasonDraft,
+	type GameConstraintRuleDraft,
+	type SeasonDraft,
+} from '../../../helpers/seasonDraft.js';
 import {
 	AchievementTier,
+	achievementTiersAscending,
 	GameConstraint,
 	ScoreModifier,
 	WinCondition,
 } from '../../../models/enums.js';
 import {
-	defaultMmrConfiguration,
-	validateMmrConfiguration,
-} from '../../../models/mmr.js';
-import {
-	getRankDisplayValue,
 	getRankIcon,
 	Rank,
 } from '../../../models/rank.js';
 import {
-	AchievementTierReward,
-	GameConstraintRule,
-	RankThreshold,
 	RuleDefinitionsResponse,
-	ScoreModifierRule,
 	Season,
 } from '../../../models/schemas.js';
 import type {
@@ -47,10 +57,7 @@ import { AchievementBuilderService } from '../../../services/achievementBuilderS
 import { DialogService } from '../../../services/dialogService.js';
 import { NotificationService } from '../../../services/notificationService.js';
 import { RuleService } from '../../../services/ruleService.js';
-import {
-	SeasonConfigurationInput,
-	SeasonService,
-} from '../../../services/seasonService.js';
+import { SeasonService } from '../../../services/seasonService.js';
 import { sharedStyles } from '../../../styles/shared-styles.js';
 import type { AaButton } from '../../../ui/button/aa-button.js';
 import type { AaMmrConfigurationEditor } from '../../aa-mmr-configuration-editor/aa-mmr-configuration-editor.js';
@@ -70,70 +77,7 @@ import type {
 } from '../../season-configuration-list/season-configuration-list.js';
 import seasonsPageStyles from './seasons-page.css?inline';
 
-interface SeasonDraft extends SeasonConfigurationInput {
-	id?: string;
-}
-
 const managementKeyStorage = 'season-management-key';
-const rankValues = Object.values(Rank)
-	.filter((rank): rank is Rank => typeof rank === 'number')
-	.sort((left, right) => left - right);
-const defaultRankMinimums = [
-	0,
-	1250,
-	1500,
-	1750,
-	2000,
-	2250,
-	2500,
-	2750,
-	3000,
-	3250,
-	3500,
-	3750,
-	4000,
-	4250,
-	4500,
-	4750,
-	5000,
-	5250,
-	5500,
-	5750,
-	6000,
-	6250,
-	6500,
-	6750,
-	7000,
-	7250,
-	7500,
-	7750,
-	8000,
-];
-const achievementTiers = [
-	AchievementTier.bronze,
-	AchievementTier.silver,
-	AchievementTier.gold,
-	AchievementTier.platinum,
-	AchievementTier.diamond,
-];
-const defaultAchievementRewards: Record<AchievementTier, number> = {
-	[AchievementTier.bronze]:   5,
-	[AchievementTier.silver]:   10,
-	[AchievementTier.gold]:     15,
-	[AchievementTier.platinum]: 20,
-	[AchievementTier.diamond]:  30,
-};
-const defaultAchievementCapIncreases: Record<AchievementTier, number> = {
-	[AchievementTier.bronze]:   1,
-	[AchievementTier.silver]:   1,
-	[AchievementTier.gold]:     1,
-	[AchievementTier.platinum]: 2,
-	[AchievementTier.diamond]:  2,
-};
-
-interface GameConstraintRuleDraft extends GameConstraintRule {
-	value: number | null;
-}
 
 @customElement('seasons-page')
 export class SeasonsPage extends LitElement {
@@ -176,9 +120,7 @@ export class SeasonsPage extends LitElement {
 			await this.loadConfiguration();
 		}
 		catch (error) {
-			this.loadError = error instanceof Error
-				? error.message
-				: 'Unable to load season configuration.';
+			this.loadError = getErrorMessage(error, 'Unable to load season configuration.');
 			this.loading = false;
 
 			return;
@@ -212,22 +154,15 @@ export class SeasonsPage extends LitElement {
 			this.ruleService.GetDefinitions(),
 		]);
 
-		this.seasons = this.sortSeasons(seasons);
+		this.seasons = sortSeasons(seasons);
 		this.definitions = definitions;
 
-		const current = this.seasons.find(season =>
-			season.startDate <= new Date() && season.endDate > new Date()) ?? this.seasons[0];
+		const current = findCurrentSeason(this.seasons);
 
 		if (current)
 			this.selectSeason(current);
 		else
 			this.createDraft();
-	}
-
-	private sortSeasons(seasons: Season[]): Season[] {
-		return [ ...seasons ].sort(
-			(left, right) => right.startDate.getTime() - left.startDate.getTime(),
-		);
 	}
 
 	private selectSeason(season: Season): void {
@@ -241,21 +176,7 @@ export class SeasonsPage extends LitElement {
 	}
 
 	private applySeason(season: Season): void {
-		const draft: SeasonDraft = {
-			id:                     season.id,
-			name:                   season.name,
-			startDate:              new Date(season.startDate),
-			endDate:                new Date(season.endDate),
-			goal:                   season.goal,
-			scoreModifierRules:     season.scoreModifierRules.map(rule => ({ ...rule })),
-			winConditionRules:      season.winConditionRules.map(rule => ({ ...rule })),
-			gameConstraintRules:    season.gameConstraintRules.map(rule => ({ ...rule })),
-			rankThresholds:         this.normalizeThresholds(season.rankThresholds),
-			achievementTierRewards: this.normalizeAchievementRewards(season.achievementTierRewards),
-			mmrConfiguration:       { ...season.mmrConfiguration },
-		};
-
-		this.setDraft(draft);
+		this.setDraft(createDraftFromSeason(season));
 	}
 
 	private createDraft(): void {
@@ -269,79 +190,17 @@ export class SeasonsPage extends LitElement {
 	}
 
 	private applyNewDraft(): void {
-		const latest = [ ...this.seasons ]
-			.sort((left, right) => right.endDate.getTime() - left.endDate.getTime())[0];
-		const startDate = latest ? new Date(latest.endDate) : new Date();
-		const endDate = new Date(startDate);
-		endDate.setUTCDate(endDate.getUTCDate() + 90);
-
-		this.setDraft({
-			name:                   '',
-			startDate,
-			endDate,
-			goal:                   latest?.goal ?? 180,
-			scoreModifierRules:     latest?.scoreModifierRules.map(rule => ({ ...rule })) ?? [],
-			winConditionRules:      latest?.winConditionRules.map(rule => ({ ...rule })) ?? [],
-			gameConstraintRules:    latest?.gameConstraintRules.map(rule => ({ ...rule })) ?? [],
-			rankThresholds:         this.normalizeThresholds(latest?.rankThresholds),
-			achievementTierRewards: this.normalizeAchievementRewards(latest?.achievementTierRewards),
-			mmrConfiguration:       {
-				...(latest?.mmrConfiguration ?? defaultMmrConfiguration),
-			},
-		});
+		this.setDraft(createNewSeasonDraft(this.seasons));
 	}
 
 	private setDraft(draft: SeasonDraft): void {
 		this.draft = draft;
-		this.originalDraft = this.serializeDraft(draft);
+		this.originalDraft = serializeDraft(draft);
 		this.validationErrors = [];
 	}
 
-	private normalizeThresholds(thresholds?: RankThreshold[]): RankThreshold[] {
-		const byRank = new Map((thresholds ?? []).map(threshold => [ threshold.rank, threshold ]));
-
-		return rankValues.map((rank, index) => ({
-			rank,
-			minimumMmr: byRank.get(rank)?.minimumMmr ?? defaultRankMinimums[index] ?? 0,
-		}));
-	}
-
-	private normalizeAchievementRewards(
-		rewards?: AchievementTierReward[],
-	): AchievementTierReward[] {
-		const byTier = new Map(
-			(rewards ?? []).map(reward => [ reward.achievementTier, reward ]),
-		);
-
-		return achievementTiers.map(achievementTier => ({
-			achievementTier,
-			mmrReward: byTier.get(achievementTier)?.mmrReward
-				?? defaultAchievementRewards[achievementTier],
-			mmrCapIncrease: byTier.get(achievementTier)?.mmrCapIncrease
-				?? defaultAchievementCapIncreases[achievementTier],
-		}));
-	}
-
-	private serializeDraft(draft: SeasonDraft): string {
-		return JSON.stringify({
-			...draft,
-			startDate:          draft.startDate.toISOString(),
-			endDate:            draft.endDate.toISOString(),
-			scoreModifierRules: [ ...draft.scoreModifierRules ]
-				.sort((left, right) => left.scoreModifier - right.scoreModifier),
-			winConditionRules: [ ...draft.winConditionRules ]
-				.sort((left, right) => left.winCondition - right.winCondition),
-			gameConstraintRules: [ ...draft.gameConstraintRules ]
-				.sort((left, right) => left.gameConstraint - right.gameConstraint),
-			rankThresholds: [ ...draft.rankThresholds ]
-				.sort((left, right) => left.rank - right.rank),
-			achievementTierRewards: [ ...draft.achievementTierRewards ]
-				.sort((left, right) => left.achievementTier - right.achievementTier),
-		});
-	}
-
 	private get isDirty(): boolean {
-		return !!this.draft && this.serializeDraft(this.draft) !== this.originalDraft;
+		return !!this.draft && serializeDraft(this.draft) !== this.originalDraft;
 	}
 
 	private handleBeforeUnload = (event: BeforeUnloadEvent): void => {
@@ -369,101 +228,8 @@ export class SeasonsPage extends LitElement {
 		select.value = this.draft?.id ?? 'new';
 	}
 
-	private getRuleNames(
-		values: number[],
-		definitions: RuleDefinitionsResponse['scoreModifiers'],
-	): string {
-		const names = values
-			.map(value => definitions.find(definition => definition.value === value)?.name)
-			.filter((name): name is string => !!name);
-
-		return names.length > 0 ? names.join(', ') : 'None selected';
-	}
-
-	private getGameConstraintDefinition(value: GameConstraint): RuleDefinitionsResponse['gameConstraints'][number] | undefined {
-		return this.definitions?.gameConstraints.find(definition => definition.value === value);
-	}
-
-	private formatGameConstraintValue(
-		definition: RuleDefinitionsResponse['gameConstraints'][number],
-		value: number | null,
-	): string {
-		if (value === null)
-			return 'No value';
-
-		const label = definition.label?.trim();
-		return label ? `${ label } ${ value }` : `${ value }`;
-	}
-
-	private getGameConstraintSummary(rules: GameConstraintRule[]): string {
-		if (!this.definitions)
-			return 'None selected';
-
-		const summaries = rules
-			.map(rule => {
-				const definition = this.getGameConstraintDefinition(rule.gameConstraint);
-				if (!definition)
-					return undefined;
-
-				return rule.value === null
-					? definition.name
-					: this.formatGameConstraintValue(definition, rule.value);
-			})
-			.filter((summary): summary is string => !!summary);
-
-		return summaries.length > 0 ? summaries.join(', ') : 'None selected';
-	}
-
-	private getScoreModifierErrors(rules: ScoreModifierRule[]): string[] {
-		const executionOrders = rules.map(rule => rule.executionOrder);
-		if (executionOrders.some(order => !Number.isInteger(order) || order < 0))
-			return [ 'Score-modifier execution orders must be non-negative whole numbers.' ];
-		if (new Set(executionOrders).size !== executionOrders.length)
-			return [ 'Score-modifier execution orders must be unique.' ];
-
-		return [];
-	}
-
-	private getGameConstraintErrors(rules: GameConstraintRule[]): string[] {
-		const errors: string[] = [];
-		const constraintValues = rules.map(rule => rule.gameConstraint);
-		if (new Set(constraintValues).size !== constraintValues.length)
-			errors.push('Each game constraint can only be configured once.');
-
-		for (const rule of rules) {
-			const definition = this.getGameConstraintDefinition(rule.gameConstraint);
-			if (!definition) {
-				errors.push('Unknown game constraint selected.');
-				continue;
-			}
-
-			const hasParameter = !!definition.label;
-			if (!hasParameter) {
-				if (rule.value !== null)
-					errors.push(`${ definition.name } does not take a numeric value.`);
-
-				continue;
-			}
-
-			if (rule.value === null) {
-				if (definition.required)
-					errors.push(`${ definition.name } requires a ${ definition.label }.`);
-				continue;
-			}
-
-			if (!Number.isInteger(rule.value))
-				errors.push(`${ definition.name } ${ definition.label } must be a whole number.`);
-			else if ((definition.min != null && rule.value < definition.min) || (definition.max != null && rule.value > definition.max))
-				errors.push(`${ definition.name } ${ definition.label } must be between ${ definition.min } and ${ definition.max }.`);
-		}
-
-		return errors;
-	}
-
 	private closeDialog(event: Event): void {
-		(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
-			new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
-		);
+		(event.currentTarget as HTMLElement).closest<AaDialog>('aa-dialog')?.close();
 	}
 
 	private async openScoreModifiers(): Promise<void> {
@@ -488,7 +254,7 @@ export class SeasonsPage extends LitElement {
 						type="button"
 						variant="primary"
 						@click=${ (event: Event) => {
-							const errors = this.getScoreModifierErrors(rules);
+							const errors = getScoreModifierErrors(rules);
 							if (errors.length > 0) {
 								this.notificationService.addNotification({
 									type:    'danger',
@@ -562,10 +328,10 @@ export class SeasonsPage extends LitElement {
 													item => item.scoreModifier === scoreModifier,
 												);
 												if (rule) {
-rule.executionOrder = Number(
+													rule.executionOrder = Number(
 														(event.currentTarget as HTMLInputElement).value,
 													);
-}
+												}
 											} }
 										/>
 									</label>
@@ -580,7 +346,7 @@ rule.executionOrder = Number(
 		catch (error) {
 			this.notificationService.addNotification({
 				type:    'danger',
-				message: error instanceof Error ? error.message : 'Unable to open score modifiers.',
+				message: getErrorMessage(error, 'Unable to open score modifiers.'),
 			});
 		}
 	}
@@ -658,7 +424,7 @@ rule.executionOrder = Number(
 		catch (error) {
 			this.notificationService.addNotification({
 				type:    'danger',
-				message: error instanceof Error ? error.message : 'Unable to open win conditions.',
+				message: getErrorMessage(error, 'Unable to open win conditions.'),
 			});
 		}
 	}
@@ -685,7 +451,10 @@ rule.executionOrder = Number(
 						type="button"
 						variant="primary"
 						@click=${ (event: Event) => {
-							const errors = this.getGameConstraintErrors(rules);
+							const errors = getGameConstraintErrors(
+								rules,
+								this.definitions?.gameConstraints ?? [],
+							);
 							if (errors.length > 0) {
 								this.notificationService.addNotification({
 									type:    'danger',
@@ -803,44 +572,9 @@ rule.executionOrder = Number(
 		catch (error) {
 			this.notificationService.addNotification({
 				type:    'danger',
-				message: error instanceof Error ? error.message : 'Unable to open game constraints.',
+				message: getErrorMessage(error, 'Unable to open game constraints.'),
 			});
 		}
-	}
-
-	private getThresholdErrors(thresholds: RankThreshold[]): string[] {
-		const errors: string[] = [];
-		const sortedThresholds = [ ...thresholds ]
-			.sort((left, right) => left.rank - right.rank);
-		if (sortedThresholds.some(
-			threshold =>
-				!Number.isFinite(threshold.minimumMmr)
-				|| !Number.isInteger(threshold.minimumMmr)
-				|| threshold.minimumMmr < 0,
-		))
-			errors.push('Rank thresholds must be non-negative whole numbers.');
-
-		if (sortedThresholds.length !== rankValues.length)
-			errors.push('Every rank must have exactly one threshold.');
-		if (sortedThresholds[0]?.rank !== Rank.Bronze || sortedThresholds[0].minimumMmr !== 0)
-			errors.push('Bronze must begin at 0 MMR.');
-
-		for (let index = 1; index < sortedThresholds.length; index++) {
-			const previous = sortedThresholds[index - 1];
-			const current = sortedThresholds[index];
-			if (!previous || !current || current.rank !== rankValues[index]) {
-				errors.push('Rank thresholds are incomplete or out of order.');
-				break;
-			}
-			if (current.minimumMmr <= previous.minimumMmr) {
-				errors.push(
-					`${ getRankDisplayValue(current.rank) } must start above ${ getRankDisplayValue(previous.rank) }.`,
-				);
-				break;
-			}
-		}
-
-		return errors;
 	}
 
 	private async openRankThresholds(): Promise<void> {
@@ -858,10 +592,7 @@ rule.executionOrder = Number(
 						slot="footer-secondary"
 						type="button"
 						variant="secondary"
-						@click=${ (event: Event) =>
-							(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
-								new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
-							) }
+						@click=${ this.closeDialog }
 					>
 						Cancel
 					</aa-button>
@@ -870,7 +601,7 @@ rule.executionOrder = Number(
 						type="button"
 						variant="primary"
 						@click=${ (event: Event) => {
-							const errors = this.getThresholdErrors(thresholds);
+							const errors = getThresholdErrors(thresholds);
 							if (errors.length > 0) {
 								this.notificationService.addNotification({
 									type:    'danger',
@@ -883,9 +614,7 @@ rule.executionOrder = Number(
 							this.updateDraft({
 								rankThresholds: thresholds.map(threshold => ({ ...threshold })),
 							});
-							(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
-								new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
-							);
+							this.closeDialog(event);
 						} }
 					>
 						Apply thresholds
@@ -927,30 +656,9 @@ rule.executionOrder = Number(
 		catch (error) {
 			this.notificationService.addNotification({
 				type:    'danger',
-				message: error instanceof Error ? error.message : 'Unable to open rank thresholds.',
+				message: getErrorMessage(error, 'Unable to open rank thresholds.'),
 			});
 		}
-	}
-
-	private getAchievementRewardErrors(rewards: AchievementTierReward[]): string[] {
-		const errors: string[] = [];
-		const tiers = rewards.map(reward => reward.achievementTier);
-		if (
-			rewards.length !== achievementTiers.length
-			|| new Set(tiers).size !== achievementTiers.length
-			|| achievementTiers.some(tier => !tiers.includes(tier))
-		)
-			errors.push('Every achievement tier must have exactly one MMR reward.');
-
-		if (rewards.some(reward => !Number.isInteger(reward.mmrReward) || reward.mmrReward < 0))
-			errors.push('Achievement MMR rewards must be non-negative whole numbers.');
-		if (rewards.some(reward =>
-			!Number.isInteger(reward.mmrCapIncrease)
-			|| reward.mmrCapIncrease < 0
-			|| reward.mmrCapIncrease > 100))
-			errors.push('Achievement MMR cap increases must be whole numbers from 0 to 100.');
-
-		return errors;
 	}
 
 	private async openAchievementRewards(): Promise<void> {
@@ -968,10 +676,7 @@ rule.executionOrder = Number(
 						slot="footer-secondary"
 						type="button"
 						variant="secondary"
-						@click=${ (event: Event) =>
-							(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
-								new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
-							) }
+						@click=${ this.closeDialog }
 					>
 						Cancel
 					</aa-button>
@@ -980,7 +685,7 @@ rule.executionOrder = Number(
 						type="button"
 						variant="primary"
 						@click=${ (event: Event) => {
-							const errors = this.getAchievementRewardErrors(rewards);
+							const errors = getAchievementRewardErrors(rewards);
 							if (errors.length > 0) {
 								this.notificationService.addNotification({
 									type:    'danger',
@@ -993,9 +698,7 @@ rule.executionOrder = Number(
 							this.updateDraft({
 								achievementTierRewards: rewards.map(reward => ({ ...reward })),
 							});
-							(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
-								new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
-							);
+							this.closeDialog(event);
 						} }
 					>
 						Apply settings
@@ -1051,7 +754,7 @@ rule.executionOrder = Number(
 		catch (error) {
 			this.notificationService.addNotification({
 				type:    'danger',
-				message: error instanceof Error ? error.message : 'Unable to open achievement rewards.',
+				message: getErrorMessage(error, 'Unable to open achievement rewards.'),
 			});
 		}
 	}
@@ -1067,10 +770,7 @@ rule.executionOrder = Number(
 						slot="footer-secondary"
 						type="button"
 						variant="secondary"
-						@click=${ (event: Event) =>
-							(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
-								new CustomEvent('dialog-closed', { bubbles: true, composed: true }),
-							) }
+						@click=${ this.closeDialog }
 					>
 						Cancel
 					</aa-button>
@@ -1079,7 +779,7 @@ rule.executionOrder = Number(
 						type="button"
 						variant="primary"
 						@click=${ (event: Event) => {
-							const dialog = (event.currentTarget as HTMLElement).closest('aa-dialog');
+							const dialog = (event.currentTarget as HTMLElement).closest<AaDialog>('aa-dialog');
 							const editor = dialog?.querySelector(
 								'aa-mmr-configuration-editor',
 							) as AaMmrConfigurationEditor | null;
@@ -1096,10 +796,7 @@ rule.executionOrder = Number(
 							this.updateDraft({
 								mmrConfiguration: editor!.getConfiguration(),
 							});
-							dialog?.dispatchEvent(new CustomEvent(
-								'dialog-closed',
-								{ bubbles: true, composed: true },
-							));
+							dialog?.close();
 						} }
 					>
 						Apply MMR settings
@@ -1122,7 +819,7 @@ rule.executionOrder = Number(
 		catch (error) {
 			this.notificationService.addNotification({
 				type:    'danger',
-				message: error instanceof Error ? error.message : 'Unable to open MMR settings.',
+				message: getErrorMessage(error, 'Unable to open MMR settings.'),
 			});
 		}
 	}
@@ -1169,7 +866,7 @@ rule.executionOrder = Number(
 			: await this.achievementBuilderService.createTemplate(request, this.adminKey);
 		builder.setTemplates(this.storeAchievementTemplate(seasonId, saved), saved.id);
 
-		const validation = await this.achievementBuilderService.validateTemplate(saved.id);
+		const validation = await this.achievementBuilderService.validateTemplate(saved.id, this.adminKey);
 		if (!validation.isValid) {
 			// The draft is already saved; the builder lists every reason it cannot be published.
 			builder.showServerValidationErrors(validation.errors.length > 0
@@ -1295,9 +992,7 @@ rule.executionOrder = Number(
 				catch (error) {
 					this.notificationService.addNotification({
 						type:    'danger',
-						message: error instanceof Error
-							? error.message
-							: 'Unable to save achievement template.',
+						message: getErrorMessage(error, 'Unable to save achievement template.'),
 					});
 				}
 				finally {
@@ -1361,7 +1056,7 @@ rule.executionOrder = Number(
 		catch (error) {
 			this.notificationService.addNotification({
 				type:    'danger',
-				message: error instanceof Error ? error.message : 'Unable to open achievement builder.',
+				message: getErrorMessage(error, 'Unable to open achievement builder.'),
 			});
 		}
 	}
@@ -1370,29 +1065,7 @@ rule.executionOrder = Number(
 		if (!this.draft)
 			return [ 'No season is selected.' ];
 
-		const errors: string[] = [];
-		if (!this.draft.name.trim())
-			errors.push('Season name is required.');
-		if (this.draft.startDate >= this.draft.endDate)
-			errors.push('End date must be after the start date.');
-		if (!Number.isInteger(this.draft.goal) || this.draft.goal <= 0)
-			errors.push('Goal must be a positive whole number.');
-
-		const overlappingSeason = this.seasons.find(season =>
-			season.id !== this.draft?.id &&
-			this.draft!.startDate < season.endDate &&
-			this.draft!.endDate > season.startDate);
-		if (overlappingSeason)
-			errors.push(`Dates overlap ${ overlappingSeason.name }.`);
-
-		errors.push(...this.getThresholdErrors(this.draft.rankThresholds));
-		errors.push(...this.getAchievementRewardErrors(this.draft.achievementTierRewards));
-		errors.push(...validateMmrConfiguration(this.draft.mmrConfiguration));
-
-		errors.push(...this.getScoreModifierErrors(this.draft.scoreModifierRules));
-		errors.push(...this.getGameConstraintErrors(this.draft.gameConstraintRules));
-
-		return errors;
+		return validateSeasonDraft(this.draft, this.seasons, this.definitions?.gameConstraints ?? []);
 	}
 
 	private discardChanges(): void {
@@ -1402,19 +1075,11 @@ rule.executionOrder = Number(
 		if (this.draft.id) {
 			const season = this.seasons.find(item => item.id === this.draft?.id);
 			if (season)
-				this.selectSeasonWithoutConfirmation(season);
+				this.applySeason(season);
 		}
 		else {
-			this.createDraftWithoutConfirmation();
+			this.applyNewDraft();
 		}
-	}
-
-	private selectSeasonWithoutConfirmation(season: Season): void {
-		this.applySeason(season);
-	}
-
-	private createDraftWithoutConfirmation(): void {
-		this.applyNewDraft();
 	}
 
 	private async attemptSave(): Promise<void> {
@@ -1454,21 +1119,18 @@ rule.executionOrder = Number(
 
 			const seasons = this.seasons.filter(season => season.id !== saved.id);
 			seasons.push(saved);
-			this.seasons = this.sortSeasons(seasons);
-			this.selectSeasonWithoutConfirmation(saved);
+			this.seasons = sortSeasons(seasons);
+			this.applySeason(saved);
 			this.notificationService.addNotification({
 				type:    'success',
 				message: `Season ${ saved.name } saved.`,
 			});
 		}
 		catch (error) {
-			const message = error instanceof Error ? error.message : 'Unable to save season.';
+			const message = getErrorMessage(error, 'Unable to save season.');
 			this.validationErrors = [ message ];
 			this.notificationService.addNotification({ type: 'danger', message });
-			if (
-				/admin key|access denied|X-Season-Admin-Key|SEASON_ADMIN_KEY|401|403|unauthorized|forbidden/i
-					.test(message)
-			)
+			if (isManagementAccessError(message))
 				this.lock();
 		}
 		finally {
@@ -1511,7 +1173,7 @@ rule.executionOrder = Number(
 					@submit=${ async (event: SubmitEvent) => {
 						event.preventDefault();
 						const form = event.currentTarget as HTMLFormElement;
-						const dialog = form.closest('aa-dialog');
+						const dialog = form.closest<AaDialog>('aa-dialog');
 						const input = form.elements.namedItem('management-key') as HTMLInputElement;
 						const errorElement = form.querySelector<HTMLElement>('.error');
 						const submitButton = dialog?.querySelector<AaButton>(
@@ -1535,20 +1197,13 @@ rule.executionOrder = Number(
 							this.adminKey = key;
 							this.accessGranted = true;
 							sessionStorage.setItem(managementKeyStorage, key);
-							dialog?.dispatchEvent(new CustomEvent('dialog-closed', {
-								bubbles:  true,
-								composed: true,
-								detail:   { result: true },
-							}));
+							dialog?.close(true);
 						}
 						catch (error) {
 							this.accessGranted = false;
 							sessionStorage.removeItem(managementKeyStorage);
-							if (errorElement) {
-								errorElement.textContent = error instanceof Error
-									? error.message
-									: 'Unable to unlock season saving.';
-							}
+							if (errorElement)
+								errorElement.textContent = getErrorMessage(error, 'Unable to unlock season saving.');
 
 							input.disabled = false;
 							input.select();
@@ -1576,7 +1231,15 @@ rule.executionOrder = Number(
 				</form>
 			`,
 			{ title: 'Unlock saving' },
-		);
+		).catch((error: unknown) => {
+			// Saving and the achievement builder stay locked; tell the user why nothing opened.
+			this.notificationService.addNotification({
+				type:    'danger',
+				message: getErrorMessage(error, 'Unable to open the unlock dialog.'),
+			});
+
+			return false;
+		});
 
 		return result === true;
 	}
@@ -1603,15 +1266,18 @@ rule.executionOrder = Number(
 		if (!this.draft || !this.definitions)
 			return [];
 
-		const scoreModifierNames = this.getRuleNames(
+		const scoreModifierNames = getRuleNames(
 			this.draft.scoreModifierRules.map(rule => rule.scoreModifier),
 			this.definitions.scoreModifiers,
 		);
-		const winConditionNames = this.getRuleNames(
+		const winConditionNames = getRuleNames(
 			this.draft.winConditionRules.map(rule => rule.winCondition),
 			this.definitions.winConditions,
 		);
-		const gameConstraintSummary = this.getGameConstraintSummary(this.draft.gameConstraintRules);
+		const gameConstraintSummary = getGameConstraintSummary(
+			this.draft.gameConstraintRules,
+			this.definitions.gameConstraints,
+		);
 
 		return [
 			{
@@ -1653,7 +1319,7 @@ rule.executionOrder = Number(
 				title:         'Achievement MMR settings',
 				summary:       `${ this.draft.achievementTierRewards.length } achievement tiers`,
 				activateLabel: 'Configure achievement MMR settings',
-				previewImages: achievementTiers.map(tier => ({
+				previewImages: achievementTiersAscending.map(tier => ({
 					src: getAchievementTierIcon(tier),
 				})),
 			},
@@ -1817,7 +1483,7 @@ rule.executionOrder = Number(
 				<div class="access-shell">
 					<aa-error-state
 						class="load-error"
-						title="Unable to load seasons"
+						heading="Unable to load seasons"
 						message=${ this.loadError }
 					>
 						<i slot="icon" class="fa-solid fa-triangle-exclamation"></i>

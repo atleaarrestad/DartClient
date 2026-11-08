@@ -4,6 +4,11 @@ import '../../ui/data-table/aa-data-table.js';
 import { html, LitElement, nothing, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
+import {
+	formatDecimal,
+	formatPercent,
+	formatWholeNumber,
+} from '../../helpers/seasonStatistics.js';
 import { Rank } from '../../models/rank.js';
 import type {
 	DataTableColumn,
@@ -18,10 +23,10 @@ export interface SeasonLeaderboardRow {
 	rank?:                  Rank;
 	rankLabel:              string;
 	mmr:                    number;
-	rimPercent:             string;
-	totalAchievements:      string;
-	averagePlayersPerMatch: string;
-	averageFinishRound:     string;
+	rimPercent?:            number;
+	totalAchievements:      number;
+	averagePlayersPerMatch: number;
+	averageFinishRound?:    number;
 }
 
 export type SeasonLeaderboardUserSelectedEvent = CustomEvent<string>;
@@ -86,28 +91,28 @@ export class SeasonLeaderboard extends LitElement {
 			label:  'Rim%',
 			width:  '90px',
 			sortable: true,
-			render: row => row.rimPercent,
+			render: row => formatPercent(row.rimPercent),
 		},
 		{
 			key:    'achievements',
 			label:  'Achievs',
 			width:  '100px',
 			sortable: true,
-			render: row => row.totalAchievements,
+			render: row => formatWholeNumber(row.totalAchievements),
 		},
 		{
 			key:    'average-players',
 			label:  'Avg players',
 			width:  '120px',
 			sortable: true,
-			render: row => row.averagePlayersPerMatch,
+			render: row => formatDecimal(row.averagePlayersPerMatch),
 		},
 		{
 			key:    'average-finish-round',
 			label:  'Avg finish rnd',
 			width:  '140px',
 			sortable: true,
-			render: row => row.averageFinishRound,
+			render: row => formatDecimal(row.averageFinishRound),
 		},
 	];
 
@@ -130,21 +135,16 @@ export class SeasonLeaderboard extends LitElement {
 		}));
 	}
 
-	private parseNumeric(value: string): number {
-		const parsed = Number.parseFloat(value.replace('%', ''));
-
-		return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
-	}
-
 	private getSortValue(row: SeasonLeaderboardRow): number | string {
 		switch (this.sortKey) {
 			case 'player': return row.alias;
 			case 'rank': return row.rank ?? Number.NEGATIVE_INFINITY;
 			case 'mmr': return row.mmr;
-			case 'rim': return this.parseNumeric(row.rimPercent);
-			case 'achievements': return this.parseNumeric(row.totalAchievements);
-			case 'average-players': return this.parseNumeric(row.averagePlayersPerMatch);
-			case 'average-finish-round': return this.parseNumeric(row.averageFinishRound);
+			// Missing values sort below every number.
+			case 'rim': return row.rimPercent ?? Number.NEGATIVE_INFINITY;
+			case 'achievements': return row.totalAchievements;
+			case 'average-players': return row.averagePlayersPerMatch;
+			case 'average-finish-round': return row.averageFinishRound ?? Number.NEGATIVE_INFINITY;
 		}
 	}
 
@@ -170,7 +170,7 @@ export class SeasonLeaderboard extends LitElement {
 		return html`
 			<aa-data-table
 				activatable
-				title="Leaderboard top 10"
+				heading="Leaderboard top 10"
 				label="Season leaderboard top 10"
 				.rows=${ this.getDisplayRows() }
 				.columns=${ this.columns }

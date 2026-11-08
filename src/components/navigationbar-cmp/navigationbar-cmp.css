@@ -45,12 +45,6 @@
 			outline: var(--focus-ring);
 			outline-offset: -3px;
 		}
-
-		&.disabled {
-			color: #999;
-			pointer-events: none;
-			cursor: default;
-		}
 	}
 
 	li + li {
@@ -98,7 +92,7 @@
 }
 
 @media (hover: hover) {
-	.nav-links a:not(.disabled):hover {
+	.nav-links a:hover {
 		background: var(--color-surface-info-subtle);
 	}
 

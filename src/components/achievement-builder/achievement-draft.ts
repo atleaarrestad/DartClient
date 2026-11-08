@@ -3,6 +3,10 @@ import {
 	measureAchievementAst,
 } from '../../helpers/compileAchievementTemplate.js';
 import {
+	achievementRoundStatusLabels,
+	achievementRulePlacements,
+	AchievementRuleScope,
+	achievementValueSourceLabels,
 	AchievementGroupRuleDraft,
 	AchievementParameterDraft,
 	AchievementRoundStatus,
@@ -13,23 +17,26 @@ import {
 	AchievementValueSource,
 	createAchievementBuilderId,
 	createDefaultAchievementRule,
+	EditableAchievementRuleType,
+	getRulePlacementError,
+	sequenceTargetCount,
+	throwTypeHasHitLocation,
 } from '../../models/achievementBuilder.js';
 import type {
+	AchievementBuilderCatalog,
 	AchievementCategoryResponse,
 	AchievementParameterDefinition,
 	AchievementTemplateResponse,
 	AchievementTemplateVersionResponse,
 } from '../../models/achievementBuilderApi.js';
-import { AchievementTier } from '../../models/enums.js';
+import { achievementTiersAscending } from '../../models/enums.js';
 
-export type BuilderScope = 'root' | 'round';
+export type BuilderScope = AchievementRuleScope;
 export type BuilderTab = 'details' | 'parameters' | 'logic';
 export type ValueEditorRole = 'comparison-left' | 'comparison-right' | 'hit-location';
-export type EditableAchievementRuleType = Exclude<AchievementRuleDraft['type'], 'raw'>;
 export type ParameterValue = string | number | boolean;
 export type ParameterBinding = Record<string, ParameterValue>;
 
-export const sequenceTargetCount = 3;
 export const parameterKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export const ruleTypes: { value: EditableAchievementRuleType; label: string; }[] = [
@@ -49,39 +56,14 @@ export const getRuleTypeLabel = (rule: AchievementRuleDraft): string =>
 		? 'Advanced condition'
 		: ruleTypes.find(item => item.value === rule.type)?.label ?? rule.type;
 
-export const valueSources: { value: AchievementValueSource; label: string; }[] = [
-	{ value: 'constant', label: 'Number' },
-	{ value: 'parameter', label: 'Parameter' },
-	{ value: 'parameter.offset', label: 'Parameter with numeric offset' },
-	{ value: 'board.leftNeighbor', label: 'Left dartboard neighbor of parameter' },
-	{ value: 'board.rightNeighbor', label: 'Right dartboard neighbor of parameter' },
-	{ value: 'round.throwCount', label: 'Round throw count' },
-	{ value: 'round.modifiedThrowCount', label: 'Throws using seasonal modifiers' },
-	{ value: 'round.number', label: 'Round number' },
-	{ value: 'round.finalPoints', label: 'Round final-points sum' },
-	{ value: 'round.rawPointsDistinctCount', label: 'Number of unique unmodified throw scores' },
-	{ value: 'round.minimumRawPoints', label: 'Lowest unmodified throw score' },
-	{ value: 'round.singleCount', label: 'Singles in round' },
-	{ value: 'round.doubleCount', label: 'Doubles in round' },
-	{ value: 'round.tripleCount', label: 'Triples in round' },
-	{ value: 'game.roundsPlayed', label: 'Rounds played' },
-	{ value: 'game.placement', label: 'Final placement' },
-	{ value: 'game.validRoundCount', label: 'Valid rounds' },
-	{ value: 'game.victoryCount', label: 'Victory rounds' },
-	{ value: 'game.overshootCount', label: 'Overshoot rounds' },
-	{ value: 'game.failedWinConditionCount', label: 'Failed-win rounds' },
-	{ value: 'game.doubleCount', label: 'Double hits' },
-	{ value: 'game.tripleCount', label: 'Triple hits' },
-	{ value: 'game.rimCount', label: 'Rim hits' },
-	{ value: 'game.missCount', label: 'Misses' },
-];
+const toOptions = <TValue extends string>(
+	labels: Record<TValue, string>,
+): { value: TValue; label: string; }[] =>
+	(Object.entries(labels) as [ TValue, string ][]).map(([ value, label ]) => ({ value, label }));
 
-export const roundStatusOptions: { value: AchievementRoundStatus; label: string; }[] = [
-	{ value: 'valid', label: 'Valid' },
-	{ value: 'victory', label: 'Victory' },
-	{ value: 'overshoot', label: 'Overshoot' },
-	{ value: 'failedWinCondition', label: 'Failed win' },
-];
+export const valueSources = toOptions<AchievementValueSource>(achievementValueSourceLabels);
+
+export const roundStatusOptions = toOptions<AchievementRoundStatus>(achievementRoundStatusLabels);
 
 const parameterValueSources: AchievementValueSource[] = [
 	'parameter',
@@ -93,16 +75,23 @@ const parameterValueSources: AchievementValueSource[] = [
 export const isParameterValueSource = (source: AchievementValueSource): boolean =>
 	parameterValueSources.includes(source);
 
+/**
+ * Whether a parameter can fill a value slot. Offsets and board neighbors need a number;
+ * a parameter used directly may be text or yes/no only where the slot isn't numeric.
+ */
+export const canUseParameterAs = (
+	parameter: AchievementParameterDraft,
+	source: AchievementValueSource,
+	numericOnly: boolean,
+): boolean => parameter.valueType === 'integer' || (source === 'parameter' && !numericOnly);
+
 export const isGroupRule = (rule: AchievementRuleDraft): rule is AchievementGroupRuleDraft =>
 	rule.type === 'all' || rule.type === 'any';
-
-export const throwTypeHasHitLocation = (throwType: string): boolean =>
-	throwType !== 'rim' && throwType !== 'miss';
 
 export const createDefaultHitLocation = (): AchievementValueDraft =>
 	({ source: 'constant', value: '20' });
 
-/** Rim and miss throws have no hit location; every other throw type needs one. */
+/** Drops or adds the hit location as the throw type needs (see throwTypeHasHitLocation). */
 export const getThrowTypePatch = <TThrowType extends string>(
 	throwType: TThrowType,
 	hitLocation: AchievementValueDraft | undefined,
@@ -295,7 +284,7 @@ export const getAvailableValueSources = (
 };
 
 /** Number of conditions a block visually connects to (structural groups are unwrapped). */
-export const getDirectChildCount = (rule: AchievementRuleDraft): number => {
+const getDirectChildCount = (rule: AchievementRuleDraft): number => {
 	switch (rule.type) {
 	case 'all':
 	case 'any':
@@ -313,8 +302,6 @@ export const getAddableRuleTypes = (
 	scope: BuilderScope,
 	parent: AchievementRuleDraft,
 ): typeof ruleTypes => {
-	const roundOnly: EditableAchievementRuleType[] = [ 'throw', 'throwCount', 'sequence' ];
-	const rootOnly: EditableAchievementRuleType[] = [ 'round', 'winningThrow' ];
 	const directChildCount = getDirectChildCount(parent);
 
 	return ruleTypes.filter(({ value }) => {
@@ -323,9 +310,7 @@ export const getAddableRuleTypes = (
 		if (parent.type === 'not' && value === 'not')
 			return false;
 
-		return scope === 'round'
-			? !rootOnly.includes(value)
-			: !roundOnly.includes(value);
+		return achievementRulePlacements[value].scopes.includes(scope);
 	});
 };
 
@@ -397,7 +382,7 @@ export const countDefinitionInstances = (
 	}
 }, 1);
 
-export const renderTemplateText = (template: string, binding: ParameterBinding): string =>
+const renderTemplateText = (template: string, binding: ParameterBinding): string =>
 	Object.entries(binding).reduce(
 		(result, [ key, value ]) => result.replaceAll(`{${ key }}`, String(value)),
 		template,
@@ -472,27 +457,122 @@ export const getConflictingDraftVersion = (
 ): AchievementTemplateVersionResponse | undefined =>
 	template.versions.find(version => version.status === 'Draft' && version.id !== versionId);
 
+const mapRuleValues = (
+	rule: AchievementRuleDraft,
+	mapValue: (value: AchievementValueDraft) => AchievementValueDraft,
+	mapAst: (ast: unknown) => unknown,
+): AchievementRuleDraft => {
+	const mapOptional = (value: AchievementValueDraft | undefined) => value && mapValue(value);
+	switch (rule.type) {
+	case 'all':
+	case 'any':
+		return { ...rule, children: rule.children.map(child => mapRuleValues(child, mapValue, mapAst)) };
+	case 'not':
+		return { ...rule, child: mapRuleValues(rule.child, mapValue, mapAst) };
+	case 'round':
+		return { ...rule, condition: mapRuleValues(rule.condition, mapValue, mapAst) };
+	case 'throw':
+	case 'winningThrow':
+		return { ...rule, hitLocation: mapOptional(rule.hitLocation) };
+	case 'throwCount':
+		return { ...rule, hitLocation: mapOptional(rule.hitLocation), count: mapValue(rule.count) };
+	case 'compare':
+		return { ...rule, left: mapValue(rule.left), right: mapValue(rule.right) };
+	case 'sequence':
+		return {
+			...rule,
+			targets: rule.targets.map(target => ({ ...target, hitLocation: mapValue(target.hitLocation) })),
+		};
+	case 'raw':
+		return { ...rule, ast: mapAst(rule.ast) as Record<string, unknown> };
+	}
+};
+
+/** Renames `{ kind: 'parameter' }` references anywhere in stored logic. */
+const renameAstParameters = (ast: unknown, oldKey: string, newKey: string): unknown => {
+	if (Array.isArray(ast))
+		return ast.map(item => renameAstParameters(item, oldKey, newKey));
+	if (!ast || typeof ast !== 'object')
+		return ast;
+
+	const node = Object.fromEntries(Object.entries(ast)
+		.map(([ key, value ]) => [ key, renameAstParameters(value, oldKey, newKey) ]));
+
+	return node['kind'] === 'parameter' && node['name'] === oldKey
+		? { ...node, name: newKey }
+		: node;
+};
+
+/**
+ * Points every reference to parameter `oldKey` at `newKey`: the logic blocks, progression
+ * targets, raw logic and the {tokens} in the name and description. The draft is returned
+ * unchanged when the rename would be ambiguous: either key is not a valid parameter key,
+ * another parameter still uses the old key, or several parameters now use the new key.
+ */
+export const renameParameterReferences = (
+	draft: AchievementTemplateDraft,
+	oldKey: string,
+	newKey: string,
+): AchievementTemplateDraft => {
+	const keyCount = (key: string): number =>
+		draft.parameters.filter(parameter => parameter.key === key).length;
+	if (
+		oldKey === newKey
+		|| !parameterKeyPattern.test(oldKey)
+		|| !parameterKeyPattern.test(newKey)
+		|| keyCount(oldKey) > 0
+		|| keyCount(newKey) !== 1
+	)
+		return draft;
+
+	const mapValue = (value: AchievementValueDraft): AchievementValueDraft =>
+		isParameterValueSource(value.source) && value.value === oldKey
+			? { ...value, value: newKey }
+			: value;
+	const mapAst = (ast: unknown): unknown => renameAstParameters(ast, oldKey, newKey);
+	const renameToken = (text: string): string => text.replaceAll(`{${ oldKey }}`, `{${ newKey }}`);
+	const { progression } = draft;
+
+	return {
+		...draft,
+		nameTemplate:        renameToken(draft.nameTemplate),
+		descriptionTemplate: renameToken(draft.descriptionTemplate),
+		rule:                mapRuleValues(draft.rule, mapValue, mapAst),
+		progression:         progression && {
+			...progression,
+			targets: progression.targets.map(target => ({ ...target, hitLocation: mapValue(target.hitLocation) })),
+			raw:     progression.raw && {
+				root:     mapAst(progression.raw.root),
+				reducers: mapAst(progression.raw.reducers),
+			},
+		},
+	};
+};
+
 export interface DraftValidationError {
 	tab:     BuilderTab;
 	message: string;
 }
 
-/** The server's builder limits (see the catalog endpoint). */
-export interface AchievementDraftLimits {
-	maximumGeneratedInstances: number;
-	maximumRenderedTextLength: number;
-	maximumAstDepth:           number;
-	maximumAstNodes:           number;
-	maximumQuantifierDepth:    number;
-}
+/** The server's builder limits that draft validation checks (see the catalog endpoint). */
+export type AchievementDraftLimits = Pick<
+	AchievementBuilderCatalog['limits'],
+	| 'maximumGeneratedInstances'
+	| 'maximumRenderedTextLength'
+	| 'maximumDefinitionTextLength'
+	| 'maximumAstDepth'
+	| 'maximumAstNodes'
+	| 'maximumQuantifierDepth'
+>;
 
 /** Mirrors the backend defaults in AchievementBuilderLimits. */
 export const defaultAchievementDraftLimits: AchievementDraftLimits = {
-	maximumGeneratedInstances: 1000,
-	maximumRenderedTextLength: 500,
-	maximumAstDepth:           32,
-	maximumAstNodes:           2000,
-	maximumQuantifierDepth:    8,
+	maximumGeneratedInstances:   1000,
+	maximumRenderedTextLength:   500,
+	maximumDefinitionTextLength: 64 * 1024,
+	maximumAstDepth:             32,
+	maximumAstNodes:             2000,
+	maximumQuantifierDepth:      8,
 };
 
 export interface DraftValidationContext {
@@ -542,7 +622,7 @@ const getValueErrors = (
 		const parameter = parameters.find(item => item.key === value.value);
 		if (!parameter)
 			errors.push(`${ path } references a missing parameter.`);
-		else if ((value.source !== 'parameter' || requiresInteger) && parameter.valueType !== 'integer')
+		else if (!canUseParameterAs(parameter, value.source, requiresInteger))
 			errors.push(`${ path } needs a number, but {${ parameter.key }} is ${ valueTypeLabels[parameter.valueType] }.`);
 		else if (value.source === 'parameter.offset' && !isInt32(value.offset ?? Number.NaN))
 			errors.push(`${ path } needs a whole-number offset ${ int32RangeText }.`);
@@ -589,6 +669,10 @@ const getRuleErrors = (
 	): string[] => value
 		? getValueErrors(value, `${ path } ${ valuePath }`, scope, role, parameters, requiresInteger)
 		: [];
+
+	const placementError = getRulePlacementError(rule.type, scope);
+	if (placementError)
+		return [ `${ path }: ${ placementError }` ];
 
 	switch (rule.type) {
 	case 'all':
@@ -710,16 +794,23 @@ const getAstLimitErrors = (
 	draft: AchievementTemplateDraft,
 	limits: AchievementDraftLimits,
 ): string[] => {
-	let root: unknown;
+	let definition: Record<string, unknown>;
 	try {
-		root = compileAchievementTemplate(draft).definition['root'];
+		definition = compileAchievementTemplate(draft).definition;
 	}
 	catch (error) {
 		return [ error instanceof Error ? error.message : 'The logic cannot be compiled.' ];
 	}
 
-	const measure = measureAchievementAst(root);
 	const errors: string[] = [];
+	// The backend measures the definition's JSON text as sent, editor tree included.
+	const definitionLength = JSON.stringify(definition).length;
+	if (definitionLength > limits.maximumDefinitionTextLength) {
+		errors.push(`The logic is ${ definitionLength } characters long when saved; `
+			+ `the limit is ${ limits.maximumDefinitionTextLength }.`);
+	}
+
+	const measure = measureAchievementAst(definition['root'], definition['reducers']);
 	if (measure.nodeCount > limits.maximumAstNodes)
 		errors.push(`The logic has ${ measure.nodeCount } nodes; the limit is ${ limits.maximumAstNodes }.`);
 	if (measure.maximumDepth > limits.maximumAstDepth)
@@ -751,7 +842,7 @@ export const validateDraft = (
 		add('details', [ 'Choose a valid category.' ]);
 	else if (category.isArchived && !draft.id)
 		add('details', [ 'Choose an active category for a new achievement.' ]);
-	if (!Object.values(AchievementTier).includes(draft.tier))
+	if (!achievementTiersAscending.includes(draft.tier))
 		add('details', [ 'Choose a valid achievement tier.' ]);
 
 	const keys = draft.parameters.map(parameter => parameter.key);

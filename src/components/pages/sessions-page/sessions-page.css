@@ -22,18 +22,6 @@ aa-loading-state {
 	margin: 0 auto;
 }
 
-.page-head {
-	display: grid;
-	justify-items: center;
-	padding: 0.9rem 0 0.45rem;
-}
-
-.page-head h2 {
-	margin: 0;
-	font-size: clamp(1.55rem, 3vw, 2.1rem);
-	line-height: 1;
-}
-
 .listening-status {
 	display: grid;
 	grid-row: 3;

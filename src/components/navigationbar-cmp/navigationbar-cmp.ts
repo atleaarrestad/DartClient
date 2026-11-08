@@ -1,6 +1,6 @@
 import { html, TemplateResult, unsafeCSS } from 'lit';
 import { LitElement } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
 import { faIcons } from '../../faIcons.js';
@@ -24,7 +24,6 @@ export class AaNavigationbar extends LitElement {
 	private shortcutResetTimer?:       number;
 	private shortcutPrefixActive = false;
 	@state() private season?:          Season;
-	@property({ type: Boolean }) test: boolean;
 
 	override connectedCallback(): void {
 		super.connectedCallback();
@@ -33,7 +32,7 @@ export class AaNavigationbar extends LitElement {
 		window.addEventListener(seasonUpdatedEventName, this.handleSeasonUpdated);
 		window.addEventListener('keydown', this.handleShortcutKeyDown);
 
-		this.initialize();
+		void this.initialize();
 	}
 
 	override disconnectedCallback(): void {
@@ -44,8 +43,14 @@ export class AaNavigationbar extends LitElement {
 	}
 
 	protected async initialize(): Promise<void> {
-		const season = await this.seasonService.getCurrentSeason();
-		this.season = season;
+		try {
+			this.season = await this.seasonService.getCurrentSeason();
+		}
+		catch (error) {
+			// Without a current season the link falls back to the season list.
+			console.error('Failed to load the current season', error);
+			this.season = undefined;
+		}
 	}
 
 	private handleSeasonUpdated = (event: Event): void => {
@@ -128,7 +133,7 @@ export class AaNavigationbar extends LitElement {
 				</li>
 				<li class="nav-item--season">
 					<a
-						href=${ `${ base }season/${ this.season?.id }` }
+						href=${ this.season ? `${ base }season/${ this.season.id }` : `${ base }seasons` }
 						data-shortcut="c"
 						title="Current season (G then C)"
 					>
@@ -166,7 +171,6 @@ export class AaNavigationbar extends LitElement {
 						${ this.renderShortcut('L') }
 					</a>
 				</li>
-				<li><a href="#" class="disabled">Game-log</a></li>
 				<li>
 					<a href=${ `${ base }seasons` } data-shortcut="s" title="Seasons (G then S)">
 						Seasons

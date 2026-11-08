@@ -38,9 +38,17 @@ export class AaAchievementCategoryManager extends LitElement {
 		if (!changed.has('categories'))
 			return;
 
-		this.names = Object.fromEntries(
-			this.categories.map(category => [ category.id, category.name ]),
-		);
+		// A rename still being typed in one row survives saving another row.
+		const previousNames = new Map((changed.get('categories') ?? [])
+			.map(category => [ category.id, category.name ]));
+		this.names = Object.fromEntries(this.categories.map(category => {
+			const typed = this.names[category.id];
+			const isUnsaved = typed !== undefined
+				&& typed !== previousNames.get(category.id)
+				&& typed.trim() !== category.name;
+
+			return [ category.id, isUnsaved ? typed : category.name ];
+		}));
 	}
 
 	private get activeCategories(): AchievementCategoryResponse[] {

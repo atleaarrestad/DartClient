@@ -41,14 +41,6 @@ input:focus-visible {
 	width: min(430px, 100%);
 }
 
-.order-field input {
-	min-width: 0;
-	padding: 0.55rem 0.65rem;
-	background: var(--color-surface-plain);
-	border: 2px solid var(--color-border-strong);
-	border-radius: 9px;
-}
-
 .management-shell {
 	width: min(1400px, 100%);
 	margin: 0 auto;

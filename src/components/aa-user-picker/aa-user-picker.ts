@@ -1,6 +1,6 @@
 import '../../ui/empty-state/aa-empty-state.js';
 
-import { html, LitElement, type PropertyValues, unsafeCSS } from 'lit';
+import { html, LitElement, nothing, type PropertyValues, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
 
@@ -93,6 +93,11 @@ export class AaUserPicker extends LitElement {
           type="search"
           placeholder="Search users…"
           aria-label="Search users"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-controls="user-picker-options"
+          aria-expanded=${ items.length > 0 ? 'true' : 'false' }
+          aria-activedescendant=${ items.length > 0 ? `opt-${ this.activeIndex }` : nothing }
           @input=${ this.onInput }
           @keydown=${ this.onKeyDown }
         />
@@ -101,15 +106,16 @@ export class AaUserPicker extends LitElement {
       ${ when(items.length === 0, () => html`
 		<aa-empty-state compact>No users match “${ this.query }”.</aa-empty-state>
 		`, () => html`
-		<ul role="listbox" aria-activedescendant="opt-${ this.activeIndex }">
+		<ul id="user-picker-options" role="listbox" aria-label="Users">
 			${ items.map(
 				(u, i) => html`
 				<li
 					id="opt-${ i }"
-					aria-selected=${ i === this.activeIndex }
+					role="option"
+					aria-selected=${ i === this.activeIndex ? 'true' : 'false' }
 					@mousemove=${ () => this.onMouseMove(i) }
 				>
-					<button class="row" @click=${ () => this.select(u) }>
+					<button class="row" type="button" tabindex="-1" @click=${ () => this.select(u) }>
 						<span class="name">${ u.name }</span>
 						${ u.alias ? html`<span class="alias">@${ u.alias }</span>` : null }
 					</button>

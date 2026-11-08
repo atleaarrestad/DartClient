@@ -2,7 +2,6 @@ import '../../ui/button/aa-button.js';
 import '../aa-info-tooltip/aa-info-tooltip.js';
 import '../mmr-rank-guide/aa-mmr-rank-guide.js';
 
-import Chart from 'chart.js/auto';
 import { html, LitElement, type PropertyValues, unsafeCSS } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 
@@ -13,11 +12,17 @@ import {
 } from '../../models/mmr.js';
 import { Rank } from '../../models/rank.js';
 import type { MmrConfiguration, RankThreshold } from '../../models/schemas.js';
+import { ChartController } from '../../ui/chart/chart-controller.js';
 import type {
 	MmrRankGuideAxis,
 	MmrRankGuideRow,
 } from '../mmr-rank-guide/aa-mmr-rank-guide.js';
 import mmrConfigurationEditorStyles from './aa-mmr-configuration-editor.css?inline';
+import {
+	createOutcomeChartConfig,
+	createPressureChartConfig,
+	getEstimatedRounds,
+} from './mmr-chart-config.js';
 
 interface MmrField {
 	key: keyof MmrConfiguration;
@@ -134,36 +139,31 @@ export class AaMmrConfigurationEditor extends LitElement {
 	@query('#outcome-chart') private outcomeCanvas?: HTMLCanvasElement;
 	@query('#pressure-chart') private pressureCanvas?: HTMLCanvasElement;
 
-	private outcomeChart?: Chart;
-	private pressureChart?: Chart;
+	// Charts are updated in place; they are rebuilt only when the canvas is
+	// re-rendered (switching back from the rank guide) or the editor reconnects.
+	private readonly outcomeChart = new ChartController(this, {
+		canvas:       () => this.outcomeCanvas,
+		config:       chart => createOutcomeChartConfig({
+			configuration: this.working,
+			goal:          this.goal,
+			playerMmr:     this.playerMmr,
+			placement:     this.placement,
+			overshoots:    this.overshoots,
+		}, chart),
+		dependencies: () => [ this.working, this.goal, this.playerMmr, this.placement, this.overshoots ],
+	});
+
+	private readonly pressureChart = new ChartController(this, {
+		canvas:       () => this.pressureCanvas,
+		config:       () => createPressureChartConfig(this.working),
+		dependencies: () => [ this.working ],
+	});
 
 	override willUpdate(changed: PropertyValues): void {
 		if (changed.has('configuration')) {
 			this.working = { ...this.configuration };
 			this.playerMmr = this.configuration.startingMmr;
 		}
-	}
-
-	override firstUpdated(): void {
-		this.renderCharts();
-	}
-
-	override updated(changed: PropertyValues): void {
-		if (
-			changed.has('working')
-			|| changed.has('playerMmr')
-			|| changed.has('placement')
-			|| changed.has('overshoots')
-			|| changed.has('goal')
-			|| changed.has('activePreview')
-		)
-			this.renderCharts();
-	}
-
-	override disconnectedCallback(): void {
-		this.outcomeChart?.destroy();
-		this.pressureChart?.destroy();
-		super.disconnectedCallback();
 	}
 
 	getConfiguration(): MmrConfiguration {
@@ -183,18 +183,6 @@ export class AaMmrConfigurationEditor extends LitElement {
 		this.playerMmr = defaultMmrConfiguration.startingMmr;
 	}
 
-	private renderCharts(): void {
-		this.renderOutcomeChart();
-		this.renderPressureChart();
-	}
-
-	private getEstimatedRounds(averageScore: number): number {
-		if (averageScore <= 0)
-			return Number.MAX_SAFE_INTEGER;
-
-		return Math.max(1, Math.round(this.goal / averageScore));
-	}
-
 	private getRequiredAverageScore(
 		playerMmr: number,
 		placement: number,
@@ -208,7 +196,7 @@ export class AaMmrConfigurationEditor extends LitElement {
 				averageScore: score,
 				overshoots: 0,
 				placement,
-				roundsPlayed: this.getEstimatedRounds(score),
+				roundsPlayed: getEstimatedRounds(this.goal, score),
 			});
 			if (change >= 1)
 				return score;
@@ -289,230 +277,6 @@ export class AaMmrConfigurationEditor extends LitElement {
 				(_, index) => index * tickStep,
 			),
 		};
-	}
-
-	private getPaddedAxisBounds(values: number[]): {
-		min: number;
-		max: number;
-		stepSize: number;
-	} {
-		const minimum = Math.min(...values);
-		const maximum = Math.max(...values);
-		const range = maximum - minimum;
-		const stepSize = range <= 500 ? 50 : range <= 1000 ? 100 : 250;
-
-		return {
-			min: Math.floor(minimum / stepSize) * stepSize - stepSize,
-			max: Math.ceil(maximum / stepSize) * stepSize + stepSize,
-			stepSize,
-		};
-	}
-
-	private renderOutcomeChart(): void {
-		const context = this.outcomeCanvas?.getContext('2d');
-		if (!context)
-			return;
-
-		const allScores = Array.from({ length: 37 }, (_, index) => index * 5);
-		const lobbyOffsets = [
-			{ value: -2000, color: '#7f1d1d' },
-			{ value: -1000, color: '#b91c1c' },
-			{ value: -500, color: '#ef6c63' },
-			{ value: 0, color: '#2563eb' },
-			{ value: 500, color: '#4caf70' },
-			{ value: 1000, color: '#218739' },
-			{ value: 2000, color: '#14532d' },
-		];
-		const candidateDatasets = lobbyOffsets.map(lobby => ({
-			offsets: [ lobby.value ],
-			data: allScores.map(averageScore => calculateMmrChange(this.working, {
-				playerMmr:       this.playerMmr,
-				averageLobbyMmr: Math.max(0, this.playerMmr + lobby.value),
-				averageScore,
-				overshoots:      this.overshoots,
-				placement:       this.placement,
-				roundsPlayed:    this.getEstimatedRounds(averageScore),
-			})),
-			borderColor: lobby.color,
-			backgroundColor: lobby.color,
-			borderWidth: lobby.value === 0 ? 4 : 2.5,
-			borderDash: lobby.value < 0 ? [ 7, 4 ] : [],
-			pointRadius: 0,
-			tension: 0.18,
-		}));
-		const allDatasets = candidateDatasets.reduce<typeof candidateDatasets>(
-			(datasets, candidate) => {
-				const duplicate = datasets.find(dataset =>
-					dataset.data.every((value, index) => value === candidate.data[index]));
-				if (duplicate) {
-					duplicate.offsets.push(...candidate.offsets);
-
-					return datasets;
-				}
-
-				datasets.push(candidate);
-
-				return datasets;
-			},
-			[],
-		).map(dataset => ({
-			...dataset,
-			label: dataset.offsets
-				.map(offset => offset > 0 ? `+${ offset }` : String(offset))
-				.join(' / '),
-		}));
-		let lastChangingIndex = -1;
-		for (const dataset of allDatasets) {
-			const finalValue = dataset.data.at(-1);
-			for (let index = dataset.data.length - 2; index >= 0; index--) {
-				if (dataset.data[index] !== finalValue) {
-					lastChangingIndex = Math.max(lastChangingIndex, index);
-					break;
-				}
-			}
-		}
-		const finalScoreIndex = Math.min(
-			allScores.length - 1,
-			Math.max(12, lastChangingIndex + 3),
-		);
-		const scores = allScores.slice(0, finalScoreIndex + 1);
-		const datasets = allDatasets.map(dataset => ({
-			...dataset,
-			data: dataset.data.slice(0, finalScoreIndex + 1),
-		}));
-		const yBounds = this.getPaddedAxisBounds(
-			datasets.flatMap(dataset => dataset.data),
-		);
-
-		this.outcomeChart?.destroy();
-		this.outcomeChart = new Chart(context, {
-			type: 'line',
-			data: { labels: scores, datasets },
-			options: {
-				responsive: true,
-				maintainAspectRatio: false,
-				animation: false,
-				interaction: { mode: 'index', intersect: false },
-				plugins: {
-					subtitle: {
-						display: this.placement > 0,
-						text: `Finish rounds are estimated from the ${ this.goal }-point goal`,
-						font: { weight: 'bold' },
-					},
-					tooltip: {
-						callbacks: {
-							footer: items => {
-								if (this.placement <= 0)
-									return '';
-
-								const averageScore = Number(items[0]?.label);
-								if (averageScore <= 0)
-									return 'Estimated finish: not possible at this score';
-
-								return `Estimated finish: ${ this.getEstimatedRounds(averageScore) } rounds`;
-							},
-						},
-					},
-					legend: {
-						labels: {
-							boxWidth: 10,
-							boxHeight: 10,
-							padding: 12,
-							usePointStyle: true,
-							font: { size: 11, weight: 'bold' },
-							generateLabels: chart => Chart.defaults.plugins.legend.labels
-								.generateLabels(chart)
-								.map(label => ({
-									...label,
-									text: `Lobby ${ label.text }`,
-								})),
-						},
-					},
-				},
-				scales: {
-					x: {
-						title: {
-							display: true,
-							text: this.placement > 0
-								? 'Average round score (higher score means fewer rounds)'
-								: 'Average round score',
-						},
-					},
-					y: {
-						min: yBounds.min,
-						max: yBounds.max,
-						title: { display: true, text: 'MMR change' },
-						ticks: { stepSize: yBounds.stepSize },
-					},
-				},
-			},
-		});
-	}
-
-	private renderPressureChart(): void {
-		const context = this.pressureCanvas?.getContext('2d');
-		if (!context)
-			return;
-
-		const allRatings = Array.from({ length: 41 }, (_, index) => index * 250);
-		const allValues = allRatings.map(rating => Math.min(
-			this.working.maximumGain,
-			Math.max(
-				-this.working.maximumLoss,
-				Math.trunc(
-					(this.working.ratingPivot - rating)
-					/ this.working.ratingPullDivisor,
-				),
-			),
-		));
-		const finalValue = allValues.at(-1);
-		let lastChangingIndex = -1;
-		for (let index = allValues.length - 2; index >= 0; index--) {
-			if (allValues[index] !== finalValue) {
-				lastChangingIndex = index;
-				break;
-			}
-		}
-		const finalRatingIndex = Math.min(
-			allRatings.length - 1,
-			Math.max(12, lastChangingIndex + 3),
-		);
-		const ratings = allRatings.slice(0, finalRatingIndex + 1);
-		const values = allValues.slice(0, finalRatingIndex + 1);
-		const yBounds = this.getPaddedAxisBounds(values);
-
-		this.pressureChart?.destroy();
-		this.pressureChart = new Chart(context, {
-			type: 'line',
-			data: {
-				labels: ratings,
-				datasets: [
-					{
-						label: 'Baseline MMR pressure',
-						data: values,
-						borderColor: '#7a4bc2',
-						backgroundColor: '#7a4bc2',
-						borderWidth: 3,
-						pointRadius: 0,
-						tension: 0.12,
-					},
-				],
-			},
-			options: {
-				responsive: true,
-				maintainAspectRatio: false,
-				animation: false,
-				scales: {
-					x: { title: { display: true, text: 'Player MMR' } },
-					y: {
-						min: yBounds.min,
-						max: yBounds.max,
-						title: { display: true, text: 'MMR added by rating pivot' },
-						ticks: { stepSize: yBounds.stepSize },
-					},
-				},
-			},
-		});
 	}
 
 	private renderScenarioSlider(

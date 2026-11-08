@@ -19,10 +19,6 @@ export const PlayerRoundsSchema = z.object({
 	rounds:   z.array(RoundSchema),
 });
 
-export const GameSubmissionSchema = z.object({
-	playerRoundsList: z.array(PlayerRoundsSchema),
-});
-
 export const PlayerResultSchema = z.object({
 	id:                           z.number().int(),
 	userId:                       z.string().uuid(),
@@ -271,7 +267,6 @@ export const RuleDefinitionsResponseSchema = z.object({
 export type Round = z.infer<typeof RoundSchema>;
 export type PlayerRounds = z.infer<typeof PlayerRoundsSchema>;
 
-export type GameSubmission = z.infer<typeof GameSubmissionSchema>;
 export type PlayerResult = z.infer<typeof PlayerResultSchema>;
 export type SeasonStatistics = z.infer<typeof SeasonStatisticsSchema>;
 export type MatchSnapshot = z.infer<typeof MatchSnapshotSchema>;
@@ -280,7 +275,6 @@ export type FinishCount = z.infer<typeof FinishCountSchema>;
 export type AchievementProgressionTarget = z.infer<typeof AchievementProgressionTargetSchema>;
 export type AchievementProgressionProgress = z.infer<typeof AchievementProgressionProgressSchema>;
 export type GameTracker = z.infer<typeof GameTrackerSchema>;
-export type PlayerRoundDelta = z.infer<typeof PlayerRoundDeltaSchema>;
 export type GameTrackerDelta = z.infer<typeof GameTrackerDeltaSchema>;
 
 export type User = z.infer<typeof UserSchema>;

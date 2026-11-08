@@ -394,4 +394,84 @@ describe('SignalRService', () => {
 
 		expect(countInvocations(connection, 'SubscribeActiveGames')).toBe(1);
 	});
+
+	it('reports status changes to listeners, starting with the current status', async () => {
+		const connection = new FakeHubConnection();
+		const service = new TestSignalRService(connection);
+		const statuses: string[] = [];
+		const removeListener = service.addStatusListener(status => statuses.push(status));
+
+		await service.ensureConnected();
+		connection.triggerReconnecting();
+		await connection.triggerReconnected();
+		removeListener();
+		connection.triggerReconnecting();
+
+		expect(statuses).toEqual([ 'disconnected', 'connecting', 'connected', 'reconnecting', 'connected' ]);
+	});
+
+	it('reconnects automatically after the connection closes', async () => {
+		vi.useFakeTimers();
+
+		try {
+			const connection = new FakeHubConnection();
+			const service = new TestSignalRService(connection);
+			const start = vi.spyOn(connection, 'start');
+			await service.ensureConnected();
+
+			connection.triggerClosed();
+			expect(service.isConnected()).toBe(false);
+			await vi.advanceTimersByTimeAsync(5000);
+
+			expect(start).toHaveBeenCalledTimes(2);
+			expect(service.isConnected()).toBe(true);
+		}
+		finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('stops without reconnecting and rejoins groups on the next connect', async () => {
+		vi.useFakeTimers();
+
+		try {
+			const connection = new FakeHubConnection();
+			const service = new TestSignalRService(connection);
+			const statuses: string[] = [];
+			service.addStatusListener(status => statuses.push(status));
+			const start = vi.spyOn(connection, 'start');
+			const subscription = service.registerSubscription({
+				event:   'OnActiveGamesChanged',
+				handler: vi.fn(),
+				group:   {
+					join:  'SubscribeActiveGames',
+					leave: 'UnsubscribeActiveGames',
+					args:  [],
+				},
+			});
+			await subscription.ready;
+
+			await service.stop();
+			connection.triggerClosed();
+			await vi.advanceTimersByTimeAsync(10_000);
+
+			expect(service.isConnected()).toBe(false);
+			expect(statuses.at(-1)).toBe('disconnected');
+			expect(start).toHaveBeenCalledOnce();
+
+			await service.ensureConnected();
+
+			expect(countInvocations(connection, 'SubscribeActiveGames')).toBe(2);
+			await subscription.dispose();
+		}
+		finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('stopping before any connection is a no-op', async () => {
+		const service = new TestSignalRService(new FakeHubConnection());
+
+		await expect(service.stop()).resolves.toBeUndefined();
+	});
 });

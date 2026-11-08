@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import './styles/tokens.css';
 import './styles/global.css';
 import './styles/dialog-templates.css';
-import '@fortawesome/fontawesome-free/css/all.min.css';
+import './faIcons.js';
 import './router.js';
 import './ui/button/aa-button.js';
 import './ui/badge/aa-badge.js';
@@ -24,7 +24,6 @@ import './components/pages/spectate-game-page/spectate-game-page.js';
 import './components/aa-notification-cmp/aa-notification-cmp.js';
 import './components/aa-notification-container-cmp/aa-notification-container-cmp.js';
 import './components/aa-dart-throw-cmp/aa-dart-throw-cmp.js';
-import './components/aa-combobox-cmp/aa-combobox-cmp.js';
 import './components/aa-match-snapshot-chart/aa-match-snapshot-chart.js';
 import './components/aa-heatmap-chart/aa-heatmap-chart.js';
 import './components/aa-finish-count-chart/aa-finish-count-chart.js';
@@ -34,10 +33,7 @@ import './components/aa-user-picker/aa-user-picker.js';
 import './components/aa-dialog/aa-dialog.js';
 import './components/rank-display/aa-rank-display.js';
 import './components/player-chip/aa-player-chip.js';
-import './getAbsoluteBase.js';
 
-import hljs from 'highlight.js/lib/core';
-import csharp from 'highlight.js/lib/languages/csharp';
 import { container } from 'tsyringe';
 
 import { CacheService } from './services/cacheService.js';
@@ -52,17 +48,16 @@ import { SeasonService } from './services/seasonService.js';
 import { SignalRService } from './services/signalRService.js';
 import { UserService } from './services/userService.js';
 
-container.register(DataService,         { useClass: DataService });
-container.register(NotificationService, { useClass: NotificationService });
-container.register(DialogService,       { useClass: DialogService });
-container.register(SeasonService,       { useClass: SeasonService });
-container.register(UserService,         { useClass: UserService });
-container.register(CacheService,        { useClass: CacheService });
-container.register(GameService,         { useClass: GameService });
-container.register(RuleService,         { useClass: RuleService });
-container.registerSingleton(SignalRService, SignalRService);
-container.register(ActiveGamesLiveService, { useClass: ActiveGamesLiveService });
-container.register(GameLiveService,        { useClass: GameLiveService });
-
-
-hljs.registerLanguage('csharp', csharp);
+// Services hold shared state (throw queue, request dedupe, SignalR connection),
+// so every component must resolve the same instance.
+container.registerSingleton(DataService);
+container.registerSingleton(NotificationService);
+container.registerSingleton(DialogService);
+container.registerSingleton(SeasonService);
+container.registerSingleton(UserService);
+container.registerSingleton(CacheService);
+container.registerSingleton(GameService);
+container.registerSingleton(RuleService);
+container.registerSingleton(SignalRService);
+container.registerSingleton(ActiveGamesLiveService);
+container.registerSingleton(GameLiveService);

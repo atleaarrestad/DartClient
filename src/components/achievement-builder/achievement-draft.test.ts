@@ -8,14 +8,17 @@ import {
 	AchievementValueDraft,
 	createEmptyAchievementTemplate,
 } from '../../models/achievementBuilder.js';
-import type {
-	AchievementCategoryResponse,
-	AchievementParameterDefinition,
-	AchievementTemplateResponse,
-	AchievementTemplateVersionResponse,
-} from '../../models/achievementBuilderApi.js';
+import type { AchievementParameterDefinition } from '../../models/achievementBuilderApi.js';
+import {
+	category,
+	collectRules,
+	parameter,
+	template,
+	templateVersion,
+} from '../../test/achievementFixtures.js';
 import {
 	appendChildRule,
+	canUseParameterAs,
 	countDefinitionInstances,
 	countGeneratedInstances,
 	createRule,
@@ -28,39 +31,11 @@ import {
 	getParameterValues,
 	getPreviews,
 	getThrowTypePatch,
+	renameParameterReferences,
 	replaceRule,
 	updateRule,
 	validateDraft,
 } from './achievement-draft.js';
-
-const category = (
-	id: string,
-	name: string,
-	overrides: Partial<AchievementCategoryResponse> = {},
-): AchievementCategoryResponse => ({
-	id,
-	seasonId:   'season',
-	name,
-	sortOrder:  0,
-	isArchived: false,
-	usageCount: 0,
-	...overrides,
-});
-
-const parameter = (
-	key: string,
-	overrides: Partial<AchievementParameterDraft> = {},
-): AchievementParameterDraft => ({
-	id:            key,
-	key,
-	valueType:     'integer',
-	generatorType: 'range',
-	minimum:       1,
-	maximum:       3,
-	step:          1,
-	values:        [],
-	...overrides,
-});
 
 const categories = [ category('custom', 'Custom') ];
 
@@ -169,7 +144,11 @@ describe('rule tree helpers', () => {
 		const round = createRule('round');
 		const throwRule = createRule('throw', 'round');
 		const withRound = appendChildRule(appendChildRule(tree(), 'root', round), round.id, throwRule);
-		expect(findRule(withRound, throwRule.id)).toBeDefined();
+		const roundCondition = findRule(withRound, round.id);
+		expect(roundCondition?.type === 'round' && roundCondition.condition).toMatchObject({
+			type:     'all',
+			children: [ throwRule ],
+		});
 	});
 });
 
@@ -180,7 +159,8 @@ describe('throw type changes', () => {
 	});
 
 	it('restores a hit location when clearing a rim or miss filter', () => {
-		expect(getThrowTypePatch('any', undefined).hitLocation).toBeDefined();
+		expect(getThrowTypePatch('any', undefined))
+			.toEqual({ throwType: 'any', hitLocation: { source: 'constant', value: '20' } });
 	});
 
 	it('keeps an existing hit location', () => {
@@ -208,10 +188,34 @@ describe('block availability', () => {
 		expect(types).not.toContain('any');
 	});
 
+	it.each<[ AchievementRuleDraft['type'], 'root' | 'round', boolean ]>([
+		[ 'round', 'root', true ],
+		[ 'round', 'round', false ],
+		[ 'winningThrow', 'round', false ],
+		[ 'throw', 'root', false ],
+		[ 'throwCount', 'round', true ],
+		[ 'compare', 'root', true ],
+		[ 'compare', 'round', true ],
+	])('offers %s in %s scope: %s', (type, scope, offered) => {
+		const parent = { ...createRule('all'), children: [ createRule('compare') ] };
+
+		expect(getAddableRuleTypes(scope, parent).some(item => item.value === type)).toBe(offered);
+	});
+
 	it('only allows the lowest raw score on the left of a comparison', () => {
 		expect(getAvailableValueSources('round', 'comparison-left')).toContain('round.minimumRawPoints');
 		expect(getAvailableValueSources('round', 'comparison-right')).not.toContain('round.minimumRawPoints');
 		expect(getAvailableValueSources('root', 'hit-location')).not.toContain('game.roundsPlayed');
+	});
+
+	it.each<[ AchievementParameterDraft['valueType'], AchievementValueDraft['source'], boolean, boolean ]>([
+		[ 'integer', 'parameter.offset', true, true ],
+		[ 'string', 'parameter', true, false ],
+		[ 'string', 'parameter', false, true ],
+		[ 'boolean', 'board.leftNeighbor', false, false ],
+		[ 'boolean', 'parameter.offset', false, false ],
+	])('lets a %s parameter fill a %s slot (numeric only: %s): %s', (valueType, source, numericOnly, fits) => {
+		expect(canUseParameterAs(parameter('p', { valueType }), source, numericOnly)).toBe(fits);
 	});
 });
 
@@ -416,6 +420,31 @@ describe('validateDraft', () => {
 		expect(messages(validDraft(), { maximumQuantifierDepth: 2 })).toEqual([]);
 	});
 
+	it('limits the saved definition to the backend text length', () => {
+		expect(messages(validDraft(), { maximumDefinitionTextLength: 100 }))
+			.toEqual([ expect.stringMatching(/^The logic is \d+ characters long when saved; the limit is 100\.$/) ]);
+		expect(messages(validDraft(), { maximumDefinitionTextLength: 10_000 })).toEqual([]);
+	});
+
+	it('rejects blocks outside the scope they belong to', () => {
+		const throwRule = createRule('throw', 'round');
+
+		expect(messages(validDraft({ rule: { id: 'root', type: 'all', children: [ throwRule ] } })))
+			.toEqual([ 'Logic 1: Throw blocks must be nested inside a round block.' ]);
+	});
+
+	it('counts progression reducers toward the node limit', () => {
+		const progression = {
+			statuses: [ 'valid' as const ],
+			targets:  [ { id: 'target', hitLocation: { source: 'constant' as const, value: '20' }, throwType: 'single' as const } ],
+		};
+		// and + hasHitSegment + 2 values = 4 root nodes, plus 1 reducer.
+		expect(messages(validDraft({ achievementScope: 'progression', progression }), { maximumAstNodes: 5 }))
+			.toEqual([]);
+		expect(messages(validDraft({ achievementScope: 'progression', progression }), { maximumAstNodes: 4 }))
+			.toEqual([ 'The logic has 5 nodes; the limit is 4.' ]);
+	});
+
 	it('accepts stored progression logic that is kept verbatim', () => {
 		expect(validate(validDraft({
 			achievementScope: 'progression',
@@ -448,51 +477,115 @@ describe('getDefaultCategoryId', () => {
 	});
 });
 
-const templateVersion = (
-	versionNumber: number,
-	status: AchievementTemplateVersionResponse['status'],
-): AchievementTemplateVersionResponse => ({
-	id:                  `v${ versionNumber }`,
-	versionNumber,
-	status,
-	evaluationPhase:     'Live',
-	nameTemplate:        'Name',
-	descriptionTemplate: 'Description',
-	categoryId:          'custom',
-	categoryName:        'Custom',
-	categoryIsArchived:  false,
-	achievementTier:     1,
-	parameters:          [],
-	definition:          {},
-	createdAtUtc:        '2026-01-01T00:00:00Z',
-});
-
-const template = (...versions: AchievementTemplateVersionResponse[]): AchievementTemplateResponse => ({
-	id:           'template',
-	seasonId:     'season',
-	createdAtUtc: '2026-01-01T00:00:00Z',
-	versions,
-});
-
 describe('getConflictingDraftVersion', () => {
-	it('returns the newer draft when editing starts from a published version', () => {
-		const draft = templateVersion(2, 'Draft');
+	const published = templateVersion(1);
+	const draft = templateVersion(2, { status: 'Draft' });
 
-		expect(getConflictingDraftVersion(template(templateVersion(1, 'Published'), draft), 'v1'))
-			.toBe(draft);
+	it('returns the newer draft when editing starts from a published version', () => {
+		expect(getConflictingDraftVersion(template(published, draft), published.id)).toBe(draft);
 	});
 
 	it('has no conflict when the template has no draft', () => {
-		expect(getConflictingDraftVersion(
-			template(templateVersion(1, 'Published'), templateVersion(2, 'Published')),
-			'v1',
-		)).toBeUndefined();
+		expect(getConflictingDraftVersion(template(published, templateVersion(2)), published.id))
+			.toBeUndefined();
 	});
 
 	it('has no conflict when the shown version is the draft itself', () => {
-		expect(getConflictingDraftVersion(
-			template(templateVersion(1, 'Published'), templateVersion(2, 'Draft')),
-			'v2',
-		)).toBeUndefined();
+		expect(getConflictingDraftVersion(template(published, draft), draft.id)).toBeUndefined();
+	});
+});
+
+describe('renameParameterReferences', () => {
+	const renamedDraft = (): AchievementTemplateDraft => validDraft({
+		nameTemplate:        'Hit {n} {nn}',
+		descriptionTemplate: 'Hit {n}, not {nn}.',
+		parameters:          [ parameter('number'), parameter('nn') ],
+		rule:                {
+			id:       'root',
+			type:     'all',
+			children: [
+				{
+					id:         'round',
+					type:       'round',
+					quantifier: 'any',
+					statuses:   [ 'valid' ],
+					condition:  {
+						id:          'throw',
+						type:        'throw',
+						quantifier:  'any',
+						scope:       'currentRound',
+						hitLocation: { source: 'board.leftNeighbor', value: 'n' },
+						throwType:   'any',
+					},
+				},
+				{
+					id:       'compare',
+					type:     'compare',
+					left:     { source: 'game.roundsPlayed', value: '' },
+					operator: 'lessThan',
+					right:    { source: 'parameter.offset', value: 'n', offset: 2 },
+				},
+				{
+					id:   'raw',
+					type: 'raw',
+					ast:  { kind: 'equal', left: { kind: 'parameter', name: 'n' }, right: { kind: 'parameter', name: 'nn' } },
+				},
+			],
+		},
+	});
+
+	it('renames the parameter in the logic, raw logic, name and description', () => {
+		const renamed = renameParameterReferences(renamedDraft(), 'n', 'number');
+
+		expect(renamed.nameTemplate).toBe('Hit {number} {nn}');
+		expect(renamed.descriptionTemplate).toBe('Hit {number}, not {nn}.');
+		expect(collectRules(renamed.rule).flatMap((rule): unknown[] => {
+			switch (rule.type) {
+			case 'throw':
+				return [ rule.hitLocation ];
+			case 'compare':
+				return [ rule.left, rule.right ];
+			case 'raw':
+				return [ rule.ast ];
+			default:
+				return [];
+			}
+		})).toEqual([
+			{ source: 'board.leftNeighbor', value: 'number' },
+			{ source: 'game.roundsPlayed', value: '' },
+			{ source: 'parameter.offset', value: 'number', offset: 2 },
+			{ kind: 'equal', left: { kind: 'parameter', name: 'number' }, right: { kind: 'parameter', name: 'nn' } },
+		]);
+		expect(validate(renamed)).toEqual([]);
+	});
+
+	it('renames progression targets', () => {
+		const draft = validDraft({
+			achievementScope: 'progression',
+			parameters:       [ parameter('m') ],
+			progression:      {
+				statuses: [ 'valid' ],
+				targets:  [ { id: 'target', hitLocation: { source: 'parameter', value: 'n' }, throwType: 'single' } ],
+			},
+		});
+
+		expect(renameParameterReferences(draft, 'n', 'm').progression?.targets[0]?.hitLocation)
+			.toEqual({ source: 'parameter', value: 'm' });
+	});
+
+	it.each([
+		[ 'the keys are the same', 'nn', 'nn' ],
+		[ 'the new key is not valid', 'n', '1n' ],
+		[ 'another parameter still has the old key', 'nn', 'number' ],
+	])('leaves the draft alone when %s', (_reason, oldKey, newKey) => {
+		const draft = renamedDraft();
+
+		expect(renameParameterReferences(draft, oldKey, newKey)).toBe(draft);
+	});
+
+	it('leaves the draft alone when two parameters now share the new key', () => {
+		const draft = validDraft({ parameters: [ parameter('m'), parameter('m', { id: 'other' }) ] });
+
+		expect(renameParameterReferences(draft, 'n', 'm')).toBe(draft);
 	});
 });

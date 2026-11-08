@@ -4,6 +4,12 @@ import type { AchievementLegalHit } from '../models/achievementBuilderApi.js';
 import { RoundStatus, ThrowType } from '../models/enums.js';
 import type { PlayerRounds, Round } from '../models/schemas.js';
 import {
+	createPlayer as createFixturePlayer,
+	createRound as createFixtureRound,
+	type Dart,
+	testPlayerId,
+} from '../test/gameFixtures.js';
+import {
 	describeWinningHits,
 	easiestTargets,
 	formatHit,
@@ -12,30 +18,12 @@ import {
 	listWinningHits,
 } from './lastDartHints.js';
 
-type Dart = [ hitLocation: number, throwType: ThrowType ] | null;
-
 function createRound(roundIndex: number, roundStatus: RoundStatus, darts: Dart[]): Round {
-	return {
-		roundIndex,
-		roundStatus,
-		cumulativePoints:    0,
-		indexOfVictoryThrow: null,
-		dartThrows:          [ 0, 1, 2 ].map(throwIndex => {
-			const dart = darts[throwIndex] ?? null;
-
-			return {
-				hitLocation:        dart?.[0] ?? 0,
-				throwType:          dart?.[1] ?? ThrowType.Single,
-				finalPoints:        dart ? 1 : 0,
-				throwIndex,
-				activatedModifiers: [],
-			};
-		}),
-	};
+	return createFixtureRound(roundIndex, { roundStatus, darts });
 }
 
 function createPlayer(...rounds: Round[]): PlayerRounds {
-	return { playerId: '11ea5813-f41e-4301-b7ed-881f8466100c', rounds };
+	return createFixturePlayer(testPlayerId, rounds);
 }
 
 const hit = (hitLocation: number, throwType: ThrowType): AchievementLegalHit =>

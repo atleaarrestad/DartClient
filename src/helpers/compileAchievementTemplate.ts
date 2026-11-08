@@ -1,17 +1,24 @@
 import {
+	achievementComparisonOperators,
 	AchievementComparisonOperator,
 	AchievementProgressionDraft,
 	AchievementRoundRuleDraft,
 	AchievementRoundStatus,
 	AchievementRuleDraft,
+	AchievementRuleScope,
 	AchievementSequenceTargetDraft,
 	AchievementTemplateDraft,
 	AchievementThrowRuleDraft,
+	AchievementThrowType,
+	achievementThrowTypeNames,
 	AchievementValueDraft,
 	AchievementValueSource,
 	createAchievementBuilderId,
 	createDefaultAchievementProgression,
 	createDefaultAchievementRule,
+	getRulePlacementError,
+	sequenceTargetCount,
+	throwTypeHasHitLocation,
 } from '../models/achievementBuilder.js';
 import type {
 	AchievementParameterDefinition,
@@ -21,7 +28,6 @@ import type {
 } from '../models/achievementBuilderApi.js';
 
 type AstNode = Record<string, unknown>;
-type CompileScope = 'root' | 'round' | 'throw';
 
 const field = (path: string): AstNode => ({ kind: 'field', path });
 const integer = (value: number): AstNode => ({
@@ -53,15 +59,9 @@ const statusNames: Record<AchievementRoundStatus, string> = {
 	failedWinCondition: 'WinConditionFailed',
 };
 
-const throwTypeNames = {
-	single: 'Single',
-	double: 'Double',
-	triple: 'Triple',
-	rim:    'Rim',
-	miss:   'Miss',
-} as const;
+const throwTypeNames = achievementThrowTypeNames;
 
-type DraftThrowType = keyof typeof throwTypeNames;
+type DraftThrowType = AchievementThrowType;
 
 const roundStatusCountSources = {
 	valid:              'game.validRoundCount',
@@ -83,14 +83,7 @@ const gameThrowCountSources = {
 	miss:   'game.missCount',
 } as const satisfies Partial<Record<DraftThrowType, AchievementValueSource>>;
 
-const comparisonOperators: readonly string[] = [
-	'equal',
-	'notEqual',
-	'greaterThan',
-	'greaterThanOrEqual',
-	'lessThan',
-	'lessThanOrEqual',
-] satisfies AchievementComparisonOperator[];
+const comparisonOperators: readonly string[] = achievementComparisonOperators;
 
 const invert = <TKey extends string, TValue extends string>(
 	record: Record<TKey, TValue>,
@@ -380,7 +373,7 @@ function compileSequence(
 		collection: field('round.throws'),
 		items: rule.targets.map(target => {
 			const operands: AstNode[] = [ isPlayed() ];
-			if (target.throwType !== 'rim' && target.throwType !== 'miss') {
+			if (throwTypeHasHitLocation(target.throwType)) {
 				operands.push(
 					equal(field('throw.hitLocation'), compileValue(target.hitLocation)),
 				);
@@ -405,21 +398,35 @@ function compileSequence(
 	};
 }
 
-function compileRule(rule: AchievementRuleDraft, scope: CompileScope): AstNode {
+type ChildCompiler = (rule: AchievementRuleDraft, scope: AchievementRuleScope) => AstNode;
+
+/**
+ * Compiles a block. Nested blocks go through `compileChild`, which restore verification
+ * swaps out to check a block against stored logic one level at a time.
+ */
+function compileRule(
+	rule: AchievementRuleDraft,
+	scope: AchievementRuleScope,
+	compileChild: ChildCompiler = compileRule,
+): AstNode {
+	const placementError = getRulePlacementError(rule.type, scope);
+	if (placementError)
+		throw new Error(placementError);
+
 	switch (rule.type) {
 	case 'all':
-		return { kind: 'and', operands: rule.children.map(child => compileRule(child, scope)) };
+		return { kind: 'and', operands: rule.children.map(child => compileChild(child, scope)) };
 	case 'any':
-		return { kind: 'or', operands: rule.children.map(child => compileRule(child, scope)) };
+		return { kind: 'or', operands: rule.children.map(child => compileChild(child, scope)) };
 	case 'not':
-		return { kind: 'not', operand: compileRule(rule.child, scope) };
+		return { kind: 'not', operand: compileChild(rule.child, scope) };
 	case 'round': {
 		const statusConditions = rule.statuses.map(item =>
 			equal(field('round.status'), status(statusNames[item])));
 		const statusCondition = statusConditions.length === 1
 			? statusConditions[0]!
 			: { kind: 'or', operands: statusConditions };
-		const roundCondition = compileRule(rule.condition, 'round');
+		const roundCondition = compileChild(rule.condition, 'round');
 		if (rule.quantifier === 'all') {
 			return and(
 				{
@@ -441,22 +448,14 @@ function compileRule(rule: AchievementRuleDraft, scope: CompileScope): AstNode {
 		};
 	}
 	case 'throw':
-		if (scope !== 'round')
-			throw new Error('Throw blocks must be nested inside a round block.');
 		return compileThrowRule(rule);
 	case 'compare':
 		return compileComparison(rule);
 	case 'throwCount':
-		if (scope !== 'round')
-			throw new Error('Throw-count blocks must be nested inside a round block.');
 		return compileThrowCountRule(rule);
 	case 'winningThrow':
-		if (scope !== 'root')
-			throw new Error('Winning-throw blocks must be used at the game level.');
 		return compileWinningThrowRule(rule);
 	case 'sequence':
-		if (scope !== 'round')
-			throw new Error('Sequence blocks must be nested inside a round block.');
 		return compileSequence(rule);
 	case 'raw':
 		return structuredClone(rule.ast);
@@ -505,6 +504,15 @@ function compileParameters(draft: AchievementTemplateDraft): AchievementParamete
 	});
 }
 
+function compileProgressionReducers(progression: AchievementProgressionDraft): AstNode[] {
+	return [
+		{
+			kind: 'collectHitSegments',
+			statuses: progression.statuses.map(item => statusNames[item]),
+		},
+	];
+}
+
 function compileProgressionRoot(progression: AchievementProgressionDraft): AstNode {
 	return {
 		kind: 'and',
@@ -516,35 +524,41 @@ function compileProgressionRoot(progression: AchievementProgressionDraft): AstNo
 	};
 }
 
+/** The editor's copy of the progression. Raw logic already is the definition, so it is left out. */
+function getEditorProgression(
+	progression: AchievementProgressionDraft | undefined,
+): AchievementProgressionDraft | undefined {
+	if (!progression)
+		return undefined;
+
+	const editorProgression = { ...progression };
+	delete editorProgression.raw;
+
+	return editorProgression;
+}
+
 export function compileAchievementTemplate(
 	draft: AchievementTemplateDraft,
 ): UpsertAchievementTemplateRequest {
 	const progression = draft.progression ?? createDefaultAchievementProgression();
+	const editor = {
+		rule: draft.rule,
+		progression: getEditorProgression(draft.progression),
+	};
 	const definition = draft.achievementScope === 'progression'
 		? {
 			version: 1,
-			editor: {
-				rule: draft.rule,
-				progression: draft.progression,
-			},
+			editor,
 			reducers: progression.raw
 				? structuredClone(progression.raw.reducers)
-				: [
-					{
-						kind: 'collectHitSegments',
-						statuses: progression.statuses.map(item => statusNames[item]),
-					},
-				],
+				: compileProgressionReducers(progression),
 			root: progression.raw
 				? structuredClone(progression.raw.root)
 				: compileProgressionRoot(progression),
 		}
 		: {
 			version: 1,
-			editor: {
-				rule: draft.rule,
-				progression: draft.progression,
-			},
+			editor,
 			root: compileRule(draft.rule, 'root'),
 		};
 
@@ -577,9 +591,11 @@ const isAstNode = (value: unknown): value is AstNode =>
 /**
  * Measures a compiled AST the way the backend parser does: the root is at depth 1, every
  * nested node is one level deeper, and everything a quantifier evaluates per item (all
- * but its collection) is one quantifier level deeper.
+ * but its collection) is one quantifier level deeper. Progression reducers count as well:
+ * each reducer is one node at depth 1, and its `amount` and `when` expressions start at
+ * depth 2 outside any quantifier.
  */
-export function measureAchievementAst(root: unknown): AchievementAstMeasure {
+export function measureAchievementAst(root: unknown, reducers?: unknown): AchievementAstMeasure {
 	const measure: AchievementAstMeasure = { nodeCount: 0, maximumDepth: 0, maximumQuantifierDepth: 0 };
 	const visit = (node: unknown, depth: number, quantifierDepth: number): void => {
 		if (!isAstNode(node))
@@ -600,6 +616,14 @@ export function measureAchievementAst(root: unknown): AchievementAstMeasure {
 		}
 	};
 	visit(root, 1, 0);
+	for (const reducer of Array.isArray(reducers) ? reducers : []) {
+		measure.nodeCount++;
+		measure.maximumDepth = Math.max(measure.maximumDepth, 1);
+		if (reducer && typeof reducer === 'object') {
+			visit((reducer as AstNode)['amount'], 2, 0);
+			visit((reducer as AstNode)['when'], 2, 0);
+		}
+	}
 
 	return measure;
 }
@@ -699,13 +723,20 @@ function getAstOperands(node: AstNode | undefined): AstNode[] {
 		: [];
 }
 
+/** The operands of an `and` node with nested `and`s flattened, or the node itself. */
+function andOperands(node: AstNode | undefined): AstNode[] {
+	if (getAstKind(node) === 'and')
+		return getAstOperands(node).flatMap(andOperands);
+
+	return node ? [ node ] : [];
+}
+
 function isField(node: AstNode | undefined, path: string): boolean {
 	return getAstKind(node) === 'field' && node?.['path'] === path;
 }
 
 function getThrowTypeValue(node: AstNode | undefined): string | undefined {
-	const operands = getAstKind(node) === 'and' ? getAstOperands(node) : node ? [ node ] : [];
-	const typeOperand = operands.find(operand =>
+	const typeOperand = andOperands(node).find(operand =>
 		getAstKind(operand) === 'equal'
 		&& isField(getAstNode(operand['left']), 'throw.throwType'));
 	const value = getAstNode(typeOperand?.['right']);
@@ -714,6 +745,261 @@ function getThrowTypeValue(node: AstNode | undefined): string | undefined {
 		&& typeof value['value'] === 'string'
 		? value['value']
 		: undefined;
+}
+
+// Restoring turns stored logic back into editor blocks. The matchers below only propose a
+// block; verifyRestoredRule keeps it only when it reproduces the stored node, so a block
+// never shows (and, once saved, never runs) different logic than what is stored.
+
+const booleanConstant = (value: boolean): AstNode => ({
+	kind: 'constant',
+	valueType: 'boolean',
+	value,
+});
+
+const isBooleanConstant = (node: unknown, value: boolean): boolean => {
+	const astNode = getAstNode(node);
+
+	return getAstKind(astNode) === 'constant'
+		&& astNode?.['valueType'] === 'boolean'
+		&& astNode['value'] === value;
+};
+
+/** JSON with sorted keys and without undefined members, so equal ASTs serialize equally. */
+function canonicalAstJson(value: unknown): string {
+	if (Array.isArray(value))
+		return `[${ value.map(canonicalAstJson).join(',') }]`;
+	if (value && typeof value === 'object') {
+		const members = Object.entries(value)
+			.filter(([ , member ]) => member !== undefined)
+			.sort(([ left ], [ right ]) => left < right ? -1 : left > right ? 1 : 0)
+			.map(([ key, member ]) => `${ JSON.stringify(key) }:${ canonicalAstJson(member) }`);
+
+		return `{${ members.join(',') }}`;
+	}
+
+	return JSON.stringify(value) ?? 'null';
+}
+
+/**
+ * Rewrites an AST into the form restored blocks are compared in. Older stored logic leaves
+ * out the played-dart guards the compiler adds, so every dart counts as played: the guard
+ * becomes `true` and the constant parts it leaves behind are folded away (a round always
+ * has its three dart slots, so `any` over them is `true`). `and`/`or` groups are flattened
+ * and their operands sorted, which doesn't change what they mean.
+ */
+function normalizeAst(value: unknown): unknown {
+	if (Array.isArray(value))
+		return value.map(normalizeAst);
+	if (!value || typeof value !== 'object')
+		return value;
+	if (isField(value as AstNode, 'throw.isPlayed'))
+		return booleanConstant(true);
+
+	const node: AstNode = Object.fromEntries(
+		Object.entries(value)
+			.filter(([ , member ]) => member !== undefined)
+			.map(([ key, member ]) => [ key, normalizeAst(member) ]),
+	);
+	const kind = getAstKind(node);
+	switch (kind) {
+	case 'and':
+	case 'or': {
+		// `true` is the identity of `and` and absorbs `or`; `false` is the reverse.
+		const identity = kind === 'and';
+		const operands = getAstOperands(node)
+			.flatMap(operand => getAstKind(operand) === kind ? getAstOperands(operand) : [ operand ]);
+		if (operands.some(operand => isBooleanConstant(operand, !identity)))
+			return booleanConstant(!identity);
+
+		const remaining = operands.filter(operand => !isBooleanConstant(operand, identity));
+		if (remaining.length === 0)
+			return booleanConstant(identity);
+		if (remaining.length === 1)
+			return remaining[0];
+
+		return {
+			...node,
+			operands: remaining
+				.map(operand => ({ operand, key: canonicalAstJson(operand) }))
+				.sort((left, right) => left.key < right.key ? -1 : left.key > right.key ? 1 : 0)
+				.map(item => item.operand),
+		};
+	}
+	case 'not':
+		if (isBooleanConstant(node['operand'], true))
+			return booleanConstant(false);
+		if (isBooleanConstant(node['operand'], false))
+			return booleanConstant(true);
+		return node;
+	case 'any':
+		if (isBooleanConstant(node['predicate'], false))
+			return booleanConstant(false);
+		if (
+			isBooleanConstant(node['predicate'], true)
+			&& isField(getAstNode(node['collection']), 'round.throws')
+		)
+			return booleanConstant(true);
+		return node;
+	case 'all':
+		return isBooleanConstant(node['predicate'], true) ? booleanConstant(true) : node;
+	case 'count':
+	case 'sum':
+	case 'distinctCount':
+		if (isBooleanConstant(node['predicate'], true))
+			delete node['predicate'];
+		return node;
+	default:
+		return node;
+	}
+}
+
+function isEquivalentAst(left: unknown, right: unknown): boolean {
+	return canonicalAstJson(normalizeAst(left)) === canonicalAstJson(normalizeAst(right));
+}
+
+const integerValue = (value: AchievementValueDraft): number | undefined =>
+	value.source === 'constant' && /^-?\d+$/.test(value.value.trim())
+		? Number(value.value)
+		: undefined;
+
+const isZeroComparison = (
+	rule: AchievementRuleDraft,
+	operator: AchievementComparisonOperator = 'equal',
+): rule is Extract<AchievementRuleDraft, { type: 'compare'; }> =>
+	rule.type === 'compare' && rule.operator === operator && integerValue(rule.right) === 0;
+
+const roundStatusCondition = (statuses: string[]): AstNode => {
+	const conditions = statuses.map(item => equal(field('round.status'), status(item)));
+
+	return conditions.length === 1 ? conditions[0]! : or(...conditions);
+};
+
+/**
+ * Older stored shapes a restored block stands for. These are written differently from
+ * what the compiler emits for the block, but mean the same.
+ */
+function compileLegacyShape(rule: AchievementRuleDraft): AstNode | undefined {
+	switch (rule.type) {
+	case 'compare': {
+		// Round number compared through the zero-based round index.
+		if (rule.left.source === 'round.number') {
+			const constant = integerValue(rule.right);
+			const right = rule.right.source === 'parameter'
+				? { kind: 'subtract', left: compileValue(rule.right), right: integer(1) }
+				: constant === undefined ? undefined : integer(constant - 1);
+
+			return right && { kind: rule.operator, left: field('round.index'), right };
+		}
+		// No dart in the round uses a seasonal modifier.
+		if (rule.left.source === 'round.modifiedThrowCount' && isZeroComparison(rule)) {
+			return {
+				kind: 'all',
+				collection: field('round.throws'),
+				predicate: equal(field('throw.modifierCount'), integer(0)),
+			};
+		}
+		// At least one round has the status.
+		const countedStatus = lookup(statusByCountSource, rule.left.source);
+		return countedStatus && isZeroComparison(rule, 'greaterThan')
+			? {
+				kind: 'any',
+				collection: field('rounds'),
+				predicate: equal(field('round.status'), status(statusNames[countedStatus])),
+			}
+			: undefined;
+	}
+	case 'any': {
+		// At least one round has one of the statuses.
+		const statuses = rule.children.map(child => child.type === 'compare' && isZeroComparison(child, 'greaterThan')
+			? lookup(statusByCountSource, child.left.source)
+			: undefined);
+		return statuses.length > 0 && statuses.every(item => item !== undefined)
+			? {
+				kind: 'any',
+				collection: field('rounds'),
+				predicate: roundStatusCondition(statuses.map(item => statusNames[item!])),
+			}
+			: undefined;
+	}
+	case 'all': {
+		const sources = rule.children.map(child => isZeroComparison(child) ? child.left.source : undefined);
+		if (sources.length === 0 || sources.some(source => source === undefined))
+			return undefined;
+
+		// No round overshot or failed the win condition.
+		if (
+			sources.length === 2
+			&& sources.includes('game.overshootCount')
+			&& sources.includes('game.failedWinConditionCount')
+		) {
+			return {
+				kind: 'all',
+				collection: field('rounds'),
+				predicate: roundStatusCondition([ 'Valid', 'Victory', 'Unplayed' ]),
+			};
+		}
+
+		// No dart of the excluded types in the whole game.
+		const excludedTypes = sources.map(source => lookup(throwTypeByGameCountSource, source));
+		if (excludedTypes.some(type => type === undefined))
+			return undefined;
+
+		return {
+			kind: 'all',
+			collection: field('rounds'),
+			predicate: {
+				kind: 'all',
+				collection: field('round.throws'),
+				predicate: and(...excludedTypes.map(type => ({
+					kind: 'notEqual',
+					left: field('throw.throwType'),
+					right: throwType(throwTypeNames[type!]),
+				}))),
+			},
+		};
+	}
+	default:
+		return undefined;
+	}
+}
+
+/** Restored blocks mapped to the stored node each one was verified against. */
+type RestoredSources = WeakMap<AchievementRuleDraft, AstNode>;
+
+/**
+ * Keeps a restored block only when compiling it reproduces the stored node, up to
+ * normalizeAst. Nested blocks were verified on their own, so they stand in for their
+ * stored nodes here and one block is checked at a time.
+ */
+function verifyRestoredRule(
+	rule: AchievementRuleDraft,
+	node: AstNode,
+	scope: AchievementRuleScope,
+	sources: RestoredSources,
+): AchievementRuleDraft | undefined {
+	const compileChild: ChildCompiler = (child, childScope) =>
+		sources.get(child) ?? compileRule(child, childScope, compileChild);
+	const expectations = [
+		() => compileRule(rule, scope, compileChild),
+		() => compileLegacyShape(rule),
+	];
+	const matches = expectations.some(expected => {
+		try {
+			const expectedNode = expected();
+
+			return expectedNode !== undefined && isEquivalentAst(expectedNode, node);
+		}
+		catch {
+			return false;
+		}
+	});
+	if (!matches)
+		return undefined;
+
+	sources.set(rule, node);
+
+	return rule;
 }
 
 function restoreAstValue(node: AstNode | undefined): AchievementValueDraft | undefined {
@@ -789,15 +1075,7 @@ function restoreAstValue(node: AstNode | undefined): AchievementValueDraft | und
 				roundThrowCountSources,
 				lookup(throwTypeByName, getThrowTypeValue(predicate)),
 			);
-			const predicateOperands = getAstKind(predicate) === 'and'
-				? getAstOperands(predicate)
-				: predicate ? [ predicate ] : [];
-			const hasHitLocation = predicateOperands.some(operand =>
-				getAstKind(operand) === 'equal'
-				&& isField(getAstNode(operand['left']), 'throw.hitLocation'));
-			return source && !hasHitLocation
-				? { source, value: '' }
-				: undefined;
+			return source ? { source, value: '' } : undefined;
 		}
 		if (isField(collection, 'rounds')) {
 			if (
@@ -860,11 +1138,10 @@ function restoreStatusValues(node: AstNode | undefined): AchievementRoundRuleDra
 function restoreThrowMatch(
 	node: AstNode | undefined,
 ): Pick<AchievementThrowRuleDraft, 'hitLocation' | 'throwType'> | undefined {
-	const operands = getAstKind(node) === 'and' ? getAstOperands(node) : node ? [ node ] : [];
 	let hitLocation: AchievementValueDraft | undefined;
 	let throwType: AchievementThrowRuleDraft['throwType'] = 'any';
 
-	for (const operand of operands) {
+	for (const operand of andOperands(node)) {
 		if (isField(operand, 'throw.isPlayed'))
 			continue;
 		if (getAstKind(operand) !== 'equal')
@@ -890,7 +1167,7 @@ function restoreThrowMatch(
 		return undefined;
 	}
 
-	return hitLocation || throwType === 'rim' || throwType === 'miss'
+	return hitLocation || !throwTypeHasHitLocation(throwType)
 		? { hitLocation, throwType }
 		: undefined;
 }
@@ -915,7 +1192,7 @@ function restoreSequenceTarget(node: AstNode | undefined): AchievementSequenceTa
 		};
 	}
 
-	const operands = getAstKind(node) === 'and' ? getAstOperands(node) : [];
+	const operands = andOperands(node);
 	const hitOperand = operands.find(operand =>
 		getAstKind(operand) === 'equal'
 		&& isField(getAstNode(operand['left']), 'throw.hitLocation'));
@@ -950,8 +1227,7 @@ function restoreWinningThrowRule(
 		|| !isField(getAstNode(throwQuantifier?.['collection']), 'round.throws')
 	)
 		return undefined;
-	const predicate = getAstNode(throwQuantifier?.['predicate']);
-	const operands = getAstKind(predicate) === 'and' ? getAstOperands(predicate) : [];
+	const operands = andOperands(getAstNode(throwQuantifier?.['predicate']));
 	if (!operands.some(operand => isField(operand, 'throw.isVictoryThrow')))
 		return undefined;
 	const matches = operands.filter(operand => !isField(operand, 'throw.isVictoryThrow'));
@@ -981,23 +1257,10 @@ function restoreWinningThrowRule(
 			winningThrowType = type;
 			continue;
 		}
+		// The compiler writes "double" as "a double or the double bull".
 		if (getAstKind(match) === 'or') {
-			const alternatives = getAstOperands(match);
-			const isType = (target: AstNode, value: string): boolean =>
-				getAstKind(target) === 'equal'
-				&& isField(getAstNode(target['left']), 'throw.throwType')
-				&& getAstNode(target['right'])?.['value'] === value;
-			const isDoubleBull = (target: AstNode): boolean =>
-				getAstKind(target) === 'equal'
-				&& isField(getAstNode(target['left']), 'throw.hitLocation')
-				&& getAstNode(target['right'])?.['value'] === 50;
-			if (
-				alternatives.some(alternative => isType(alternative, 'Double'))
-				&& alternatives.some(isDoubleBull)
-			) {
-				winningThrowType = 'double';
-				continue;
-			}
+			winningThrowType = 'double';
+			continue;
 		}
 		return undefined;
 	}
@@ -1040,96 +1303,146 @@ function restoreGameWideAllRule(node: AstNode | undefined): AchievementRuleDraft
 		return undefined;
 	const predicate = getAstNode(node?.['predicate']);
 	if (getAstKind(predicate) === 'or') {
-		const statuses = getAstOperands(predicate)
-			.map(operand => getAstNode(operand['right'])?.['value']);
-		if ([ 'Valid', 'Victory', 'Unplayed' ].every(value => statuses.includes(value))) {
-			return {
-				id: createAchievementBuilderId(),
-				type: 'all',
-				children: [
-					zeroComparison('game.overshootCount'),
-					zeroComparison('game.failedWinConditionCount'),
-				],
-			};
-		}
+		return {
+			id: createAchievementBuilderId(),
+			type: 'all',
+			children: [
+				zeroComparison('game.overshootCount'),
+				zeroComparison('game.failedWinConditionCount'),
+			],
+		};
 	}
 	if (
 		getAstKind(predicate) !== 'all'
 		|| !isField(getAstNode(predicate?.['collection']), 'round.throws')
 	)
 		return undefined;
-	const throwPredicate = getAstNode(predicate?.['predicate']);
-	const operands = getAstKind(throwPredicate) === 'and'
-		? getAstOperands(throwPredicate)
-		: throwPredicate ? [ throwPredicate ] : [];
-	const excludedTypes = operands
-		.filter(operand =>
-			getAstKind(operand) === 'notEqual'
-			&& isField(getAstNode(operand['left']), 'throw.throwType'))
-		.map(operand => getAstNode(operand['right'])?.['value']);
-	const sources: AchievementValueDraft['source'][] = [];
-	if (excludedTypes.includes('Miss'))
-		sources.push('game.missCount');
-	if (excludedTypes.includes('Rim'))
-		sources.push('game.rimCount');
-	if (excludedTypes.includes('Double'))
-		sources.push('game.doubleCount');
-	if (excludedTypes.includes('Triple'))
-		sources.push('game.tripleCount');
-	return sources.length > 0
+	const excludedTypes = andOperands(getAstNode(predicate?.['predicate']))
+		.map(operand => lookup(throwTypeByName, getAstNode(operand['right'])?.['value']));
+	const sources = excludedTypes.map(type => lookup(gameThrowCountSources, type));
+	return sources.length > 0 && sources.every(source => source !== undefined)
 		? {
 			id: createAchievementBuilderId(),
 			type: 'all',
-			children: sources.map(zeroComparison),
+			children: sources.map(source => zeroComparison(source!)),
 		}
 		: undefined;
 }
 
+function rawRule(node: AstNode): AchievementRuleDraft {
+	return {
+		id: createAchievementBuilderId(),
+		type: 'raw',
+		ast: structuredClone(node),
+	};
+}
+
+/** Restores a stored node as an editor block, or as raw logic when no block reproduces it. */
 function restoreAstRule(
-	node: AstNode | undefined,
-	scope: CompileScope,
+	node: AstNode,
+	scope: AchievementRuleScope,
+	sources: RestoredSources,
+): AchievementRuleDraft {
+	const proposals = [
+		() => scope === 'root' ? restoreWinningThrowRule(node) : undefined,
+		() => scope === 'root' ? restoreGameWideAllRule(node) : undefined,
+		() => restoreEveryRule(node, scope, sources),
+		() => proposeAstRule(node, scope, sources),
+	];
+	for (const propose of proposals) {
+		const candidate = propose();
+		const verified = candidate && verifyRestoredRule(candidate, node, scope, sources);
+		if (verified)
+			return verified;
+	}
+
+	return rawRule(node);
+}
+
+/**
+ * The compiler's "every" shape, `and(any(items, guard), all(items, or(not guard, check)))`:
+ * a round block matching every round, a throw block matching every dart, or a comparison
+ * of the lowest unmodified dart score.
+ */
+function restoreEveryRule(
+	node: AstNode,
+	scope: AchievementRuleScope,
+	sources: RestoredSources,
 ): AchievementRuleDraft | undefined {
-	const rawRule = (): AchievementRuleDraft | undefined => node
-		? {
-			id: createAchievementBuilderId(),
-			type: 'raw',
-			ast: structuredClone(node),
-		}
+	const operands = getAstKind(node) === 'and' ? getAstOperands(node) : [];
+	const [ exists, every ] = operands;
+	if (operands.length !== 2 || getAstKind(exists) !== 'any' || getAstKind(every) !== 'all')
+		return undefined;
+
+	const alternatives = andOperands(getAstNode(every?.['predicate']));
+	const everyPredicate = getAstNode(every?.['predicate']);
+	const check = getAstKind(everyPredicate) === 'or'
+		? getAstOperands(everyPredicate).find(operand => getAstKind(operand) !== 'not')
 		: undefined;
+	if (alternatives.length !== 1 || !check)
+		return undefined;
+
+	const collection = getAstNode(every?.['collection']);
+	if (scope === 'root' && isField(collection, 'rounds')) {
+		const statuses = restoreStatusValues(getAstNode(exists?.['predicate']));
+		return statuses && {
+			id: createAchievementBuilderId(),
+			type: 'round',
+			quantifier: 'all',
+			statuses,
+			condition: restoreAstRule(check, 'round', sources),
+		};
+	}
+	if (scope !== 'round' || !isField(collection, 'round.throws'))
+		return undefined;
+
+	const checkKind = getAstKind(check);
+	if (isComparisonOperator(checkKind) && isField(getAstNode(check['left']), 'throw.rawPoints')) {
+		const right = restoreAstValue(getAstNode(check['right']));
+		return right && comparisonRule({ source: 'round.minimumRawPoints', value: '' }, checkKind, right);
+	}
+
+	const match = restoreThrowMatch(check);
+	return match && {
+		id: createAchievementBuilderId(),
+		type: 'throw',
+		quantifier: 'all',
+		scope: 'currentRound',
+		...match,
+	};
+}
+
+/** A block that may represent the node; restoreAstRule only keeps it once verified. */
+function proposeAstRule(
+	node: AstNode,
+	scope: AchievementRuleScope,
+	sources: RestoredSources,
+): AchievementRuleDraft | undefined {
 	const kind = getAstKind(node);
-	const winningThrowRule = scope === 'root' ? restoreWinningThrowRule(node) : undefined;
-	if (winningThrowRule)
-		return winningThrowRule;
-	const gameWideAllRule = scope === 'root' ? restoreGameWideAllRule(node) : undefined;
-	if (gameWideAllRule)
-		return gameWideAllRule;
 	if (kind === 'and' || kind === 'or') {
-		const children = getAstOperands(node)
-			.map(operand => restoreAstRule(operand, scope));
-		if (children.some(child => child === undefined))
-			return rawRule();
 		return {
 			id: createAchievementBuilderId(),
 			type: kind === 'and' ? 'all' : 'any',
-			children: children as AchievementRuleDraft[],
+			children: getAstOperands(node).map(operand => restoreAstRule(operand, scope, sources)),
 		};
 	}
 	if (kind === 'not') {
-		const child = restoreAstRule(getAstNode(node?.['operand']), scope);
-		return child
-			? { id: createAchievementBuilderId(), type: 'not', child }
+		const operand = getAstNode(node['operand']);
+		return operand
+			? { id: createAchievementBuilderId(), type: 'not', child: restoreAstRule(operand, scope, sources) }
 			: undefined;
 	}
 	if (
 		(kind === 'any' || kind === 'all')
-		&& isField(getAstNode(node?.['collection']), 'rounds')
+		&& isField(getAstNode(node['collection']), 'rounds')
 	) {
-		const predicate = getAstNode(node?.['predicate']);
+		let statuses: AchievementRoundRuleDraft['statuses'] = [];
+		const conditionOperands: AstNode[] = [];
+		// Only the top level: a nested `and` belongs to one condition block.
+		const predicate = getAstNode(node['predicate']);
 		const operands = getAstKind(predicate) === 'and'
 			? getAstOperands(predicate)
 			: predicate ? [ predicate ] : [];
-		let statuses: AchievementRoundRuleDraft['statuses'] = [];
-		const conditionOperands: AstNode[] = [];
 		for (const operand of operands) {
 			const restoredStatuses = restoreStatusValues(operand);
 			if (restoredStatuses)
@@ -1138,7 +1451,7 @@ function restoreAstRule(
 				conditionOperands.push(operand);
 		}
 		if (statuses.length === 0)
-			return rawRule();
+			return undefined;
 		if (conditionOperands.length === 0 && kind === 'any') {
 			const children = statuses.map(item => comparisonRule(
 				{ source: roundStatusCountSources[item], value: '' },
@@ -1154,57 +1467,43 @@ function restoreAstRule(
 				};
 		}
 		const conditionNode = conditionOperands.length === 1
-			? conditionOperands[0]
+			? conditionOperands[0]!
 			: { kind: 'and', operands: conditionOperands };
-		const condition = restoreAstRule(conditionNode, 'round');
-		return condition
-			? {
-				id: createAchievementBuilderId(),
-				type: 'round',
-				quantifier: kind,
-				statuses,
-				condition,
-			}
-			: undefined;
+		return {
+			id: createAchievementBuilderId(),
+			type: 'round',
+			quantifier: kind,
+			statuses,
+			condition: restoreAstRule(conditionNode, 'round', sources),
+		};
 	}
 	if (
 		(kind === 'any' || kind === 'all')
 		&& scope === 'round'
-		&& isField(getAstNode(node?.['collection']), 'round.throws')
+		&& isField(getAstNode(node['collection']), 'round.throws')
 	) {
-		const predicate = getAstNode(node?.['predicate']);
-		const modifierCountLeft = getAstNode(predicate?.['left']);
-		const modifierCountRight = getAstNode(predicate?.['right']);
+		const predicate = getAstNode(node['predicate']);
+		const predicateKind = getAstKind(predicate);
 		if (
 			kind === 'all'
-			&& getAstKind(predicate) === 'equal'
-			&& isField(modifierCountLeft, 'throw.modifierCount')
-			&& getAstKind(modifierCountRight) === 'constant'
-			&& modifierCountRight?.['valueType'] === 'integer'
-			&& modifierCountRight['value'] === 0
+			&& predicateKind === 'equal'
+			&& isField(getAstNode(predicate?.['left']), 'throw.modifierCount')
 		) {
-			return {
-				id: createAchievementBuilderId(),
-				type: 'compare',
-				left: { source: 'round.modifiedThrowCount', value: '' },
-				operator: 'equal',
-				right: { source: 'constant', value: '0' },
-			};
+			return comparisonRule(
+				{ source: 'round.modifiedThrowCount', value: '' },
+				'equal',
+				{ source: 'constant', value: '0' },
+			);
 		}
-		const predicateKind = getAstKind(predicate);
 		if (
 			kind === 'all'
 			&& isComparisonOperator(predicateKind)
 			&& isField(getAstNode(predicate?.['left']), 'throw.rawPoints')
 		) {
 			const right = restoreAstValue(getAstNode(predicate?.['right']));
-			if (right) {
-				return comparisonRule(
-					{ source: 'round.minimumRawPoints', value: '' },
-					predicateKind,
-					right,
-				);
-			}
+			return right
+				? comparisonRule({ source: 'round.minimumRawPoints', value: '' }, predicateKind, right)
+				: undefined;
 		}
 
 		const match = restoreThrowMatch(predicate);
@@ -1216,27 +1515,27 @@ function restoreAstRule(
 				scope: 'currentRound',
 				...match,
 			}
-			: rawRule();
+			: undefined;
 	}
 	if (
 		kind === 'sequence'
 		&& scope === 'round'
-		&& isField(getAstNode(node?.['collection']), 'round.throws')
-		&& Array.isArray(node?.['items'])
+		&& isField(getAstNode(node['collection']), 'round.throws')
+		&& Array.isArray(node['items'])
 	) {
 		const targets = node['items'].map(item => restoreSequenceTarget(getAstNode(item)));
-		return targets.length === 3 && targets.every(target => target !== undefined)
+		return targets.length === sequenceTargetCount && targets.every(target => target !== undefined)
 			? {
 				id: createAchievementBuilderId(),
 				type: 'sequence',
 				scope: 'sameRound',
 				targets: targets as AchievementSequenceTargetDraft[],
 			}
-			: rawRule();
+			: undefined;
 	}
 	if (isComparisonOperator(kind)) {
-		const leftNode = getAstNode(node?.['left']);
-		const rightNode = getAstNode(node?.['right']);
+		const leftNode = getAstNode(node['left']);
+		const rightNode = getAstNode(node['right']);
 		if (
 			getAstKind(leftNode) === 'count'
 			&& isField(getAstNode(leftNode?.['collection']), 'round.throws')
@@ -1255,11 +1554,7 @@ function restoreAstRule(
 		}
 		if (isField(leftNode, 'round.index')) {
 			const rightKind = getAstKind(rightNode);
-			if (
-				rightKind === 'subtract'
-				&& getAstKind(getAstNode(rightNode?.['left'])) === 'parameter'
-				&& getAstNode(rightNode?.['right'])?.['value'] === 1
-			) {
+			if (rightKind === 'subtract' && getAstKind(getAstNode(rightNode?.['left'])) === 'parameter') {
 				return comparisonRule(
 					{ source: 'round.number', value: '' },
 					kind,
@@ -1284,23 +1579,21 @@ function restoreAstRule(
 		const left = restoreAstValue(leftNode);
 		const right = restoreAstValue(rightNode);
 		return left && right
-			? {
-				id: createAchievementBuilderId(),
-				type: 'compare',
-				left,
-				operator: kind,
-				right,
-			}
-			: rawRule();
+			? comparisonRule(left, kind, right)
+			: undefined;
 	}
-	return rawRule();
+	return undefined;
 }
 
 function getStoredAstRule(
 	version: AchievementTemplateVersionResponse,
 ): AchievementRuleDraft | undefined {
-	const restored = restoreAstRule(getAstNode(version.definition['root']), 'root');
-	if (!restored || restored.type === 'all' || restored.type === 'any')
+	const root = getAstNode(version.definition['root']);
+	if (!root)
+		return undefined;
+
+	const restored = restoreAstRule(root, 'root', new WeakMap());
+	if (restored.type === 'all' || restored.type === 'any')
 		return restored;
 	return {
 		id: createAchievementBuilderId(),
@@ -1313,8 +1606,7 @@ function getStoredAstProgression(
 	version: AchievementTemplateVersionResponse,
 ): AchievementProgressionDraft | undefined {
 	const root = getAstNode(version.definition['root']);
-	const targetNodes = getAstKind(root) === 'and' ? getAstOperands(root) : root ? [ root ] : [];
-	const targets = targetNodes.map(node => {
+	const targets = andOperands(root).map(node => {
 		if (getAstKind(node) !== 'hasHitSegment')
 			return undefined;
 		const hitLocation = restoreAstValue(getAstNode(node['hitLocation']));
@@ -1345,10 +1637,16 @@ function getStoredAstProgression(
 			.filter((status): status is 'valid' | 'victory' =>
 				status === 'valid' || status === 'victory')
 		: [];
-	return {
+	const progression: AchievementProgressionDraft = {
 		statuses: statuses.length > 0 ? statuses : createDefaultAchievementProgression().statuses,
 		targets: targets as AchievementProgressionDraft['targets'],
 	};
+
+	// Same rule as for session blocks: keep the targets only when they reproduce the stored logic.
+	return isEquivalentAst(compileProgressionRoot(progression), root)
+		&& isSameAst(compileProgressionReducers(progression), version.definition['reducers'])
+		? progression
+		: undefined;
 }
 
 function isSameAst(left: unknown, right: unknown): boolean {
@@ -1370,14 +1668,17 @@ function isSameAst(left: unknown, right: unknown): boolean {
 
 /**
  * The stored editor tree is only a UI convenience; it is trusted only while it still
- * compiles to the executable root, so the editor always shows the logic that runs.
+ * compiles to the executable definition, so the editor always shows the logic that runs.
  */
-function compilesToStoredRoot(
+function compilesToStoredDefinition(
 	version: AchievementTemplateVersionResponse,
-	compile: () => AstNode,
+	compile: () => { root: AstNode; reducers?: AstNode[]; },
 ): boolean {
 	try {
-		return isSameAst(compile(), version.definition['root']);
+		const compiled = compile();
+
+		return isSameAst(compiled.root, version.definition['root'])
+			&& isSameAst(compiled.reducers, version.definition['reducers']);
 	}
 	catch {
 		return false;
@@ -1392,7 +1693,7 @@ function restoreRule(
 	const isSession = version.evaluationPhase !== 'Progression';
 	if (
 		editorRule
-		&& (!isSession || compilesToStoredRoot(version, () => compileRule(editorRule, 'root')))
+		&& (!isSession || compilesToStoredDefinition(version, () => ({ root: compileRule(editorRule, 'root') })))
 	)
 		return editorRule;
 
@@ -1405,17 +1706,21 @@ function restoreProgression(
 	version: AchievementTemplateVersionResponse,
 	editor: Record<string, unknown> | undefined,
 ): AchievementProgressionDraft | undefined {
+	// Older editor trees also stored the raw logic; the definition holds it, so it is ignored.
 	const editorProgression = editor?.['progression'] && typeof editor['progression'] === 'object'
-		? structuredClone(editor['progression']) as AchievementProgressionDraft
+		? getEditorProgression(structuredClone(editor['progression']) as AchievementProgressionDraft)
 		: undefined;
 	if (version.evaluationPhase !== 'Progression')
 		return editorProgression;
 
 	if (
 		editorProgression
-		&& !editorProgression.raw
 		&& Array.isArray(editorProgression.targets)
-		&& compilesToStoredRoot(version, () => compileProgressionRoot(editorProgression))
+		&& Array.isArray(editorProgression.statuses)
+		&& compilesToStoredDefinition(version, () => ({
+			root:     compileProgressionRoot(editorProgression),
+			reducers: compileProgressionReducers(editorProgression),
+		}))
 	)
 		return editorProgression;
 

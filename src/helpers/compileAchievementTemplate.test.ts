@@ -2,358 +2,261 @@ import { describe, expect, it } from 'vitest';
 
 import type {
 	AchievementRuleDraft,
-	AchievementTemplateDraft,
-	AchievementValueDraft,
+	AchievementValueSource,
 } from '../models/achievementBuilder.js';
-import type {
-	AchievementTemplateResponse,
-	AchievementTemplateVersionResponse,
-} from '../models/achievementBuilderApi.js';
+import type { AchievementTemplateVersionResponse } from '../models/achievementBuilderApi.js';
+import {
+	astAnd,
+	astAnyRound,
+	astAnyScoringType,
+	astEqual,
+	astField,
+	astHitLocationIs,
+	astInteger,
+	astNodesOfKind,
+	AstNode,
+	astOr,
+	astParameter,
+	astRoundStatus,
+	astThrowTypeIs,
+	collectAstNodes,
+	collectRules,
+	constant,
+	parameter,
+	roundRule,
+	storedTemplate,
+	template,
+	templateDraft,
+	templateVersion,
+	value,
+} from '../test/achievementFixtures.js';
 import {
 	compileAchievementTemplate,
 	measureAchievementAst,
 	restoreAchievementTemplateDraft,
 } from './compileAchievementTemplate.js';
 
-const value = (
-	source: AchievementValueDraft['source'],
-	contents: string,
-): AchievementValueDraft => ({ source, value: contents });
+const isPlayed = astField('throw.isPlayed');
+const roundThrows = astField('round.throws');
 
-const roundRule = (condition: AchievementRuleDraft): AchievementRuleDraft => ({
-	id: 'round',
-	type: 'round',
-	quantifier: 'any',
-	statuses: [ 'valid', 'victory' ],
-	condition,
-});
+const rangeParameter = (key: string, minimum = 1, maximum = 20) =>
+	parameter(key, { minimum, maximum });
 
-const draft = (
-	rule: AchievementRuleDraft,
-	overrides: Partial<AchievementTemplateDraft> = {},
-): AchievementTemplateDraft => ({
-	seasonId: '00000000-0000-0000-0000-000000000001',
-	nameTemplate: 'Test {n}',
-	descriptionTemplate: 'Test description {n}',
-	categoryId: '00000000-0000-0000-0000-000000000002',
-	tier: 1,
-	achievementScope: 'session',
-	parameters: [],
-	rule,
-	progression: undefined,
-	...overrides,
-});
+const compileRoot = (rule: AchievementRuleDraft, parameters = [ rangeParameter('n') ]): unknown =>
+	compileAchievementTemplate(templateDraft(rule, { parameters })).definition['root'];
 
-const version = (
-	id: string,
-	versionNumber: number,
-	status: AchievementTemplateVersionResponse['status'],
-	nameTemplate: string,
-): AchievementTemplateVersionResponse => ({
-	id,
-	versionNumber,
-	status,
-	evaluationPhase: 'Live',
-	nameTemplate,
-	descriptionTemplate: `${ nameTemplate } description`,
-	categoryId: '00000000-0000-0000-0000-000000000002',
-	categoryName: 'Special',
-	categoryIsArchived: false,
-	achievementTier: 1,
-	parameters: [],
-	definition: {
-		editor: {
-			rule: {
-				id: `rule-${ versionNumber }`,
-				type: 'all',
-				children: [],
-			},
-		},
-	},
-	createdAtUtc: `2026-08-${ String(versionNumber).padStart(2, '0') }T00:00:00Z`,
-	publishedAtUtc: status === 'Published'
-		? `2026-08-${ String(versionNumber).padStart(2, '0') }T00:00:00Z`
-		: null,
-});
+const restoreRule = (root: AstNode): AchievementRuleDraft | undefined =>
+	restoreAchievementTemplateDraft(storedTemplate(root))?.rule;
 
-const template = (
-	versions: AchievementTemplateVersionResponse[],
-): AchievementTemplateResponse => ({
-	id: '00000000-0000-0000-0000-000000000003',
-	seasonId: '00000000-0000-0000-0000-000000000001',
-	createdAtUtc: '2026-08-01T00:00:00Z',
-	versions,
-});
+const rawRules = (rule: AchievementRuleDraft | undefined): AchievementRuleDraft[] =>
+	rule ? collectRules(rule).filter(item => item.type === 'raw') : [];
 
 describe('compileAchievementTemplate', () => {
 	it('compiles a parameterized Shanghai sequence', () => {
-		const result = compileAchievementTemplate(draft(roundRule({
-			id: 'sequence',
-			type: 'sequence',
-			scope: 'sameRound',
-			targets: [
-				{
-					id: 'single',
-					hitLocation: value('parameter', 'n'),
-					throwType: 'single',
-				},
-				{
-					id: 'double',
-					hitLocation: value('parameter', 'n'),
-					throwType: 'double',
-				},
-				{
-					id: 'triple',
-					hitLocation: value('parameter', 'n'),
-					throwType: 'triple',
-				},
-			],
-		}), {
-			parameters: [ {
-				id: 'n',
-				key: 'n',
-				valueType: 'integer',
-				generatorType: 'range',
-				minimum: 1,
-				maximum: 20,
-				step: 1,
-				values: [],
-			} ],
-		}));
+		const result = compileAchievementTemplate(templateDraft(roundRule({
+			id:      'sequence',
+			type:    'sequence',
+			scope:   'sameRound',
+			targets: ([ 'single', 'double', 'triple' ] as const).map(throwType => ({
+				id:          throwType,
+				hitLocation: value('parameter', 'n'),
+				throwType,
+			})),
+		}), { parameters: [ rangeParameter('n') ] }));
 
-		expect(result.parameters).toEqual([ expect.objectContaining({
-			name: 'n',
-			kind: 'IntegerRange',
-			minimum: 1,
-			maximum: 20,
-		}) ]);
-		expect(result.definition).toMatchObject({
-			root: {
-				kind: 'any',
-				collection: { kind: 'field', path: 'rounds' },
-				predicate: {
-					kind: 'and',
-					operands: expect.arrayContaining([
-						{
-							kind: 'sequence',
-							collection: { kind: 'field', path: 'round.throws' },
-							items: expect.any(Array),
-						},
-					]),
-				},
-			},
-		});
+		expect(result.parameters).toEqual([ {
+			name:          'n',
+			kind:          'IntegerRange',
+			minimum:       1,
+			maximum:       20,
+			step:          1,
+			integerValues: [],
+			stringValues:  [],
+			booleanValues: [],
+		} ]);
+		expect(result.definition['root']).toEqual(astAnyRound([ 'Valid', 'Victory' ], {
+			kind:       'sequence',
+			collection: roundThrows,
+			items:      [ 'Single', 'Double', 'Triple' ].map(throwType => astAnd(
+				isPlayed,
+				astHitLocationIs(astParameter('n')),
+				astThrowTypeIs(throwType),
+			)),
+		}));
 	});
 
 	it('limits any-scoring sequence targets to played scoring darts', () => {
-		const result = compileAchievementTemplate(draft(roundRule({
-			id: 'sequence',
-			type: 'sequence',
-			scope: 'sameRound',
+		const root = compileRoot(roundRule({
+			id:      'sequence',
+			type:    'sequence',
+			scope:   'sameRound',
 			targets: [ 1, 2, 3 ].map(target => ({
-				id: String(target),
-				hitLocation: value('constant', String(target)),
-				throwType: 'anyScoring' as const,
+				id:          String(target),
+				hitLocation: constant(target),
+				throwType:   'anyScoring' as const,
 			})),
-		})));
-		const definition = JSON.stringify(result.definition);
+		}));
 
-		expect(definition).toContain(
-			'"kind":"field","path":"throw.isPlayed"',
-		);
-		expect(definition).toContain(
-			'"valueType":"throwType","value":"Single"',
-		);
-		expect(definition).toContain(
-			'"valueType":"throwType","value":"Double"',
-		);
-		expect(definition).toContain(
-			'"valueType":"throwType","value":"Triple"',
-		);
-		expect(definition).not.toContain(
-			'"valueType":"throwType","value":"Rim"',
-		);
+		expect(astNodesOfKind(root, 'sequence')[0]?.['items']).toEqual([ 1, 2, 3 ].map(target => astAnd(
+			isPlayed,
+			astHitLocationIs(astInteger(target)),
+			astAnyScoringType(),
+		)));
+		expect(collectAstNodes(root, node => node['value'] === 'Rim')).toEqual([]);
 	});
 
 	it('compiles rim sequence targets without a fake hit location', () => {
-		const result = compileAchievementTemplate(draft(roundRule({
-			id: 'sequence',
-			type: 'sequence',
-			scope: 'sameRound',
+		const root = compileRoot(roundRule({
+			id:      'sequence',
+			type:    'sequence',
+			scope:   'sameRound',
 			targets: [
-				{
-					id: 'one',
-					hitLocation: value('constant', '1'),
-					throwType: 'anyScoring',
-				},
-				{
-					id: 'rim-one',
-					hitLocation: value('constant', '0'),
-					throwType: 'rim',
-				},
-				{
-					id: 'rim-two',
-					hitLocation: value('constant', '0'),
-					throwType: 'rim',
-				},
+				{ id: 'one', hitLocation: constant(1), throwType: 'anyScoring' },
+				{ id: 'rim-one', hitLocation: constant(0), throwType: 'rim' },
+				{ id: 'rim-two', hitLocation: constant(0), throwType: 'rim' },
 			],
-		})));
-		const definition = JSON.stringify(result.definition);
+		}));
 
-		expect(definition).toContain('"valueType":"throwType","value":"Rim"');
-		expect(definition).not.toContain(
-			'"path":"throw.hitLocation"},"right":{"kind":"constant","valueType":"integer","value":0',
-		);
+		const items = astNodesOfKind(root, 'sequence')[0]?.['items'];
+		expect(items).toEqual([
+			astAnd(isPlayed, astHitLocationIs(astInteger(1)), astAnyScoringType()),
+			astAnd(isPlayed, astThrowTypeIs('Rim')),
+			astAnd(isPlayed, astThrowTypeIs('Rim')),
+		]);
 	});
 
 	it('filters placeholder darts from round counts and aggregates', () => {
-		const result = compileAchievementTemplate(draft(roundRule({
-			id: 'balanced',
-			type: 'all',
+		const root = compileRoot(roundRule({
+			id:       'balanced',
+			type:     'all',
 			children: [
+				{ id: 'throw-count', type: 'compare', left: value('round.throwCount'), operator: 'equal', right: constant(3) },
 				{
-					id: 'throw-count',
-					type: 'compare',
-					left: value('round.throwCount', ''),
+					id:       'distinct',
+					type:     'compare',
+					left:     value('round.rawPointsDistinctCount'),
 					operator: 'equal',
-					right: value('constant', '3'),
+					right:    constant(3),
 				},
 				{
-					id: 'distinct',
-					type: 'compare',
-					left: value('round.rawPointsDistinctCount', ''),
-					operator: 'equal',
-					right: value('constant', '3'),
-				},
-				{
-					id: 'minimum',
-					type: 'compare',
-					left: value('round.minimumRawPoints', ''),
+					id:       'minimum',
+					type:     'compare',
+					left:     value('round.minimumRawPoints'),
 					operator: 'greaterThanOrEqual',
-					right: value('constant', '1'),
-				},
-			],
-		})));
-
-		const definition = JSON.stringify(result.definition);
-		expect(definition).toContain(
-			'"kind":"count","collection":{"kind":"field","path":"round.throws"},'
-			+ '"predicate":{"kind":"field","path":"throw.isPlayed"}',
-		);
-		expect(definition).toContain(
-			'"kind":"distinctCount","collection":{"kind":"field","path":"round.throws"},'
-			+ '"selector":{"kind":"field","path":"throw.rawPoints"},'
-			+ '"predicate":{"kind":"field","path":"throw.isPlayed"}',
-		);
-		expect(definition).toContain(
-			'"kind":"not","operand":{"kind":"field","path":"throw.isPlayed"}',
-		);
-	});
-
-	it('compiles dartboard-neighbor expressions and multiple parameters', () => {
-		const result = compileAchievementTemplate(draft(roundRule({
-			id: 'classic',
-			type: 'throw',
-			quantifier: 'any',
-			scope: 'currentRound',
-			hitLocation: value('board.leftNeighbor', 'n'),
-			throwType: 'any',
-		}), {
-			parameters: [
-				{
-					id: 'n',
-					key: 'n',
-					valueType: 'integer',
-					generatorType: 'set',
-					values: [ '1', '20' ],
-				},
-				{
-					id: 'variant',
-					key: 'variant',
-					valueType: 'string',
-					generatorType: 'set',
-					values: [ 'left', 'right' ],
+					right:    constant(1),
 				},
 			],
 		}));
 
-		expect(result.parameters.map(parameter => parameter.kind)).toEqual([
-			'IntegerSet',
-			'StringSet',
+		expect(astNodesOfKind(root, 'count')).toEqual([
+			{ kind: 'count', collection: roundThrows, predicate: isPlayed },
 		]);
-		const definition = JSON.stringify(result.definition);
-		expect(definition).toContain(
-			'"kind":"field","path":"throw.isPlayed"',
-		);
-		expect(definition).toContain(
-			'"kind":"boardNeighbor","number":{"kind":"parameter","name":"n"},"offset":-1',
-		);
+		expect(astNodesOfKind(root, 'distinctCount')).toEqual([ {
+			kind:       'distinctCount',
+			collection: roundThrows,
+			selector:   astField('throw.rawPoints'),
+			predicate:  isPlayed,
+		} ]);
+		expect(astNodesOfKind(root, 'not')).toEqual([ { kind: 'not', operand: isPlayed } ]);
+	});
+
+	it('compiles dartboard-neighbor expressions and multiple parameters', () => {
+		const result = compileAchievementTemplate(templateDraft(roundRule({
+			id:          'classic',
+			type:        'throw',
+			quantifier:  'any',
+			scope:       'currentRound',
+			hitLocation: value('board.leftNeighbor', 'n'),
+			throwType:   'any',
+		}), {
+			parameters: [
+				parameter('n', { generatorType: 'set', values: [ '1', '20' ] }),
+				parameter('variant', { valueType: 'string', generatorType: 'set', values: [ 'left', 'right' ] }),
+			],
+		}));
+
+		expect(result.parameters.map(item => item.kind)).toEqual([ 'IntegerSet', 'StringSet' ]);
+		expect(astNodesOfKind(result.definition['root'], 'boardNeighbor')).toEqual([
+			{ kind: 'boardNeighbor', number: astParameter('n'), offset: -1 },
+		]);
+		const throwQuantifiers = collectAstNodes(result.definition['root'], node =>
+			node['kind'] === 'any' && (node['collection'] as AstNode)['path'] === 'round.throws');
+		expect(throwQuantifiers.map(node => (node['predicate'] as AstNode)['operands']))
+			.toEqual([ [ isPlayed, astHitLocationIs({ kind: 'boardNeighbor', number: astParameter('n'), offset: -1 }) ] ]);
 	});
 
 	it('compiles progression target sets with parameterized segments', () => {
-		const result = compileAchievementTemplate(draft({
-			id: 'unused',
-			type: 'all',
-			children: [],
-		}, {
+		const result = compileAchievementTemplate(templateDraft({ id: 'unused', type: 'all', children: [] }, {
 			achievementScope: 'progression',
-			parameters: [ {
-				id: 'n',
-				key: 'n',
-				valueType: 'integer',
-				generatorType: 'range',
-				minimum: 1,
-				maximum: 20,
-				step: 1,
-				values: [],
-			} ],
-			progression: {
+			parameters:       [ rangeParameter('n') ],
+			progression:      {
 				statuses: [ 'valid', 'victory' ],
-				targets: [ {
-					id: 'target',
-					hitLocation: value('parameter', 'n'),
-					throwType: 'triple',
-				} ],
+				targets:  [ { id: 'target', hitLocation: value('parameter', 'n'), throwType: 'triple' } ],
 			},
 		}));
 
 		expect(result.evaluationPhase).toBe('Progression');
-		expect(result.definition).toMatchObject({
-			reducers: [ {
-				kind: 'collectHitSegments',
-				statuses: [ 'Valid', 'Victory' ],
-			} ],
-			root: {
-				kind: 'and',
-				operands: [ {
-					kind: 'hasHitSegment',
-					hitLocation: { kind: 'parameter', name: 'n' },
-					throwType: {
-						kind: 'constant',
-						valueType: 'throwType',
-						value: 'Triple',
-					},
-				} ],
-			},
-		});
+		expect(result.definition['reducers']).toEqual([
+			{ kind: 'collectHitSegments', statuses: [ 'Valid', 'Victory' ] },
+		]);
+		expect(result.definition['root']).toEqual(astAnd({
+			kind:        'hasHitSegment',
+			hitLocation: astParameter('n'),
+			throwType:   { kind: 'constant', valueType: 'throwType', value: 'Triple' },
+		}));
 	});
 
-	it('keeps progression logic the target editor cannot represent and saves it verbatim', () => {
-		const root = {
-			kind: 'or',
-			operands: [ {
-				kind: 'progressionCounter',
-				name: 'wins',
-			} ],
-		};
-		const reducers = [ { kind: 'incrementCounter', name: 'wins', statuses: [ 'Victory' ] } ];
-		const stored: AchievementTemplateVersionResponse = {
-			...version('00000000-0000-0000-0000-000000000021', 1, 'Draft', 'Counter'),
-			evaluationPhase: 'Progression',
-			definition: { version: 1, reducers, root },
+	it('enforces the block placement table', () => {
+		const throwRule: AchievementRuleDraft = {
+			id:          'throw',
+			type:        'throw',
+			quantifier:  'any',
+			scope:       'currentRound',
+			hitLocation: constant(20),
+			throwType:   'any',
 		};
 
-		const restored = restoreAchievementTemplateDraft(template([ stored ]));
+		expect(() => compileRoot(throwRule)).toThrow('Throw blocks must be nested inside a round block.');
+		expect(() => compileRoot(roundRule(roundRule(throwRule))))
+			.toThrow('Round blocks cannot be nested inside another round block.');
+		expect(() => compileRoot(roundRule({ id: 'win', type: 'winningThrow', throwType: 'double' })))
+			.toThrow('Winning-throw blocks must be used at the game level.');
+	});
+
+	it('only counts played darts in throw-count blocks', () => {
+		const root = compileRoot(roundRule({
+			id:        'count',
+			type:      'throwCount',
+			throwType: 'any',
+			operator:  'greaterThanOrEqual',
+			count:     constant(2),
+		}));
+
+		expect(astNodesOfKind(root, 'count')).toEqual([
+			{ kind: 'count', collection: roundThrows, predicate: isPlayed },
+		]);
+	});
+
+	it('deduplicates set parameter values', () => {
+		const request = compileAchievementTemplate(templateDraft({ id: 'root', type: 'all', children: [] }, {
+			parameters: [ parameter('n', { generatorType: 'set', values: [ '1', '2', '1' ] }) ],
+		}));
+
+		expect(request.parameters[0]?.integerValues).toEqual([ 1, 2 ]);
+	});
+});
+
+describe('raw progression logic', () => {
+	const root = { kind: 'or', operands: [ { kind: 'progressionCounter', name: 'wins' } ] };
+	const reducers = [ { kind: 'incrementCounter', name: 'wins', statuses: [ 'Victory' ] } ];
+	const rawVersion = (editor?: unknown): AchievementTemplateVersionResponse => templateVersion(1, {
+		status:          'Draft',
+		evaluationPhase: 'Progression',
+		definition:      { version: 1, reducers, root, ...editor ? { editor } : {} },
+	});
+
+	it('keeps logic the target editor cannot represent and saves it verbatim', () => {
+		const restored = restoreAchievementTemplateDraft(template(rawVersion()));
 
 		expect(restored?.progression?.raw).toEqual({ root, reducers });
 		const saved = compileAchievementTemplate(restored!);
@@ -361,219 +264,108 @@ describe('compileAchievementTemplate', () => {
 		expect(saved.definition['reducers']).toEqual(reducers);
 	});
 
-	it('restores the highest draft version regardless of API ordering', () => {
-		const restored = restoreAchievementTemplateDraft(template([
-			version('00000000-0000-0000-0000-000000000011', 1, 'Published', 'Version one'),
-			version('00000000-0000-0000-0000-000000000013', 3, 'Draft', 'Version three'),
-			version('00000000-0000-0000-0000-000000000012', 2, 'Published', 'Version two'),
-		]));
+	it('does not copy the raw logic into the editor tree', () => {
+		const restored = restoreAchievementTemplateDraft(template(rawVersion()))!;
 
-		expect(restored?.nameTemplate).toBe('Version three');
+		expect(compileAchievementTemplate(restored).definition['editor']).toEqual({
+			rule:        restored.rule,
+			progression: { statuses: [ 'valid', 'victory' ], targets: [] },
+		});
+	});
+
+	it('still loads editor trees saved with the raw logic in them', () => {
+		const restored = restoreAchievementTemplateDraft(template(rawVersion({
+			rule:        { id: 'rule', type: 'all', children: [] },
+			progression: { statuses: [ 'valid' ], targets: [], raw: { root, reducers } },
+		})));
+
+		expect(restored?.progression?.raw).toEqual({ root, reducers });
+	});
+
+	it('shows progression targets as raw logic when the stored reducer does not match', () => {
+		const target = {
+			kind:        'hasHitSegment',
+			hitLocation: astInteger(20),
+			throwType:   { kind: 'constant', valueType: 'throwType', value: 'Single' },
+		};
+		const overshootReducers = [ { kind: 'collectHitSegments', statuses: [ 'Valid', 'Overshoot' ] } ];
+		const restored = restoreAchievementTemplateDraft(template(templateVersion(1, {
+			evaluationPhase: 'Progression',
+			definition:      { version: 1, reducers: overshootReducers, root: astAnd(target) },
+		})));
+
+		expect(restored?.progression?.raw).toEqual({ root: astAnd(target), reducers: overshootReducers });
+	});
+});
+
+describe('restoreAchievementTemplateDraft', () => {
+	it('restores the highest draft version regardless of API ordering', () => {
+		const restored = restoreAchievementTemplateDraft(template(
+			templateVersion(1),
+			templateVersion(3, { status: 'Draft' }),
+			templateVersion(2),
+		));
+
+		expect(restored?.nameTemplate).toBe('Version 3');
 	});
 
 	it('restores an explicitly selected published version', () => {
-		const selectedId = '00000000-0000-0000-0000-000000000011';
-		const restored = restoreAchievementTemplateDraft(template([
-			version(selectedId, 1, 'Published', 'Version one'),
-			version('00000000-0000-0000-0000-000000000012', 2, 'Published', 'Version two'),
-		]), selectedId);
+		const first = templateVersion(1);
+		const restored = restoreAchievementTemplateDraft(template(first, templateVersion(2)), first.id);
 
-		expect(restored?.nameTemplate).toBe('Version one');
+		expect(restored?.nameTemplate).toBe('Version 1');
 	});
 
 	it('restores seeded Shanghai logic from the executable AST', () => {
-		const seededVersion = version(
-			'00000000-0000-0000-0000-000000000011',
-			1,
-			'Published',
-			'Shanghai {number}',
-		);
-		seededVersion.parameters = [ {
-			name: 'number',
-			kind: 'IntegerRange',
-			minimum: 1,
-			maximum: 20,
-			step: 1,
-			integerValues: [],
-			stringValues: [],
-			booleanValues: [],
-		} ];
-		seededVersion.definition = {
-			version: 1,
-			root: {
-				kind: 'any',
-				collection: { kind: 'field', path: 'rounds' },
-				predicate: {
-					kind: 'and',
-					operands: [
-						{
-							kind: 'or',
-							operands: [ 'Valid', 'Victory' ].map(status => ({
-								kind: 'equal',
-								left: { kind: 'field', path: 'round.status' },
-								right: { kind: 'status', value: status },
-							})),
-						},
-						...([ 'Single', 'Double', 'Triple' ] as const).map(throwType => ({
-							kind: 'any',
-							collection: { kind: 'field', path: 'round.throws' },
-							predicate: {
-								kind: 'and',
-								operands: [
-									{
-										kind: 'equal',
-										left: { kind: 'field', path: 'throw.hitLocation' },
-										right: { kind: 'parameter', name: 'number' },
-									},
-									{
-										kind: 'equal',
-										left: { kind: 'field', path: 'throw.throwType' },
-										right: {
-											kind: 'constant',
-											valueType: 'throwType',
-											value: throwType,
-										},
-									},
-								],
-							},
-						})),
-					],
-				},
-			},
-		};
+		const restored = restoreRule(astAnyRound(
+			[ 'Valid', 'Victory' ],
+			...[ 'Single', 'Double', 'Triple' ].map(throwType => ({
+				kind:       'any',
+				collection: roundThrows,
+				predicate:  astAnd(astHitLocationIs(astParameter('number')), astThrowTypeIs(throwType)),
+			})),
+		));
 
-		const restored = restoreAchievementTemplateDraft(template([ seededVersion ]));
-
-		expect(restored?.rule).toMatchObject({
-			type: 'all',
+		expect(restored).toMatchObject({
+			type:     'all',
 			children: [ {
-				type: 'round',
+				type:       'round',
 				quantifier: 'any',
-				statuses: [ 'valid', 'victory' ],
-				condition: {
-					type: 'all',
-					children: [
-						{
-							type: 'throw',
-							quantifier: 'any',
-							hitLocation: { source: 'parameter', value: 'number' },
-							throwType: 'single',
-						},
-						{
-							type: 'throw',
-							quantifier: 'any',
-							hitLocation: { source: 'parameter', value: 'number' },
-							throwType: 'double',
-						},
-						{
-							type: 'throw',
-							quantifier: 'any',
-							hitLocation: { source: 'parameter', value: 'number' },
-							throwType: 'triple',
-						},
-					],
+				statuses:   [ 'valid', 'victory' ],
+				condition:  {
+					type:     'all',
+					children: ([ 'single', 'double', 'triple' ] as const).map(throwType => ({
+						type:        'throw',
+						quantifier:  'any',
+						hitLocation: { source: 'parameter', value: 'number' },
+						throwType,
+					})),
 				},
 			} ],
 		});
 	});
 
 	it('restores parameter arithmetic in seeded climbing sequences', () => {
-		const seededVersion = version(
-			'00000000-0000-0000-0000-000000000011',
-			1,
-			'Published',
-			'Climbing {start}',
-		);
-		seededVersion.parameters = [ {
-			name: 'start',
-			kind: 'IntegerRange',
-			minimum: 1,
-			maximum: 18,
-			step: 1,
-			integerValues: [],
-			stringValues: [],
-			booleanValues: [],
-		} ];
-		seededVersion.definition = {
-			version: 1,
-			root: {
-				kind: 'any',
-				collection: { kind: 'field', path: 'rounds' },
-				predicate: {
-					kind: 'and',
-					operands: [
-						{
-							kind: 'or',
-							operands: [ 'Valid', 'Victory' ].map(status => ({
-								kind: 'equal',
-								left: { kind: 'field', path: 'round.status' },
-								right: { kind: 'status', value: status },
-							})),
-						},
-						{
-							kind: 'sequence',
-							collection: { kind: 'field', path: 'round.throws' },
-							items: [ 0, 1, 2 ].map(offset => ({
-								kind: 'and',
-								operands: [
-									{
-										kind: 'equal',
-										left: { kind: 'field', path: 'throw.hitLocation' },
-										right: offset === 0
-											? { kind: 'parameter', name: 'start' }
-											: {
-												kind: 'add',
-												left: { kind: 'parameter', name: 'start' },
-												right: {
-													kind: 'constant',
-													valueType: 'integer',
-													value: offset,
-												},
-											},
-									},
-									{
-										kind: 'or',
-										operands: [ 'Single', 'Double', 'Triple' ].map(throwType => ({
-											kind: 'equal',
-											left: { kind: 'field', path: 'throw.throwType' },
-											right: {
-												kind: 'constant',
-												valueType: 'throwType',
-												value: throwType,
-											},
-										})),
-									},
-								],
-							})),
-						},
-					],
-				},
-			},
-		};
+		const restored = restoreRule(astAnyRound([ 'Valid', 'Victory' ], {
+			kind:       'sequence',
+			collection: roundThrows,
+			items:      [ 0, 1, 2 ].map(offset => astAnd(
+				astHitLocationIs(offset === 0
+					? astParameter('start')
+					: { kind: 'add', left: astParameter('start'), right: astInteger(offset) }),
+				astAnyScoringType(),
+			)),
+		}));
 
-		const restored = restoreAchievementTemplateDraft(template([ seededVersion ]));
-
-		expect(restored?.rule).toMatchObject({
+		expect(restored).toMatchObject({
 			children: [ {
-				type: 'round',
+				type:      'round',
 				condition: {
-					type: 'sequence',
+					type:    'sequence',
 					targets: [
-						{ hitLocation: { source: 'parameter', value: 'start' } },
-						{
-							hitLocation: {
-								source: 'parameter.offset',
-								value: 'start',
-								offset: 1,
-							},
-						},
-						{
-							hitLocation: {
-								source: 'parameter.offset',
-								value: 'start',
-								offset: 2,
-							},
-						},
+						{ hitLocation: { source: 'parameter', value: 'start' }, throwType: 'anyScoring' },
+						{ hitLocation: { source: 'parameter.offset', value: 'start', offset: 1 } },
+						{ hitLocation: { source: 'parameter.offset', value: 'start', offset: 2 } },
 					],
 				},
 			} ],
@@ -581,92 +373,25 @@ describe('compileAchievementTemplate', () => {
 	});
 
 	it('restores type-only rim targets in seeded descending sequences', () => {
-		const seededVersion = version(
-			'00000000-0000-0000-0000-000000000011',
-			1,
-			'Published',
-			'Descending 1',
-		);
-		const rimTarget = {
-			kind: 'equal',
-			left: { kind: 'field', path: 'throw.throwType' },
-			right: { kind: 'constant', valueType: 'throwType', value: 'Rim' },
-		};
-		seededVersion.definition = {
-			version: 1,
-			root: {
-				kind: 'any',
-				collection: { kind: 'field', path: 'rounds' },
-				predicate: {
-					kind: 'and',
-					operands: [
-						{
-							kind: 'or',
-							operands: [ 'Valid', 'Victory' ].map(status => ({
-								kind: 'equal',
-								left: { kind: 'field', path: 'round.status' },
-								right: { kind: 'status', value: status },
-							})),
-						},
-						{
-							kind: 'sequence',
-							collection: { kind: 'field', path: 'round.throws' },
-							items: [
-								{
-									kind: 'and',
-									operands: [
-										{
-											kind: 'equal',
-											left: { kind: 'field', path: 'throw.hitLocation' },
-											right: {
-												kind: 'constant',
-												valueType: 'integer',
-												value: 1,
-											},
-										},
-										{
-											kind: 'or',
-											operands: [ 'Single', 'Double', 'Triple' ].map(throwType => ({
-												kind: 'equal',
-												left: { kind: 'field', path: 'throw.throwType' },
-												right: {
-													kind: 'constant',
-													valueType: 'throwType',
-													value: throwType,
-												},
-											})),
-										},
-									],
-								},
-								rimTarget,
-								rimTarget,
-							],
-						},
-					],
-				},
-			},
-		};
+		const restored = restoreRule(astAnyRound([ 'Valid', 'Victory' ], {
+			kind:       'sequence',
+			collection: roundThrows,
+			items:      [
+				astAnd(astHitLocationIs(astInteger(1)), astAnyScoringType()),
+				astThrowTypeIs('Rim'),
+				astThrowTypeIs('Rim'),
+			],
+		}));
 
-		const restored = restoreAchievementTemplateDraft(template([ seededVersion ]));
-
-		expect(restored?.rule).toMatchObject({
+		expect(restored).toMatchObject({
 			children: [ {
-				type: 'round',
+				type:      'round',
 				condition: {
-					type: 'sequence',
+					type:    'sequence',
 					targets: [
-						{
-							hitLocation: { source: 'constant', value: '1' },
-							throwType: 'anyScoring',
-						},
-						{
-							hitLocation: { source: 'constant', value: '0' },
-							throwType: 'rim',
-						},
-						{
-							hitLocation: { source: 'constant', value: '0' },
-							throwType: 'rim',
-						},
+						{ hitLocation: { source: 'constant', value: '1' }, throwType: 'anyScoring' },
+						{ hitLocation: { source: 'constant', value: '0' }, throwType: 'rim' },
+						{ hitLocation: { source: 'constant', value: '0' }, throwType: 'rim' },
 					],
 				},
 			} ],
@@ -674,431 +399,421 @@ describe('compileAchievementTemplate', () => {
 	});
 
 	it('restores filtered throw counts without losing the hit location', () => {
-		const seededVersion = version(
-			'00000000-0000-0000-0000-000000000011',
-			1,
-			'Published',
-			'Three of a kind: {number}',
-		);
-		seededVersion.definition = {
-			version: 1,
-			root: {
-				kind: 'any',
-				collection: { kind: 'field', path: 'rounds' },
-				predicate: {
-					kind: 'and',
-					operands: [
-						{
-							kind: 'equal',
-							left: { kind: 'field', path: 'round.status' },
-							right: { kind: 'status', value: 'Valid' },
-						},
-						{
-							kind: 'equal',
-							left: {
-								kind: 'count',
-								collection: { kind: 'field', path: 'round.throws' },
-								predicate: {
-									kind: 'and',
-									operands: [
-										{
-											kind: 'equal',
-											left: { kind: 'field', path: 'throw.hitLocation' },
-											right: { kind: 'parameter', name: 'number' },
-										},
-										{
-											kind: 'equal',
-											left: { kind: 'field', path: 'throw.throwType' },
-											right: {
-												kind: 'constant',
-												valueType: 'throwType',
-												value: 'Single',
-											},
-										},
-									],
-								},
-							},
-							right: { kind: 'constant', valueType: 'integer', value: 3 },
-						},
-					],
-				},
+		const restored = restoreRule(astAnyRound([ 'Valid' ], astEqual(
+			{
+				kind:       'count',
+				collection: roundThrows,
+				predicate:  astAnd(astHitLocationIs(astParameter('number')), astThrowTypeIs('Single')),
 			},
-		};
+			astInteger(3),
+		)));
 
-		const restored = restoreAchievementTemplateDraft(template([ seededVersion ]));
-
-		expect(restored?.rule).toMatchObject({
+		expect(restored).toMatchObject({
 			children: [ {
 				condition: {
-					type: 'throwCount',
+					type:        'throwCount',
 					hitLocation: { source: 'parameter', value: 'number' },
-					throwType: 'single',
-					operator: 'equal',
-					count: { source: 'constant', value: '3' },
+					throwType:   'single',
+					operator:    'equal',
+					count:       { source: 'constant', value: '3' },
 				},
 			} ],
 		});
 	});
 
 	it('restores round-number and winning-throw achievements as native blocks', () => {
-		const finishRoundVersion = version(
-			'00000000-0000-0000-0000-000000000011',
-			1,
-			'Published',
-			'Finish on round {round} or better',
-		);
-		finishRoundVersion.definition = {
-			version: 1,
-			root: {
-				kind: 'any',
-				collection: { kind: 'field', path: 'rounds' },
-				predicate: {
-					kind: 'and',
-					operands: [
-						{
-							kind: 'equal',
-							left: { kind: 'field', path: 'round.status' },
-							right: { kind: 'status', value: 'Victory' },
-						},
-						{
-							kind: 'lessThanOrEqual',
-							left: { kind: 'field', path: 'round.index' },
-							right: {
-								kind: 'subtract',
-								left: { kind: 'parameter', name: 'round' },
-								right: { kind: 'constant', valueType: 'integer', value: 1 },
-							},
-						},
-					],
+		expect(restoreRule(astAnyRound([ 'Victory' ], {
+			kind:  'lessThanOrEqual',
+			left:  astField('round.index'),
+			right: { kind: 'subtract', left: astParameter('round'), right: astInteger(1) },
+		}))).toMatchObject({
+			children: [ {
+				condition: {
+					type:     'compare',
+					left:     { source: 'round.number' },
+					operator: 'lessThanOrEqual',
+					right:    { source: 'parameter', value: 'round' },
 				},
-			},
-		};
-		expect(restoreAchievementTemplateDraft(template([ finishRoundVersion ]))?.rule)
-			.toMatchObject({
-				children: [ {
-					condition: {
-						type: 'compare',
-						left: { source: 'round.number' },
-						operator: 'lessThanOrEqual',
-						right: { source: 'parameter', value: 'round' },
-					},
-				} ],
-			});
-
-		const winningThrowVersion = version(
-			'00000000-0000-0000-0000-000000000012',
-			1,
-			'Published',
-			'Finish With Double',
-		);
-		winningThrowVersion.definition = {
-			version: 1,
-			root: {
-				kind: 'any',
-				collection: { kind: 'field', path: 'rounds' },
-				predicate: {
-					kind: 'any',
-					collection: { kind: 'field', path: 'round.throws' },
-					predicate: {
-						kind: 'and',
-						operands: [
-							{ kind: 'field', path: 'throw.isVictoryThrow' },
-							{
-								kind: 'or',
-								operands: [
-									{
-										kind: 'equal',
-										left: { kind: 'field', path: 'throw.throwType' },
-										right: {
-											kind: 'constant',
-											valueType: 'throwType',
-											value: 'Double',
-										},
-									},
-									{
-										kind: 'equal',
-										left: { kind: 'field', path: 'throw.hitLocation' },
-										right: {
-											kind: 'constant',
-											valueType: 'integer',
-											value: 50,
-										},
-									},
-								],
-							},
-						],
-					},
-				},
-			},
-		};
-		expect(restoreAchievementTemplateDraft(template([ winningThrowVersion ]))?.rule)
-			.toMatchObject({
-				children: [ {
-					type: 'winningThrow',
-					throwType: 'double',
-				} ],
-			});
-	});
-
-	it('compiles an exact single winning throw target', () => {
-		const result = compileAchievementTemplate(draft({
-			id: 'winning-single-16',
-			type: 'winningThrow',
-			hitLocation: value('constant', '16'),
-			throwType: 'single',
-		}));
-
-		expect(result.definition).toMatchObject({
-			root: {
-				kind: 'any',
-				collection: { kind: 'field', path: 'rounds' },
-				predicate: {
-					kind: 'any',
-					collection: { kind: 'field', path: 'round.throws' },
-					predicate: {
-						kind: 'and',
-						operands: [
-							{ kind: 'field', path: 'throw.isVictoryThrow' },
-							{
-								kind: 'equal',
-								left: { kind: 'field', path: 'throw.throwType' },
-								right: {
-									kind: 'constant',
-									valueType: 'throwType',
-									value: 'Single',
-								},
-							},
-							{
-								kind: 'equal',
-								left: { kind: 'field', path: 'throw.hitLocation' },
-								right: {
-									kind: 'constant',
-									valueType: 'integer',
-									value: 16,
-								},
-							},
-						],
-					},
-				},
-			},
+			} ],
 		});
 
-		const restoredVersion = version(
-			'00000000-0000-0000-0000-000000000013',
-			1,
-			'Published',
-			'Finish With Single 16',
-		);
-		restoredVersion.definition = result.definition;
-		expect(restoreAchievementTemplateDraft(template([ restoredVersion ]))?.rule)
-			.toMatchObject({
-				type: 'winningThrow',
+		expect(restoreRule({
+			kind:       'any',
+			collection: astField('rounds'),
+			predicate:  {
+				kind:       'any',
+				collection: roundThrows,
+				predicate:  astAnd(
+					astField('throw.isVictoryThrow'),
+					astOr(astThrowTypeIs('Double'), astHitLocationIs(astInteger(50))),
+				),
+			},
+		})).toMatchObject({
+			children: [ { type: 'winningThrow', throwType: 'double', hitLocation: undefined } ],
+		});
+	});
+
+	it('restores an exact single winning throw target it compiled', () => {
+		const root = compileRoot({
+			id:          'winning-single-16',
+			type:        'winningThrow',
+			hitLocation: constant(16),
+			throwType:   'single',
+		}) as AstNode;
+
+		expect(root).toEqual({
+			kind:       'any',
+			collection: astField('rounds'),
+			predicate:  {
+				kind:       'any',
+				collection: roundThrows,
+				predicate:  astAnd(
+					astField('throw.isVictoryThrow'),
+					astThrowTypeIs('Single'),
+					astHitLocationIs(astInteger(16)),
+				),
+			},
+		});
+		expect(restoreRule(root)).toMatchObject({
+			type:     'all',
+			children: [ {
+				type:        'winningThrow',
 				hitLocation: { source: 'constant', value: '16' },
-				throwType: 'single',
-			});
+				throwType:   'single',
+			} ],
+		});
 	});
 
 	it('restores game-wide throw restrictions as editable count comparisons', () => {
-		const seededVersion = version(
-			'00000000-0000-0000-0000-000000000011',
-			1,
-			'Published',
-			'No Multipliers Needed',
-		);
-		seededVersion.definition = {
-			version: 1,
-			root: {
-				kind: 'all',
-				collection: { kind: 'field', path: 'rounds' },
-				predicate: {
-					kind: 'all',
-					collection: { kind: 'field', path: 'round.throws' },
-					predicate: {
-						kind: 'and',
-						operands: [ 'Double', 'Triple' ].map(throwType => ({
-							kind: 'notEqual',
-							left: { kind: 'field', path: 'throw.throwType' },
-							right: {
-								kind: 'constant',
-								valueType: 'throwType',
-								value: throwType,
-							},
-						})),
-					},
-				},
+		const restored = restoreRule({
+			kind:       'all',
+			collection: astField('rounds'),
+			predicate:  {
+				kind:       'all',
+				collection: roundThrows,
+				predicate:  astAnd(...[ 'Double', 'Triple' ].map(throwType => ({
+					kind:  'notEqual',
+					left:  astField('throw.throwType'),
+					right: { kind: 'constant', valueType: 'throwType', value: throwType },
+				}))),
 			},
-		};
+		});
 
-		expect(restoreAchievementTemplateDraft(template([ seededVersion ]))?.rule)
-			.toMatchObject({
-				type: 'all',
-				children: [
-					{ type: 'compare', left: { source: 'game.doubleCount' } },
-					{ type: 'compare', left: { source: 'game.tripleCount' } },
-				],
-			});
+		expect(restored).toMatchObject({
+			type:     'all',
+			children: [
+				{ type: 'compare', left: { source: 'game.doubleCount' }, operator: 'equal', right: { value: '0' } },
+				{ type: 'compare', left: { source: 'game.tripleCount' }, operator: 'equal', right: { value: '0' } },
+			],
+		});
 	});
 
 	it('restores legacy modifier checks as native comparison blocks', () => {
-		const seededVersion = version(
-			'00000000-0000-0000-0000-000000000011',
-			1,
-			'Published',
-			'Score At Least {threshold} (Raw)',
-		);
-		seededVersion.parameters = [ {
-			name: 'threshold',
-			kind: 'IntegerSet',
-			minimum: null,
-			maximum: null,
-			step: 1,
-			integerValues: [ 100 ],
-			stringValues: [],
-			booleanValues: [],
-		} ];
-		const root = {
-			kind: 'any',
-			collection: { kind: 'field', path: 'rounds' },
-			predicate: {
-				kind: 'and',
-				operands: [
-					{
-						kind: 'or',
-						operands: [ 'Valid', 'Victory' ].map(status => ({
-							kind: 'equal',
-							left: { kind: 'field', path: 'round.status' },
-							right: { kind: 'status', value: status },
-						})),
-					},
-					{
-						kind: 'greaterThanOrEqual',
-						left: {
-							kind: 'sum',
-							collection: { kind: 'field', path: 'round.throws' },
-							selector: { kind: 'field', path: 'throw.finalPoints' },
-						},
-						right: { kind: 'parameter', name: 'threshold' },
-					},
-					{
-						kind: 'all',
-						collection: { kind: 'field', path: 'round.throws' },
-						predicate: {
-							kind: 'equal',
-							left: { kind: 'field', path: 'throw.modifierCount' },
-							right: { kind: 'constant', valueType: 'integer', value: 0 },
-						},
-					},
-				],
+		const seededRoot = astAnyRound(
+			[ 'Valid', 'Victory' ],
+			{
+				kind:  'greaterThanOrEqual',
+				left:  { kind: 'sum', collection: roundThrows, selector: astField('throw.finalPoints') },
+				right: astParameter('threshold'),
 			},
-		};
-		seededVersion.definition = { version: 1, root };
+			{
+				kind:       'all',
+				collection: roundThrows,
+				predicate:  astEqual(astField('throw.modifierCount'), astInteger(0)),
+			},
+		);
 
-		const restored = restoreAchievementTemplateDraft(template([ seededVersion ]));
+		const restored = restoreAchievementTemplateDraft(storedTemplate(seededRoot, {
+			parameters: [ {
+				name:          'threshold',
+				kind:          'IntegerSet',
+				minimum:       null,
+				maximum:       null,
+				step:          1,
+				integerValues: [ 100 ],
+				stringValues:  [],
+				booleanValues: [],
+			} ],
+		}))!;
 
-		expect(restored?.rule).toMatchObject({
-			type: 'all',
+		expect(rawRules(restored.rule)).toEqual([]);
+		expect(restored.rule).toMatchObject({
+			type:     'all',
 			children: [ {
-				type: 'round',
+				type:      'round',
 				condition: {
-					type: 'all',
+					type:     'all',
 					children: [
-						{ type: 'compare' },
 						{
-							type: 'compare',
-							left: { source: 'round.modifiedThrowCount' },
+							type:     'compare',
+							left:     { source: 'round.finalPoints' },
+							operator: 'greaterThanOrEqual',
+							right:    { source: 'parameter', value: 'threshold' },
+						},
+						{
+							type:     'compare',
+							left:     { source: 'round.modifiedThrowCount' },
 							operator: 'equal',
-							right: { source: 'constant', value: '0' },
+							right:    { source: 'constant', value: '0' },
 						},
 					],
 				},
 			} ],
 		});
-		const compiledRoot = compileAchievementTemplate(restored!).definition['root'];
-		const serializedRoot = JSON.stringify(compiledRoot);
-		expect(serializedRoot).toContain(
-			JSON.stringify({
-				kind: 'greaterThan',
-				left: { kind: 'field', path: 'throw.modifierCount' },
-				right: { kind: 'constant', valueType: 'integer', value: 0 },
-			}),
-		);
-		expect(serializedRoot).not.toContain('"type":"raw"');
 
-		seededVersion.definition = { version: 1, root: compiledRoot };
-		const roundTripped = restoreAchievementTemplateDraft(template([ seededVersion ]));
-		const restoredRound = roundTripped?.rule.type === 'all'
-			? roundTripped.rule.children[0]
-			: undefined;
-		const restoredConditions = restoredRound?.type === 'round'
-			&& (restoredRound.condition.type === 'all' || restoredRound.condition.type === 'any')
-			? restoredRound.condition.children
-			: [];
-		expect(restoredConditions).toEqual(expect.arrayContaining([
-			expect.objectContaining({
-				type: 'compare',
-				left: { source: 'round.modifiedThrowCount', value: '' },
-			}),
-		]));
-	});
-
-	it('only counts played darts in throw-count blocks', () => {
-		const request = compileAchievementTemplate(draft(roundRule({
-			id: 'count',
-			type: 'throwCount',
-			throwType: 'any',
-			operator: 'greaterThanOrEqual',
-			count: value('constant', '2'),
-		})));
-		expect(JSON.stringify(request.definition['root'])).toContain(JSON.stringify({
-			kind: 'count',
-			collection: { kind: 'field', path: 'round.throws' },
-			predicate: { kind: 'field', path: 'throw.isPlayed' },
+		// Saving writes the modifier check in the compiler's own shape, which restores the same way.
+		const compiledRoot = compileAchievementTemplate(restored).definition['root'] as AstNode;
+		expect(astNodesOfKind(compiledRoot, 'greaterThan')).toContainEqual({
+			kind:  'greaterThan',
+			left:  astField('throw.modifierCount'),
+			right: astInteger(0),
+		});
+		const roundTripped = restoreRule(compiledRoot);
+		expect(rawRules(roundTripped)).toEqual([]);
+		expect(collectRules(roundTripped!)).toContainEqual(expect.objectContaining({
+			type: 'compare',
+			left: { source: 'round.modifiedThrowCount', value: '' },
 		}));
-	});
-
-	it('deduplicates set parameter values', () => {
-		const request = compileAchievementTemplate(draft({ id: 'root', type: 'all', children: [] }, {
-			parameters: [ {
-				id: 'n',
-				key: 'n',
-				valueType: 'integer',
-				generatorType: 'set',
-				values: [ '1', '2', '1' ],
-			} ],
-		}));
-		expect(request.parameters[0]?.integerValues).toEqual([ 1, 2 ]);
 	});
 
 	it('keeps the stored editor tree only while it matches the executable root', () => {
 		const editorRule: AchievementRuleDraft = {
-			id: 'editor-root',
-			type: 'all',
+			id:       'editor-root',
+			type:     'all',
 			children: [ {
-				id: 'editor-compare',
-				type: 'compare',
-				left: value('game.roundsPlayed', ''),
+				id:       'editor-compare',
+				type:     'compare',
+				left:     value('game.roundsPlayed'),
 				operator: 'lessThanOrEqual',
-				right: value('constant', '5'),
+				right:    constant(5),
 			} ],
 		};
-		const compiled = compileAchievementTemplate(draft(editorRule)).definition;
-		const matching = version('matching', 1, 'Draft', 'Matching');
-		matching.definition = compiled;
-		expect(restoreAchievementTemplateDraft(template([ matching ]))?.rule).toEqual(editorRule);
+		const compiled = compileAchievementTemplate(templateDraft(editorRule)).definition;
+		expect(restoreAchievementTemplateDraft(template(templateVersion(1, { definition: compiled })))?.rule)
+			.toEqual(editorRule);
 
-		const drifted = version('drifted', 1, 'Draft', 'Drifted');
-		drifted.definition = {
-			...compiled,
+		const roundsPlayed = (compiled['root'] as { operands: { left: AstNode; }[]; }).operands[0]!.left;
+		const drifted = restoreAchievementTemplateDraft(template(templateVersion(1, {
+			definition: { ...compiled, root: { kind: 'greaterThan', left: roundsPlayed, right: astInteger(9) } },
+		})))?.rule;
+
+		expect(drifted?.id).not.toBe('editor-root');
+		expect(drifted).toMatchObject({
+			type:     'all',
+			children: [ {
+				type:     'compare',
+				left:     { source: 'game.roundsPlayed' },
+				operator: 'greaterThan',
+				right:    { source: 'constant', value: '9' },
+			} ],
+		});
+	});
+
+	// Each stored shape here used to restore as a block that compiles to different logic.
+	it.each<{ name: string; root: AstNode; raw: (root: AstNode) => unknown; }>([
+		{
+			name: 'a game-wide restriction on a throw type without a game counter',
 			root: {
-				kind: 'greaterThan',
-				left: compiled['root'] && (compiled['root'] as { operands: { left: unknown; }[]; }).operands[0]!.left,
-				right: { kind: 'constant', valueType: 'integer', value: 9 },
+				kind:       'all',
+				collection: astField('rounds'),
+				predicate:  {
+					kind:       'all',
+					collection: roundThrows,
+					predicate:  astAnd(...[ 'Double', 'Single' ].map(throwType => ({
+						kind:  'notEqual',
+						left:  astField('throw.throwType'),
+						right: { kind: 'constant', valueType: 'throwType', value: throwType },
+					}))),
+				},
 			},
-		};
-		const restored = restoreAchievementTemplateDraft(template([ drifted ]))?.rule;
-		expect(restored?.id).not.toBe('editor-root');
-		expect(JSON.stringify(restored)).toContain('"operator":"greaterThan"');
-		expect(JSON.stringify(restored)).toContain('"value":"9"');
+			raw: root => root,
+		},
+		{
+			name: 'a game-wide round-status restriction with other statuses',
+			root: {
+				kind:       'all',
+				collection: astField('rounds'),
+				predicate:  astRoundStatus('Valid', 'Victory', 'Overshoot'),
+			},
+			raw: root => root,
+		},
+		{
+			name: 'a typed throw count with an extra filter',
+			root: astAnyRound([ 'Valid' ], {
+				kind:  'greaterThanOrEqual',
+				left:  {
+					kind:       'count',
+					collection: roundThrows,
+					predicate:  astAnd(astThrowTypeIs('Double'), astEqual(astField('throw.modifierCount'), astInteger(1))),
+				},
+				right: astInteger(2),
+			}),
+			raw: root => ((root['predicate'] as AstNode)['operands'] as AstNode[])[1],
+		},
+		{
+			name: 'a winning throw that must be a double but not the double bull',
+			root: {
+				kind:       'any',
+				collection: astField('rounds'),
+				predicate:  {
+					kind:       'any',
+					collection: roundThrows,
+					predicate:  astAnd(astField('throw.isVictoryThrow'), astThrowTypeIs('Double')),
+				},
+			},
+			raw: root => root,
+		},
+		{
+			name: 'a winning throw with extra alternatives',
+			root: {
+				kind:       'any',
+				collection: astField('rounds'),
+				predicate:  {
+					kind:       'any',
+					collection: roundThrows,
+					predicate:  astAnd(
+						astField('throw.isVictoryThrow'),
+						astOr(astThrowTypeIs('Double'), astHitLocationIs(astInteger(50)), astThrowTypeIs('Triple')),
+					),
+				},
+			},
+			raw: root => root,
+		},
+		{
+			name: 'a sequence step that also accepts rim hits',
+			root: astAnyRound([ 'Valid' ], {
+				kind:       'sequence',
+				collection: roundThrows,
+				items:      [ 1, 2, 3 ].map(target => astAnd(
+					astHitLocationIs(astInteger(target)),
+					astOr(astAnyScoringType(), astThrowTypeIs('Rim')),
+				)),
+			}),
+			raw: root => ((root['predicate'] as AstNode)['operands'] as AstNode[])[1],
+		},
+		{
+			name: 'a round that must have two statuses at once',
+			root: {
+				kind:       'any',
+				collection: astField('rounds'),
+				predicate:  astAnd(
+					astRoundStatus('Valid'),
+					astRoundStatus('Victory'),
+					{ kind: 'any', collection: roundThrows, predicate: astHitLocationIs(astInteger(20)) },
+				),
+			},
+			raw: root => root,
+		},
+		{
+			name: 'every round having a status',
+			root: {
+				kind:       'all',
+				collection: astField('rounds'),
+				predicate:  astAnd(
+					astRoundStatus('Valid'),
+					{ kind: 'any', collection: roundThrows, predicate: astHitLocationIs(astInteger(20)) },
+				),
+			},
+			raw: root => root,
+		},
+	])('shows $name as raw logic', ({ root, raw }) => {
+		const restored = restoreAchievementTemplateDraft(storedTemplate(root))!;
+
+		expect(rawRules(restored.rule).map(rule => rule.type === 'raw' && rule.ast)).toEqual([ raw(root) ]);
+		// Saving the restored draft keeps the stored logic.
+		expect(collectAstNodes(compileAchievementTemplate(restored).definition['root']))
+			.toContainEqual(raw(root));
+	});
+});
+
+describe('golden compiled definitions', () => {
+	const throwRule = (overrides: Partial<Extract<AchievementRuleDraft, { type: 'throw'; }>>): AchievementRuleDraft => ({
+		id:          'throw',
+		type:        'throw',
+		quantifier:  'any',
+		scope:       'currentRound',
+		hitLocation: value('parameter', 'n'),
+		throwType:   'triple',
+		...overrides,
+	});
+	const compare = (
+		left: AchievementValueSource,
+		right = constant(2),
+	): AchievementRuleDraft => ({ id: left, type: 'compare', left: value(left), operator: 'greaterThan', right });
+
+	const goldenRules: [ string, AchievementRuleDraft ][] = [
+		[ 'round any + throw any', roundRule(throwRule({})) ],
+		[ 'round every + throw every', roundRule(throwRule({ quantifier: 'all', throwType: 'any' }), { quantifier: 'all' }) ],
+		[ 'throw type only', roundRule(throwRule({ hitLocation: undefined, throwType: 'miss' }), { statuses: [ 'overshoot' ] }) ],
+		[ 'throw count', roundRule({
+			id:          'count',
+			type:        'throwCount',
+			hitLocation: value('board.rightNeighbor', 'n'),
+			throwType:   'double',
+			operator:    'lessThan',
+			count:       value('parameter.offset', 'n'),
+		}) ],
+		[ 'winning throw double', { id: 'win', type: 'winningThrow', throwType: 'double' } ],
+		[ 'winning throw target', { id: 'win', type: 'winningThrow', throwType: 'any', hitLocation: constant(25) } ],
+		[ 'not + any', {
+			id:    'not',
+			type:  'not',
+			child: { id: 'any', type: 'any', children: [ compare('game.placement', constant(1)), compare('game.missCount') ] },
+		} ],
+		[ 'sequence', roundRule({
+			id:      'sequence',
+			type:    'sequence',
+			scope:   'sameRound',
+			targets: [
+				{ id: 'a', hitLocation: value('parameter', 'n'), throwType: 'single' },
+				{ id: 'b', hitLocation: { source: 'parameter.offset', value: 'n', offset: -1 }, throwType: 'anyScoring' },
+				{ id: 'c', hitLocation: constant(0), throwType: 'rim' },
+			],
+		}) ],
+		[ 'round values', roundRule({
+			id:       'values',
+			type:     'all',
+			children: ([
+				'round.throwCount',
+				'round.modifiedThrowCount',
+				'round.number',
+				'round.finalPoints',
+				'round.rawPointsDistinctCount',
+				'round.minimumRawPoints',
+				'round.singleCount',
+				'round.doubleCount',
+				'round.tripleCount',
+			] as const).map(source => compare(source)),
+		}, { statuses: [ 'valid', 'failedWinCondition' ] }) ],
+		[ 'game values', {
+			id:       'values',
+			type:     'all',
+			children: ([
+				'game.roundsPlayed',
+				'game.placement',
+				'game.validRoundCount',
+				'game.victoryCount',
+				'game.overshootCount',
+				'game.failedWinConditionCount',
+				'game.doubleCount',
+				'game.tripleCount',
+				'game.rimCount',
+				'game.missCount',
+			] as const).map(source => compare(source, value('board.leftNeighbor', 'n'))),
+		} ],
+	];
+
+	// The compiled AST is the stored format, so a compiler change shows up here first.
+	it.each(goldenRules)('compiles %s to the stored shape', (_name, rule) => {
+		expect(compileRoot({ id: 'root', type: 'all', children: [ rule ] })).toMatchSnapshot();
+	});
+
+	it.each(goldenRules)('restores %s from its compiled shape alone', (_name, rule) => {
+		const root = compileRoot({ id: 'root', type: 'all', children: [ rule ] }) as AstNode;
+		const restored = restoreRule(root);
+
+		expect(rawRules(restored)).toEqual([]);
+		expect(compileRoot(restored!)).toEqual(root);
 	});
 });
 
@@ -1106,27 +821,16 @@ describe('measureAchievementAst', () => {
 	// Same accounting as the backend parser: compiling this draft there reports 21 nodes and
 	// depth 7, and it fails with a quantifier limit of 1 but passes with 2.
 	it('counts nodes, depth and quantifier nesting like the backend parser', () => {
-		const request = compileAchievementTemplate(draft(roundRule({
+		const root = compileRoot(roundRule({
 			id:          'throw',
 			type:        'throw',
 			quantifier:  'any',
 			scope:       'currentRound',
 			hitLocation: value('parameter', 'n'),
 			throwType:   'triple',
-		}), {
-			parameters: [ {
-				id:            'n',
-				key:           'n',
-				valueType:     'integer',
-				generatorType: 'range',
-				minimum:       1,
-				maximum:       20,
-				step:          1,
-				values:        [],
-			} ],
 		}));
 
-		expect(measureAchievementAst(request.definition['root'])).toEqual({
+		expect(measureAchievementAst(root)).toEqual({
 			nodeCount:              21,
 			maximumDepth:           7,
 			maximumQuantifierDepth: 2,
@@ -1136,12 +840,38 @@ describe('measureAchievementAst', () => {
 	it('does not raise the quantifier level for the collection itself', () => {
 		expect(measureAchievementAst({
 			kind:       'any',
-			collection: { kind: 'field', path: 'game.rounds' },
+			collection: astField('game.rounds'),
 			predicate:  {
 				kind:       'all',
-				collection: { kind: 'field', path: 'round.throws' },
+				collection: roundThrows,
 				predicate:  { kind: 'constant', value: true },
 			},
 		})).toEqual({ nodeCount: 5, maximumDepth: 3, maximumQuantifierDepth: 2 });
+	});
+
+	// The backend counts each reducer as a node at depth 1 and parses its amount and
+	// condition from depth 2 outside any quantifier.
+	it('counts progression reducers like the backend parser', () => {
+		const root = astAnd({
+			kind:        'hasHitSegment',
+			hitLocation: astInteger(20),
+			throwType:   { kind: 'constant', valueType: 'throwType', value: 'Single' },
+		});
+		const reducers = [
+			{ kind: 'collectHitSegments', statuses: [ 'Valid' ] },
+			{
+				kind:    'incrementCounter',
+				counter: 'wins',
+				amount:  astInteger(1),
+				when:    astEqual(astField('placement'), astInteger(1)),
+			},
+		];
+
+		expect(measureAchievementAst(root)).toEqual({ nodeCount: 4, maximumDepth: 3, maximumQuantifierDepth: 0 });
+		expect(measureAchievementAst(root, reducers)).toEqual({
+			nodeCount:              4 + 2 + 1 + 3,
+			maximumDepth:           3,
+			maximumQuantifierDepth: 0,
+		});
 	});
 });

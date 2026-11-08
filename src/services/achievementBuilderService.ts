@@ -80,14 +80,15 @@ export class AchievementBuilderService {
 		);
 	}
 
-	validateTemplate(templateId: string) {
-		return this.dataService.validateAchievementBuilderTemplate(templateId);
+	validateTemplate(templateId: string, adminKey: string) {
+		return this.dataService.validateAchievementBuilderTemplate(templateId, adminKey);
 	}
 
 	publishTemplate(templateId: string, adminKey: string) {
 		return this.dataService.publishAchievementBuilderTemplate(templateId, adminKey);
 	}
 
+	/** Not called yet; kept for the last-dart hints work (docs/last-dart-hints-plan.md). */
 	predictRemainingThrows(request: PredictAchievementThrowsRequest) {
 		return this.dataService.predictAchievementThrows(request);
 	}

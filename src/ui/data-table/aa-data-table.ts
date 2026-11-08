@@ -2,6 +2,7 @@ import { html, LitElement, nothing, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
 
+import { slotHasContent } from '../slot-utils.js';
 import dataTableStyles from './aa-data-table.css?inline';
 
 export type DataTableColumnAlignment = 'left' | 'center' | 'right';
@@ -27,7 +28,8 @@ export class AaDataTable extends LitElement {
 	@property({ attribute: false }) rows:      unknown[] = [];
 	@property({ attribute: false }) columns:   DataTableColumn[] = [];
 	@property({ attribute: false }) rowLabel?: (row: unknown, index: number) => string;
-	@property({ type: String }) override title = '';
+	/** Rendered as the table heading. Not `title`, which would add a native tooltip. */
+	@property({ type: String }) heading = '';
 	@property({ type: String }) label = 'Data table';
 	@property({ type: String }) sortKey = '';
 	@property({ type: Boolean }) sortAsc = false;
@@ -80,19 +82,17 @@ export class AaDataTable extends LitElement {
 	}
 
 	private handleFooterSlotChange(event: Event): void {
-		const slot = event.currentTarget as HTMLSlotElement;
-		this.hasFooterActions = slot.assignedNodes({ flatten: true })
-			.some(node => node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim()));
+		this.hasFooterActions = slotHasContent(event);
 	}
 
 	override render(): TemplateResult {
 		return html`
 			<section
-				class="table-card ${ this.title ? 'table-card--with-title' : '' }"
+				class="table-card ${ this.heading ? 'table-card--with-title' : '' }"
 				part="table-card"
 			>
-				${ this.title
-					? html`<h3 class="table-title">${ this.title }</h3>`
+				${ this.heading
+					? html`<h3 class="table-title">${ this.heading }</h3>`
 					: nothing }
 
 				<div class="table-wrap">

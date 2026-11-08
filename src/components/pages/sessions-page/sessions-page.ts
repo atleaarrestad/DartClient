@@ -2,9 +2,10 @@ import '../../aa-loading-state/aa-loading-state.js';
 import '../../active-game-card/aa-active-game-card.js';
 import '../../../ui/page-header/aa-page-header.js';
 
+import { Router } from '@vaadin/router';
 import { html, TemplateResult, unsafeCSS } from 'lit';
 import { LitElement } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, state } from 'lit/decorators.js';
 import { container } from 'tsyringe';
 
 import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
@@ -38,8 +39,8 @@ export class SessionsPage extends LitElement {
 	@state() private newGameIds: ReadonlySet<string> = new Set();
 	private readonly onActiveGamesChanged = () => this.handleActiveGamesChanged();
 
-	@property({ type: Array }) gameTrackers: GameTracker[] = [];
-	@property({ type: Array }) users:        User[] = [];
+	@state() private gameTrackers: GameTracker[] = [];
+	@state() private users:        User[] = [];
 	@state() private loading = true;
 
 	constructor() {
@@ -50,8 +51,6 @@ export class SessionsPage extends LitElement {
 		this.seasonService = container.resolve(SeasonService);
 		this.userService = container.resolve(UserService);
 	}
-
-	onBeforeEnter(_location: Location): void {}
 
 	override async connectedCallback(): Promise<void> {
 		super.connectedCallback();
@@ -205,10 +204,7 @@ export class SessionsPage extends LitElement {
 	}
 
 	private handleOnGameSelected(event: CustomEvent<GameTracker>): void {
-		const gameTracker = event.detail;
-		this.gameService.setCachedGameId(gameTracker.id);
-		history.pushState({}, '', `${ base }spectate/${ gameTracker.id }`);
-		window.dispatchEvent(new PopStateEvent('popstate'));
+		Router.go(`${ base }spectate/${ encodeURIComponent(event.detail.id) }`);
 	}
 
 	override render(): TemplateResult {

@@ -1,2 +1,2 @@
-export const sum = <T extends any[]>(arr: T, fn: (item: T[number]) => number): number =>
-	arr.reduce((acc, item) => acc + fn(item), 0);
+export const sum = <T>(items: readonly T[], fn: (item: T) => number): number =>
+	items.reduce((total, item) => total + fn(item), 0);

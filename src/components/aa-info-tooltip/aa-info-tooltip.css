@@ -29,7 +29,7 @@ button[aria-expanded='true'] {
 	padding: 0.55rem 0.65rem;
 	border: 2px solid var(--color-border-strong);
 	border-radius: 9px;
-	background: #fff3cf;
+	background: var(--color-surface-highlight);
 	box-shadow: var(--shadow-brutal-md);
 	color: var(--color-text-primary);
 	font-size: 0.75rem;

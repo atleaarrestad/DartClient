@@ -10,7 +10,6 @@ import './achievement-template-library.js';
 
 import { html, LitElement, nothing, PropertyValues, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { container } from 'tsyringe';
 
 import { faIcons } from '../../faIcons.js';
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
@@ -28,9 +27,9 @@ import {
 import type {
 	AchievementCategoryResponse,
 	AchievementTemplateResponse,
+	AchievementTemplateVersionResponse,
 } from '../../models/achievementBuilderApi.js';
-import { AchievementTier } from '../../models/enums.js';
-import { DialogService } from '../../services/dialogService.js';
+import { AchievementTier, achievementTiersAscending } from '../../models/enums.js';
 import { sharedStyles } from '../../styles/shared-styles.js';
 import type {
 	SegmentedControlChangeEvent,
@@ -53,6 +52,7 @@ import {
 	getDefaultCategoryId,
 	getPreviews,
 	parameterKeyPattern,
+	renameParameterReferences,
 	sortCategories,
 	validateDraft,
 } from './achievement-draft.js';
@@ -82,13 +82,17 @@ const workspaceTabs: AaTabItem[] = [
 
 type TemplateField = 'nameTemplate' | 'descriptionTemplate';
 
-const achievementTierItems: SegmentedControlItem[] = Object.values(AchievementTier)
-	.filter((tier): tier is number => typeof tier === 'number')
-	.map(tier => ({
-		value: String(tier),
-		label: AchievementTier[tier]!.replace(/^./, letter => letter.toUpperCase()),
-		icon:  getAchievementTierIcon(tier),
-	}));
+/** Editing an older version while the template already has another draft. */
+interface DraftConflict {
+	version:       AchievementTemplateVersionResponse;
+	existingDraft: AchievementTemplateVersionResponse;
+}
+
+const achievementTierItems: SegmentedControlItem[] = achievementTiersAscending.map(tier => ({
+	value: String(tier),
+	label: AchievementTier[tier].replace(/^./, letter => letter.toUpperCase()),
+	icon:  getAchievementTierIcon(tier),
+}));
 const achievementScopeItems: SegmentedControlItem[] = [
 	{ value: 'session', label: 'Session' },
 	{ value: 'progression', label: 'Progression' },
@@ -135,12 +139,15 @@ export class AaAchievementBuilder extends LitElement {
 	@state() private selectedTemplateId = '';
 	@state() private selectedVersionId = '';
 	@state() private readOnlyVersion = false;
+	@state() private draftConflict?: DraftConflict;
 
 	private baselineDraft = '';
-	private dialogService = container.resolve(DialogService);
+	/** The key a parameter had when its key field got focus, to rename its references on commit. */
+	private parameterKeyAtFocus = '';
 
 	protected override willUpdate(changed: PropertyValues<this>): void {
-		// The category manager edits categories in place, so keep a local copy.
+		// The category manager reports its changes through events, which update this copy;
+		// new categories from the host replace it.
 		if (changed.has('categories'))
 			this.categoryList = this.categories;
 	}
@@ -265,6 +272,7 @@ export class AaAchievementBuilder extends LitElement {
 		this.selectedTemplateId = template.id;
 		this.selectedVersionId = version.id;
 		this.readOnlyVersion = this.viewOnly || version.status === 'Published' || !!template.isBuiltIn;
+		this.draftConflict = undefined;
 		this.resetDraft(restored);
 
 		return true;
@@ -272,10 +280,11 @@ export class AaAchievementBuilder extends LitElement {
 
 	/**
 	 * Unlocks the shown version for editing. Saving writes into the template's single
-	 * Draft, so when another draft exists the user picks between opening it and
-	 * replacing it with this version.
+	 * Draft, so when another draft exists the user first picks between opening it and
+	 * replacing it with this version. The builder already is a dialog, so that choice is
+	 * shown inline rather than in another dialog.
 	 */
-	private async createEditableDraft(): Promise<void> {
+	private createEditableDraft(): void {
 		const template = this.templates.find(item => item.id === this.selectedTemplateId);
 		const version = template?.versions.find(item => item.id === this.selectedVersionId);
 		const existingDraft = template && getConflictingDraftVersion(template, this.selectedVersionId);
@@ -285,37 +294,19 @@ export class AaAchievementBuilder extends LitElement {
 			return;
 		}
 
-		const closeWith = (choice: 'open' | 'replace') => (event: Event): void => {
-			(event.currentTarget as HTMLElement).closest('aa-dialog')?.dispatchEvent(
-				new CustomEvent('dialog-closed', { bubbles: true, composed: true, detail: { result: choice } }),
-			);
-		};
-		const choice = await this.dialogService.open<'open' | 'replace'>(html`
-			<p>
-				Version ${ existingDraft.versionNumber } is already a draft. Saving an edit of
-				version ${ version.versionNumber } replaces everything in that draft.
-			</p>
-			<aa-button
-				slot="footer-secondary"
-				type="button"
-				variant="danger"
-				@click=${ closeWith('replace') }
-			>
-				Replace draft with v${ version.versionNumber }
-			</aa-button>
-			<aa-button
-				slot="footer-primary"
-				type="button"
-				variant="primary"
-				data-autofocus
-				@click=${ closeWith('open') }
-			>
-				Open existing draft
-			</aa-button>
-		`, { title: 'This achievement already has a draft' }).catch(() => undefined);
+		this.draftConflict = { version, existingDraft };
+		void this.updateComplete.then(() =>
+			this.shadowRoot?.querySelector<HTMLElement>('[data-draft-conflict-default]')?.focus());
+	}
+
+	private resolveDraftConflict(choice: 'open' | 'replace' | 'cancel'): void {
+		const conflict = this.draftConflict;
+		this.draftConflict = undefined;
+		if (!conflict)
+			return;
 
 		if (choice === 'open')
-			this.loadTemplateVersion(template.id, existingDraft.id, false);
+			this.loadTemplateVersion(this.selectedTemplateId, conflict.existingDraft.id, false);
 		else if (choice === 'replace')
 			this.readOnlyVersion = false;
 	}
@@ -427,6 +418,14 @@ export class AaAchievementBuilder extends LitElement {
 			parameters: this.draft.parameters.map(parameter =>
 				parameter.id === id ? { ...parameter, ...patch } : parameter),
 		});
+	}
+
+	/** Once a key edit is committed, the logic and text follow the renamed parameter. */
+	private commitParameterKey(parameter: AchievementParameterDraft): void {
+		const draft = renameParameterReferences(this.draft, this.parameterKeyAtFocus, parameter.key);
+		this.parameterKeyAtFocus = parameter.key;
+		if (draft !== this.draft)
+			this.updateDraft(draft);
 	}
 
 	private setParameterValueType(
@@ -775,9 +774,17 @@ export class AaAchievementBuilder extends LitElement {
 							spellcheck="false"
 							aria-label=${ `Parameter ${ index + 1 } key` }
 							.value=${ parameter.key }
+							@focus=${ () => {
+								this.parameterKeyAtFocus = parameter.key;
+							} }
 							@input=${ (event: InputEvent) => this.updateParameter(parameter.id, {
 								key: (event.currentTarget as HTMLInputElement).value.trim(),
 							}) }
+							@change=${ () => {
+								const current = this.draft.parameters.find(item => item.id === parameter.id);
+								if (current)
+									this.commitParameterKey(current);
+							} }
 							placeholder="key"
 						/>
 						<span aria-hidden="true">}</span>
@@ -906,6 +913,48 @@ export class AaAchievementBuilder extends LitElement {
 		const versionNumber = template?.versions
 			.find(version => version.id === this.selectedVersionId)
 			?.versionNumber;
+		const conflict = this.draftConflict;
+		if (conflict) {
+			return html`
+				<div
+					class="published-notice published-notice--conflict"
+					role="group"
+					aria-label="This achievement already has a draft"
+				>
+					<span>
+						Version ${ conflict.existingDraft.versionNumber } is already a draft. Saving an edit of
+						version ${ conflict.version.versionNumber } replaces everything in that draft.
+					</span>
+					<div class="published-notice__actions">
+						<aa-button
+							type="button"
+							size="small"
+							variant="primary"
+							data-draft-conflict-default
+							@click=${ () => this.resolveDraftConflict('open') }
+						>
+							Open existing draft
+						</aa-button>
+						<aa-button
+							type="button"
+							size="small"
+							variant="danger"
+							@click=${ () => this.resolveDraftConflict('replace') }
+						>
+							Replace draft with v${ conflict.version.versionNumber }
+						</aa-button>
+						<aa-button
+							type="button"
+							size="small"
+							variant="ghost"
+							@click=${ () => this.resolveDraftConflict('cancel') }
+						>
+							Cancel
+						</aa-button>
+					</div>
+				</div>
+			`;
+		}
 
 		return html`
 			<div class="published-notice">
@@ -914,7 +963,7 @@ export class AaAchievementBuilder extends LitElement {
 					type="button"
 					size="small"
 					variant="secondary"
-					@click=${ () => void this.createEditableDraft() }
+					@click=${ () => this.createEditableDraft() }
 				>
 					Create editable draft
 				</aa-button>

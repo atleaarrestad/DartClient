@@ -13,7 +13,7 @@
 	border-right-width: 6px;
 	border-bottom-width: 6px;
 	border-radius: 22px;
-	box-shadow: 10px 10px 0 #000;
+	box-shadow: 10px 10px 0 var(--color-border-strong);
 	max-width: min(1000px, 92vw);
 	max-height: min(86vh, 1000px);
 	width: 100%;
