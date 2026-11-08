@@ -1,21 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AchievementLegalHit } from '../models/achievementBuilderApi.js';
-import { RoundStatus, ThrowType } from '../models/enums.js';
+import type { AchievementLegalHit, LastDartHint } from '../models/achievementBuilderApi.js';
+import { AchievementTier, RoundStatus, ThrowType } from '../models/enums.js';
 import type { PlayerRounds, Round } from '../models/schemas.js';
 import {
+	createAchievementInstance,
 	createPlayer as createFixturePlayer,
 	createRound as createFixtureRound,
 	type Dart,
 	testPlayerId,
 } from '../test/gameFixtures.js';
 import {
-	describeWinningHits,
-	easiestTargets,
+	buildHintStrip,
 	formatHit,
+	getBoardShade,
+	getHighestTier,
 	getHitKind,
+	groupByName,
 	isLastDartWindowOpen,
 	listWinningHits,
+	rankThrows,
 } from './lastDartHints.js';
 
 function createRound(roundIndex: number, roundStatus: RoundStatus, darts: Dart[]): Round {
@@ -74,53 +78,10 @@ describe('formatHit', () => {
 	});
 });
 
-describe('describeWinningHits', () => {
-	it('names one target, or a few targets best first', () => {
-		expect(describeWinningHits([ hit(20, ThrowType.Triple) ])).toBe('T20');
-		expect(describeWinningHits([ hit(19, ThrowType.Double), hit(20, ThrowType.Triple) ]))
-			.toBe('T20 / D19');
-		expect(describeWinningHits([ hit(25, ThrowType.Single), hit(50, ThrowType.Single) ]))
-			.toBe('Bull / 25');
-	});
-
-	it('summarizes a whole number or a whole ring', () => {
-		expect(describeWinningHits([
-			hit(20, ThrowType.Single),
-			hit(20, ThrowType.Double),
-			hit(20, ThrowType.Triple),
-		])).toBe('Any 20');
-
-		const doubles = Array.from({ length: 20 }, (_, index) => hit(index + 1, ThrowType.Double));
-		expect(describeWinningHits(doubles)).toBe('Any double');
-		expect(describeWinningHits(doubles.slice(0, 6))).toBe('6 doubles');
-	});
-
-	it('falls back to a target count for mixed sets', () => {
-		expect(describeWinningHits([
-			hit(1, ThrowType.Single),
-			hit(2, ThrowType.Double),
-			hit(3, ThrowType.Triple),
-			hit(50, ThrowType.Single),
-		])).toBe('4 targets');
-	});
-
-	it('lists every target for tooltips in the server order', () => {
+describe('listWinningHits', () => {
+	it('lists every target in the server order', () => {
 		expect(listWinningHits([ hit(1, ThrowType.Single), hit(20, ThrowType.Triple) ]))
 			.toBe('S1, T20');
-	});
-});
-
-describe('easiestTargets', () => {
-	it('keeps the first three of the easiest-first list from the server, or fewer', () => {
-		const hits = [
-			hit(20, ThrowType.Single),
-			hit(20, ThrowType.Double),
-			hit(20, ThrowType.Triple),
-			hit(50, ThrowType.Single),
-		];
-
-		expect(easiestTargets(hits)).toEqual(hits.slice(0, 3));
-		expect(easiestTargets([ hit(16, ThrowType.Triple) ])).toEqual([ hit(16, ThrowType.Triple) ]);
 	});
 });
 
@@ -132,5 +93,132 @@ describe('getHitKind', () => {
 		expect(getHitKind(hit(25, ThrowType.Single))).toBe('outer-bull');
 		expect(getHitKind(hit(50, ThrowType.Single))).toBe('bull');
 		expect(getHitKind(hit(0, ThrowType.Miss))).toBe('off-board');
+	});
+});
+
+const hint = (name: string, hits: AchievementLegalHit[], tier = AchievementTier.bronze): LastDartHint => ({
+	achievement: { ...createAchievementInstance(name, name), achievementTier: tier },
+	winningHits: hits,
+});
+
+describe('getBoardShade', () => {
+	it('alternates around the board like its colours', () => {
+		expect(getBoardShade(20)).toBe('dark');
+		expect(getBoardShade(1)).toBe('light');
+		expect(getBoardShade(18)).toBe('dark');
+		expect(getBoardShade(5)).toBe('light');
+	});
+});
+
+describe('buildHintStrip', () => {
+	const hints = [
+		hint('Classic 20', [ hit(20, ThrowType.Single) ]),
+		hint('Score At Least 60 (Raw)', [ hit(20, ThrowType.Triple), hit(19, ThrowType.Triple) ]),
+		hint('Bull Bully', [ hit(50, ThrowType.Single) ]),
+		hint('Rimmer', [ hit(0, ThrowType.Rim) ]),
+	];
+
+	it('has a column per number, then the bulls, the rim and a miss', () => {
+		const strip = buildHintStrip([]);
+
+		const numbers = Array.from({ length: 20 }, (_, index) => String(index + 1));
+
+		expect(strip.map(column => column.label)).toEqual([ ...numbers, 'Bull', 'Rim', 'Miss' ]);
+		expect(strip[19]!.segments.map(segment => segment?.key)).toEqual([ 'T20', 'D20', 'S20' ]);
+		expect(strip[20]!.segments.map(segment => segment?.key)).toEqual([ undefined, 'Bull', '25' ]);
+		expect(strip[21]!.segments.map(segment => segment?.key)).toEqual([ undefined, undefined, 'Rim' ]);
+		expect(strip[22]!.segments.map(segment => segment?.key)).toEqual([ undefined, undefined, 'Miss' ]);
+		expect(strip.every(column => column.segments.every(segment => !segment?.hintIndexes.length))).toBe(true);
+	});
+
+	it('marks every segment with the hints it unlocks', () => {
+		const strip = buildHintStrip(hints);
+		const indexes = (column: number, row: number): number[] | undefined => strip[column]!.segments[row]?.hintIndexes;
+
+		expect(indexes(19, 0)).toEqual([ 1 ]);
+		expect(indexes(19, 2)).toEqual([ 0 ]);
+		expect(indexes(18, 0)).toEqual([ 1 ]);
+		expect(indexes(19, 1)).toEqual([]);
+		expect(indexes(20, 1)).toEqual([ 2 ]);
+		expect(indexes(21, 2)).toEqual([ 3 ]);
+	});
+});
+
+describe('rankThrows', () => {
+	const rewards = {
+		[AchievementTier.bronze]:   5,
+		[AchievementTier.silver]:   10,
+		[AchievementTier.gold]:     15,
+		[AchievementTier.platinum]: 20,
+		[AchievementTier.diamond]:  30,
+	};
+
+	it('weighs what a throw is worth by how hard it is: an easy single beats a harder treble', () => {
+		const s20 = hit(20, ThrowType.Single);
+		const t20 = hit(20, ThrowType.Triple);
+		const ranked = rankThrows([
+			hint('Score At Least 50 (Raw)', [ s20, t20 ]),
+			hint('Score At Least 50 (Modified)', [ s20, t20 ]),
+			hint('Score At Least 60 (Raw)', [ s20, t20 ]),
+			hint('Maximum', [ t20 ], AchievementTier.gold),
+		], rewards);
+
+		expect(ranked.map(item => [ item.key, item.mmr ])).toEqual([ [ 'S20', 15 ], [ 'T20', 30 ] ]);
+		expect(ranked[0]!.hintIndexes).toEqual([ 0, 1, 2 ]);
+	});
+
+	it('ranks singles, trebles, 25, the bull and doubles in that order for the same reward', () => {
+		const sameReward = [
+			hit(5, ThrowType.Double),
+			hit(50, ThrowType.Single),
+			hit(25, ThrowType.Single),
+			hit(5, ThrowType.Triple),
+			hit(5, ThrowType.Single),
+		];
+		const ranked = rankThrows(sameReward.map(item => hint(`Hit ${ item.hitLocation }`, [ item ])), rewards);
+
+		expect(ranked.map(item => item.key)).toEqual([ 'S5', 'T5', '25', 'Bull', 'D5' ]);
+	});
+
+	it('lets a high tier pay for a harder throw', () => {
+		const ranked = rankThrows([
+			hint('Bronze single', [ hit(1, ThrowType.Single) ], AchievementTier.bronze),
+			hint('Diamond treble', [ hit(20, ThrowType.Triple) ], AchievementTier.diamond),
+		], rewards);
+
+		expect(ranked[0]!.key).toBe('T20');
+	});
+
+	it('uses the season\u2019s rewards, with the defaults for a missing tier', () => {
+		const [ only ] = rankThrows([ hint('A', [ hit(20, ThrowType.Single) ], AchievementTier.gold) ], {});
+
+		expect(only!.mmr).toBe(15);
+		const gold = [ hint('A', [ hit(20, ThrowType.Single) ], AchievementTier.gold) ];
+		const goldWorth40 = rankThrows(gold, { [AchievementTier.gold]: 40 });
+
+		expect(goldWorth40[0]!.mmr).toBe(40);
+	});
+});
+
+describe('groupByName', () => {
+	it('joins achievements whose names differ only in brackets, in the server order', () => {
+		const groups = groupByName([
+			hint('Score At Least 50 (Modified)', []),
+			hint('Classic 20', []),
+			hint('Score At Least 50 (Raw)', []),
+		]);
+
+		expect(groups.map(group => [ group.name, group.hints.length ])).toEqual([
+			[ 'Score At Least 50 (Modified · Raw)', 2 ],
+			[ 'Classic 20', 1 ],
+		]);
+	});
+});
+
+describe('getHighestTier', () => {
+	it('picks the highest tier, or nothing without hints', () => {
+		expect(getHighestTier([ hint('A', [], AchievementTier.silver), hint('B', [], AchievementTier.diamond) ]))
+			.toBe(AchievementTier.diamond);
+		expect(getHighestTier([])).toBeUndefined();
 	});
 });

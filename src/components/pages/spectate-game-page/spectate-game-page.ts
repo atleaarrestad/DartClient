@@ -14,6 +14,7 @@ import spectateGamePageStyles from './spectate-game-page.css?inline';
 export class SpectateGamePage extends GamePage {
 
 	@state() private gameId!: string;
+	protected override readonly playStatusLink = 'sessions';
 	private spectateSubscription?: SignalRSubscription;
 	private readonly onGameUpdated = (gameId: string, gameTracker: GameTracker) => this.HandleOnGameUpdated(gameId, gameTracker);
 	private readonly onGameDelta = (gameId: string, delta: GameTrackerDelta) => void this.HandleOnGameDelta(gameId, delta);

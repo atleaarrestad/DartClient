@@ -20,107 +20,11 @@ aa-loading-state {
 }
 
 .page-shell {
-	/* Shared by the dock and the strip .player-container keeps free for it. */
-	--last-dart-dock-height: 7rem;
 	min-height: 0;
 	height: 100%;
 	display: grid;
-	grid-template-rows: minmax(0, 1fr);
-	position: relative;
-}
-
-.floating-controls {
-	position: absolute;
-	left: 1rem;
-	right: 1rem;
-	bottom: 1rem;
-	z-index: 3;
-	display: flex;
-	flex-wrap: wrap;
-	align-items: flex-end;
-	gap: 0.5rem;
-	pointer-events: none;
-}
-
-/*
- * Lives in the bottom strip that .player-container already keeps free (padding-bottom), so
- * it covers no scoreboard. It is always rendered while a game is active and only fades in
- * and out, so the strip's layout never changes.
- */
-.floating-controls aa-last-dart-hints {
-	--aa-last-dart-hints-height: var(--last-dart-dock-height);
-	/* A zero basis keeps it on the controls' line: it shrinks instead of wrapping. */
-	flex: 1 1 0;
-	min-width: 24rem;
-	max-width: 90rem;
-	margin-left: auto;
-}
-
-.sync-status {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.55rem;
-	max-width: min(20rem, calc(100vw - 2rem));
-	padding: 0.45rem 0.7rem;
-	border: 2px solid var(--color-border-strong);
-	border-radius: var(--radius-lg);
-	box-shadow: var(--shadow-brutal-sm);
-	background: var(--color-surface-raised);
-	pointer-events: none;
-}
-
-.sync-status--connected {
-	background: #eef8ef;
-}
-
-.sync-status--connecting,
-.sync-status--reconnecting {
-	background: var(--color-surface-warning-subtle);
-}
-
-.sync-status--disconnected {
-	background: #ffd9de;
-}
-
-.sync-status__dot {
-	width: 0.75rem;
-	height: 0.75rem;
-	flex: 0 0 auto;
-	border: 2px solid var(--color-border-strong);
-	border-radius: var(--radius-pill);
-	background: #000;
-}
-
-.sync-status--connected .sync-status__dot {
-	background: #57b35d;
-}
-
-.sync-status--connecting .sync-status__dot,
-.sync-status--reconnecting .sync-status__dot {
-	background: #f1b503;
-}
-
-.sync-status--disconnected .sync-status__dot {
-	background: #d95c6a;
-}
-
-.sync-status__copy {
-	display: grid;
-	gap: 0.1rem;
-	min-width: 0;
-}
-
-.sync-status__title {
-	font-weight: 900;
-	line-height: 1.1;
-	font-size: 0.9rem;
-}
-
-.sync-status__message {
-	font-size: 0.74rem;
-	font-weight: 700;
-	line-height: 1.2;
-	opacity: 0.75;
+	/* The board, then the last-dart hints: always there and always the same height. */
+	grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .page-content {
@@ -238,8 +142,7 @@ aa-loading-state {
 	justify-items: center;
 	align-items: stretch;
 	padding-top: 24px;
-	/* The floating controls and the last-dart dock sit in this strip, never over a board. */
-	padding-bottom: max(88px, calc(var(--last-dart-dock-height) + 1.75rem));
+	padding-bottom: 24px;
 	padding-left: 12px;
 	padding-right: calc(12px - var(--scrollbar-width));
 
@@ -500,55 +403,6 @@ aa-loading-state {
 	white-space: nowrap;
 }
 
-.top-bar {
-	display: inline-flex;
-	align-items: center;
-	pointer-events: none;
-}
-
-.shortcut-help-trigger {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.45rem;
-	flex-wrap: wrap;
-	padding: 0.35rem 0.55rem;
-	background: #fffdf6;
-	border: 2px solid var(--color-border-strong);
-	border-radius: var(--radius-lg);
-	box-shadow: var(--shadow-brutal-sm);
-	font: inherit;
-	font-weight: 900;
-	cursor: pointer;
-	max-width: max-content;
-	pointer-events: auto;
-}
-
-.shortcut-help-trigger:hover {
-	background: var(--color-surface-warning-subtle);
-}
-
-.shortcut-help-trigger:active {
-	transform: translate(1px, 1px);
-	box-shadow: var(--shadow-brutal-xs);
-}
-
-.shortcut-help-trigger-text {
-	font-size: 0.85rem;
-	line-height: 1;
-}
-
-.shortcut-help-trigger .shortcut-keys {
-	gap: 0.25rem;
-}
-
-.shortcut-help-trigger .keycap {
-	min-width: 1.75rem;
-	padding: 0.15rem 0.4rem;
-	border-radius: var(--radius-md);
-	box-shadow: var(--shadow-brutal-xs);
-	font-size: 0.8rem;
-}
-
 .rematch-player-list {
 	display: flex;
 	flex-wrap: wrap;
@@ -576,27 +430,4 @@ aa-loading-state {
 	background: var(--color-surface-warning-subtle);
 	font-weight: 900;
 	box-shadow: inset 0 -3px 0 #000;
-}
-
-@media (max-width: 700px) {
-	.floating-controls {
-		align-items: stretch;
-	}
-
-	.sync-status {
-		max-width: unset;
-	}
-
-	/* Its own line above the other controls; the free strip grows to match. */
-	.floating-controls aa-last-dart-hints {
-		flex-basis: 100%;
-		order: -1;
-		min-width: 0;
-		margin-left: 0;
-	}
-
-	.player-container {
-		padding-bottom: calc(88px + var(--last-dart-dock-height) + 0.5rem);
-	}
-
 }

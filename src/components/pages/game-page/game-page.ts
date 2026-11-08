@@ -17,7 +17,7 @@ import {
 	applyGameTrackerDelta,
 	ApplyGameTrackerDeltaResult,
 } from '../../../helpers/applyGameTrackerDelta.js';
-import { isLastDartWindowOpen } from '../../../helpers/lastDartHints.js';
+import { isLastDartWindowOpen, TierRewards } from '../../../helpers/lastDartHints.js';
 import { sum } from '../../../helpers/sum.js';
 import { AchievementTier, achievementTiersAscending, RoundStatus } from '../../../models/enums.js';
 import { GameTracker, GameTrackerDelta, PlayerRounds, Round, Season, SeasonStatistics, User } from '../../../models/schemas.js';
@@ -26,6 +26,7 @@ import { DialogService } from '../../../services/dialogService.js';
 import { GameService } from '../../../services/gameService.js';
 import { GameLiveService } from '../../../services/gameLiveService.js';
 import { NotificationService } from '../../../services/notificationService.js';
+import { PlayStatus, setPlayStatus } from '../../../services/playStatus.js';
 import { SeasonService } from '../../../services/seasonService.js';
 import { UserService, GetAllUsersOptions } from '../../../services/userService.js';
 import { sharedStyles } from '../../../styles/shared-styles.js';
@@ -126,6 +127,8 @@ export class GamePage extends LitElement {
 	override async disconnectedCallback(): Promise<void> {
 		super.disconnectedCallback();
 		this.lifecycleGeneration++;
+		this.publishedPlayStatus = '';
+		setPlayStatus(undefined);
 
 		window.removeEventListener('offline', this.handleBrowserOffline);
 		window.removeEventListener('online', this.handleBrowserOnline);
@@ -143,6 +146,39 @@ export class GamePage extends LitElement {
 	override updated(changedProperties: PropertyValues): void {
 		super.updated(changedProperties);
 		this.observePlayerContainer();
+		this.publishPlayStatus();
+	}
+
+	/** The navigation link of this page; the sync dot sits on it. */
+	protected readonly playStatusLink: PlayStatus['link'] = 'play';
+
+	/** Opens this page's gameplay shortcuts, if it has any. */
+	protected getShortcutsAction(): (() => void) | undefined {
+		return undefined;
+	}
+
+	private publishedPlayStatus = '';
+
+	/**
+	 * Tells the navigation bar about live sync and the shortcuts. Sync shows while a game is
+	 * open, and also without one when it isn't connected.
+	 */
+	private publishPlayStatus(): void {
+		const sync = this.getDisplaySyncStatus();
+		const status: PlayStatus | undefined = this.isActiveGame || sync !== 'connected'
+			? {
+				link:          this.playStatusLink,
+				sync,
+				syncMessage:   this.getDisplaySyncStatusMessage(),
+				openShortcuts: this.isActiveGame ? this.getShortcutsAction() : undefined,
+			}
+			: undefined;
+		const key = status ? JSON.stringify({ ...status, openShortcuts: !!status.openShortcuts }) : '';
+		if (key === this.publishedPlayStatus)
+			return;
+
+		this.publishedPlayStatus = key;
+		setPlayStatus(status);
 	}
 
 	protected async initialize(generation: number): Promise<void> {
@@ -312,34 +348,6 @@ export class GamePage extends LitElement {
 			type: 'danger',
 			message: getErrorMessage(error, fallback),
 		});
-	}
-
-	protected renderSyncStatus(): unknown {
-		const displayStatus = this.getDisplaySyncStatus();
-		if (!this.isActiveGame && displayStatus === 'connected')
-			return null;
-
-		const statusText = displayStatus === 'connected'
-			? 'Sync connected'
-			: displayStatus === 'connecting'
-				? 'Sync connecting...'
-				: displayStatus === 'reconnecting'
-					? 'Sync reconnecting...'
-					: 'Sync offline';
-		const statusMessage = this.getDisplaySyncStatusMessage();
-		const showDetails = displayStatus !== 'connected';
-
-		return html`
-			<div class="sync-status sync-status--${ displayStatus }" role="status" aria-live="polite">
-				<span class="sync-status__dot" aria-hidden="true"></span>
-				<div class="sync-status__copy">
-					<span class="sync-status__title">${ statusText }</span>
-					${ showDetails
-						? html`<span class="sync-status__message">${ statusMessage }</span>`
-						: null }
-				</div>
-			</div>
-		`;
 	}
 
 	private bindSignalRState(): void {
@@ -769,10 +777,6 @@ export class GamePage extends LitElement {
 		`;
 	}
 
-	protected renderTopContent(): unknown {
-		return null;
-	}
-
 	protected renderPlayerHeaderContent(): unknown {
 		return null;
 	}
@@ -833,8 +837,23 @@ export class GamePage extends LitElement {
 			<aa-last-dart-hints
 				.playerName=${ target?.playerName ?? '' }
 				.hints=${ target?.hints ?? null }
+				.tierRewards=${ this.getTierRewards() }
 			></aa-last-dart-hints>
 		`;
+	}
+
+	private tierRewardsSource?: Season['achievementTierRewards'];
+	private tierRewards: TierRewards = {};
+
+	/** The season's MMR per achievement tier, kept as one object while the season is the same. */
+	private getTierRewards(): TierRewards {
+		const rewards = this.season?.achievementTierRewards;
+		if (rewards !== this.tierRewardsSource) {
+			this.tierRewardsSource = rewards;
+			this.tierRewards = Object.fromEntries((rewards ?? []).map(reward => [ reward.achievementTier, reward.mmrReward ]));
+		}
+
+		return this.tierRewards;
 	}
 
 	protected renderProjectedAchievements(playerId: string): unknown {
@@ -939,12 +958,6 @@ export class GamePage extends LitElement {
 
 		return html`
 			<div class="page-shell">
-				<div class="floating-controls">
-					${this.renderTopContent()}
-					${this.renderSyncStatus()}
-					${this.renderLastDartHints()}
-				</div>
-
 				<div class="page-content">
 					<div class="player-header">
 						${this.renderPlayerHeaderContent()}
@@ -1151,6 +1164,8 @@ export class GamePage extends LitElement {
 						})}
 					</div>
 				</div>
+
+				${this.renderLastDartHints()}
 			</div>
 		`;
 	}

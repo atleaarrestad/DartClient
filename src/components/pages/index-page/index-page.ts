@@ -501,25 +501,8 @@ export class IndexPage extends GamePage {
 		}
 	}
 
-	protected override renderTopContent(): unknown {
-		if (!this.isActiveGame)
-			return null;
-
-		return html`
-			<div class="top-bar">
-				<button
-					class="shortcut-help-trigger"
-					type="button"
-					aria-label="Open gameplay shortcuts help"
-					@click=${() => void this.openShortcutHelp()}
-				>
-					<span class="shortcut-keys" aria-hidden="true">
-						<span class="keycap">⇧ H</span>
-					</span>
-					<span class="shortcut-help-trigger-text">Shortcuts</span>
-				</button>
-			</div>
-		`;
+	protected override getShortcutsAction(): () => void {
+		return () => void this.openShortcutHelp();
 	}
 
 	protected async removeFocusedPlayer(): Promise<void> {
