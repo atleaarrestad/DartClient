@@ -20,6 +20,13 @@ Chosen from the redesign canvas (frame 11, "Side dock + dartboard"). On the play
 - **Placeholder rounds** (`getPlaceholderRoundCount`)
   - Empty rounds now only fill the rows the card shows, capped at the round limit.
   - Before, with a round limit, it added a full screen of empty rows after the played rounds and then scrolled to the end. With half-height cards, that pushed the round being thrown out of view.
+- **Locked rows after the limit** (`getRoundLimitBarrierCount`)
+  - While the played rounds fit in the card, the hatched "round 13 locked" rows only take the room that is left, possibly none. Once the rounds need scrolling anyway, at least one shows at the end.
+  - Before, a card with room for exactly the limit (12 rounds) still got a 13th, locked row. The card scrolled to the end and hid round 1 from the start of the game.
+  - That happened with two rows of players. With one row the cards are tall enough for the extra row.
+  - Checked by measuring the spectate page at 700px wide with the cards stacked:
+    - room for 12: 12 rows and no overflow (before: 13 rows, 416px of content in a 387px card);
+    - room for 14: still 12 rows plus the locked one.
 - **Hints dock** (`aa-last-dart-hints`, rewritten)
   - The strip and panel placements are replaced by one docked layout, stacked top to bottom: the name, an SVG dartboard, the Rim and Miss chips, and one list of up to four suggested throws. There is no heading over the list and no colour key under it: the user found both useless, and the rows, rings and callouts explain themselves.
   - When the box is wide (`aspect-ratio > 2`, the narrow-screen fallback), the board moves to the left and the four suggestions sit two by two.

@@ -639,6 +639,12 @@ export class GamePage extends LitElement {
 		return Math.max(0, shownRounds - player.rounds.length);
 	}
 
+	/**
+	 * The locked rows after the round limit. While the rounds themselves fit in the card, they
+	 * only take the room that is left: a locked row that doesn't fit would make the card
+	 * scroll, hiding the first rounds for nothing (a card with room for exactly the limit).
+	 * Once the rounds need scrolling anyway, at least one shows at the end.
+	 */
 	protected getRoundLimitBarrierCount(player: PlayerRounds): number {
 		const maximumRounds = this.getMaximumRoundCount();
 		if (maximumRounds === null)
@@ -652,8 +658,11 @@ export class GamePage extends LitElement {
 		const preservedRoundCount = this.configuredMaximumRounds === null
 			? Math.max(this.visibleRoundCapacity, player.rounds.length, maximumRounds + 1)
 			: Math.max(this.configuredMaximumRounds + 1, player.rounds.length);
+		const barrierCount = Math.max(1, preservedRoundCount - renderedRoundCount);
+		if (player.rounds.length > this.visibleRoundCapacity)
+			return barrierCount;
 
-		return Math.max(1, preservedRoundCount - renderedRoundCount);
+		return Math.min(barrierCount, Math.max(0, this.visibleRoundCapacity - renderedRoundCount));
 	}
 
 	protected getLatestSeasonStatsForPlayer(playerIndex: number): SeasonStatistics | undefined {
