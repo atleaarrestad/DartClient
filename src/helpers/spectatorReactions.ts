@@ -11,6 +11,8 @@ export interface SpectatorReactionDefinition {
 	readonly label:    string;
 	/** A darts call shown as a text sticker instead of a picture. */
 	readonly sticker?: string;
+	/** A darts call on a small tag stuck to the picture's corner. */
+	readonly tag?:     string;
 }
 
 /** In the order the picker shows them: cheers first, then laughs and groans, then calls. */
@@ -24,7 +26,8 @@ export const spectatorReactions: readonly SpectatorReactionDefinition[] = [
 	{ key: 'mind-blown', label: 'Mind blown' },
 	{ key: 'oof', label: 'Oof' },
 	{ key: '180', label: '180', sticker: '180!' },
-	{ key: 'ton', label: 'Ton', sticker: 'Ton!' },
+	// Can't watch: the monkey covering its eyes over the classic poor round, 20 + 5 + 1.
+	{ key: '26', label: 'Bed and breakfast (26)', tag: '26' },
 ];
 
 const reactionsByKey = new Map(spectatorReactions.map(reaction => [ reaction.key, reaction ]));

@@ -1,4 +1,4 @@
-import { html, LitElement, unsafeCSS } from 'lit';
+import { html, LitElement, nothing, unsafeCSS } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -170,6 +170,7 @@ export class AaReactionPicker extends LitElement {
 				${ reaction.sticker
 					? html`<span class="reaction__sticker">${ reaction.sticker }</span>`
 					: html`<img class="reaction__picture" src=${ getReactionImageUrl(reaction.key) } alt="" width="34" height="34">` }
+				${ reaction.tag ? html`<span class="reaction__tag">${ reaction.tag }</span>` : nothing }
 			</button>
 		`;
 	}

@@ -136,6 +136,7 @@ span.identity__avatar {
 }
 
 .reaction {
+	position: relative;
 	display: grid;
 	place-items: center;
 	aspect-ratio: 1;
@@ -167,8 +168,19 @@ span.identity__avatar {
 	background: var(--color-medal-gold);
 }
 
-.reaction--ton {
-	background: var(--color-status-success);
+/* A darts call stuck to the picture's corner, like the 180 sticker in small. */
+.reaction__tag {
+	position: absolute;
+	right: -4px;
+	bottom: -4px;
+	padding: 0.05rem 0.25rem;
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: 5px;
+	background: var(--color-medal-gold);
+	color: var(--color-text-primary);
+	font: 700 0.62rem / 1.1 var(--font-family-ui);
+	pointer-events: none;
+	rotate: -8deg;
 }
 
 .reaction:focus-visible {
@@ -201,7 +213,7 @@ span.identity__avatar {
 		transform: translate(-1px, -1px);
 	}
 
-	.reaction:not(.reaction--180, .reaction--ton, :disabled, [aria-disabled='true']):hover {
+	.reaction:not(.reaction--180, :disabled, [aria-disabled='true']):hover {
 		background: var(--color-surface-highlight);
 	}
 }

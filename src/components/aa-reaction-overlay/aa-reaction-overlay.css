@@ -56,8 +56,26 @@
 	animation: float-pop 420ms ease-out both;
 }
 
-.sticker--ton {
-	background: var(--color-status-success);
+/* A picture with a darts call stuck to its corner (the can't-watch monkey's "26"). */
+.tagged {
+	position: relative;
+	display: block;
+}
+
+.tag {
+	position: absolute;
+	right: calc(var(--picture-size) * -0.18);
+	bottom: calc(var(--picture-size) * -0.08);
+	padding: 0.05em 0.35em;
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-sm);
+	background: var(--color-medal-gold);
+	box-shadow: var(--shadow-brutal-xs);
+	color: var(--color-text-primary);
+	font: 700 calc(var(--picture-size) * 0.3) / 1.1 var(--font-family-ui);
+	white-space: nowrap;
+	rotate: var(--sticker-tilt);
+	animation: float-pop 420ms 120ms ease-out both;
 }
 
 .name {
@@ -241,6 +259,7 @@
 	.float__body,
 	.picture,
 	.sticker,
+	.tag,
 	.name,
 	.crowd__avatar,
 	.crowd__picture--cheering {

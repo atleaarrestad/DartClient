@@ -199,15 +199,18 @@ export class AaReactionOverlay extends LitElement {
 
 	private renderFloats(): unknown {
 		return repeat(this.floats, float => float.id, float => {
-			const { key, sticker } = float.reaction;
+			const { key, sticker, tag } = float.reaction;
 			const avatar = getAnimalImageUrl(float.animal);
+			const picture = html`<img class="picture" src=${ getReactionImageUrl(key) } alt="" width="72" height="72">`;
 
 			return html`
 				<div class="float" style=${ styleMap(float.style) }>
 					<div class="float__body">
 						${ sticker
 							? html`<span class="sticker sticker--${ key }">${ sticker }</span>`
-							: html`<img class="picture" src=${ getReactionImageUrl(key) } alt="" width="72" height="72">` }
+							: tag
+								? html`<span class="tagged">${ picture }<span class="tag">${ tag }</span></span>`
+								: picture }
 						<span class="name">
 							${ avatar ? html`<img class="name__avatar" src=${ avatar } alt="" width="20" height="20">` : nothing }
 							${ getAnimalName(float.animal) }

@@ -100,9 +100,11 @@ Ten, in a 5 × 2 grid:
 | `mind-blown` | Exploding head | Mind blown |
 | `oof` | Grimacing face | Oof |
 | `180` | "180!" sticker | 180 |
-| `ton` | "Ton!" sticker | Ton |
+| `26` | See-no-evil monkey with a "26" tag | Bed and breakfast (26) |
 
-The darts calls are text stickers: words read better than any picture for them.
+The darts calls are text: words read better than any picture for them. "180!" is a sticker on its own. "26" is a small tag stuck to the can't-watch monkey (`tag` in `spectatorReactions`): the classic poor round, 20 + 5 + 1.
+
+> **2026-11-09:** `26` replaced `ton` ("Ton!" on lime), since a ton isn't something players chase in this count-up-to-250 game. The monkey is Fluent Emoji Flat's `see-no-evil_monkey_flat.svg` (MIT), saved as `public/emoji/reactions/26.svg`. The backend's `SpectatorReactionRegistry.Reactions` takes `26` instead of `ton`, so deploy both together. An old client never shows the monkey: it doesn't know the key and ignores it.
 
 The 46 animals are listed in `SpectatorReactionRegistry.Animals` (backend) and
 `spectatorAnimals` (client). They are friendly ones only: no rat, pig, snake or worm.
@@ -194,8 +196,8 @@ group. A reaction is a few bytes, so the Pi pays nothing for it.
   before. A burst of five named floats then spreads out instead of stacking its pills.
 - **Sizing:** pictures are `clamp(44px, 4.5vw, 72px)`, about 44 px on a phone and 72 px on
   the board's TV.
-- **The darts calls** are stickers in the same style: "180!" on gold, "Ton!" on lime, with a
-  slight tilt.
+- **The darts calls** are stickers in the same style, with a slight tilt: "180!" on gold, and
+  "26" as a small gold tag on the monkey's corner.
 - **Motion:**
   - Each float pops in (scale 0.3 → 1.15 → 1, 420 ms).
   - It rises 42–58 % of the board's height over 3.2–4 s, slowing as it goes, sways gently
