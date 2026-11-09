@@ -18,7 +18,7 @@ import {
 	applyGameTrackerDelta,
 	ApplyGameTrackerDeltaResult,
 } from '../../../helpers/applyGameTrackerDelta.js';
-import { getFinishValue, getLastDartRoundIndex, isLastDartUp, TierRewards } from '../../../helpers/lastDartHints.js';
+import { getLastDartRoundIndex, isLastDartUp, TierRewards } from '../../../helpers/lastDartHints.js';
 import type { ThrowPosition } from '../../../helpers/throwFocusNavigation.js';
 import { sum } from '../../../helpers/sum.js';
 import { AchievementTier, achievementTiersAscending, RoundStatus } from '../../../models/enums.js';
@@ -949,24 +949,8 @@ export class GamePage extends LitElement {
 				.hints=${ state.status === 'ready' ? state.hints : null }
 				.loading=${ state.status === 'loading' }
 				.tierRewards=${ this.getTierRewards() }
-				.victoryValue=${ state.status === 'idle' ? 0 : this.getVictoryValue(state.target) }
 			></aa-last-dart-hints>
 		`;
-	}
-
-	/**
-	 * What finishing with this dart would be worth to the player, by the season's match MMR
-	 * rules: placed after everyone who has finished already, in the target's round.
-	 */
-	private getVictoryValue(target: LastDartHintsTarget): number {
-		const configuration = this.season?.mmrConfiguration;
-		if (!configuration)
-			return 0;
-
-		const finishedBefore = this.players.filter(player => player.playerId !== target.playerId
-			&& player.rounds.some(round => round.roundStatus === RoundStatus.Victory)).length;
-
-		return getFinishValue(configuration, target.roundIndex + 1, finishedBefore + 1);
 	}
 
 	private tierRewardsSource?: Season['achievementTierRewards'];

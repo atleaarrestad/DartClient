@@ -197,15 +197,22 @@ describe('DataService requests', () => {
 
 	it('asks for last-dart hints, with no content meaning none', async () => {
 		const hints = {
-			roundIndex: 2,
-			totalCount: 1,
-			hints:       [ { id: '8d3b5c6f-1e9d-4e4b-8f5a-6f7a8b9c0d14', name: 'Hinted', tier: 1, hits: [ 'T20' ] } ],
-			victoryHits: [ 'D20' ],
+			roundIndex:    2,
+			totalCount:    1,
+			hints:         [ { id: '8d3b5c6f-1e9d-4e4b-8f5a-6f7a8b9c0d14', name: 'Hinted', tier: 1, hits: [ 'T20' ] } ],
+			victoryHits:   [ 'D20' ],
+			sixtyNineHits: [ 'T10' ],
 		};
 		const fetchMock = stubFetch(() => jsonResponse(200, hints));
 
 		await expect(createService().getLastDartHints('game', 'player')).resolves.toEqual(hints);
 		expect(fetchMock.mock.calls[0]![0]).toBe('http://test.invalid/games/sessions/game/player/player/last-dart-hints');
+
+		// An older server sends neither the winning darts nor the darts to 69.
+		const { victoryHits: _victory, sixtyNineHits: _sixtyNine, ...older } = hints;
+		stubFetch(() => jsonResponse(200, older));
+		await expect(createService().getLastDartHints('game', 'player'))
+			.resolves.toEqual({ ...older, victoryHits: [], sixtyNineHits: [] });
 
 		for (const response of [ () => new Response(null, { status: 204 }), () => jsonResponse(404) ]) {
 			stubFetch(response);

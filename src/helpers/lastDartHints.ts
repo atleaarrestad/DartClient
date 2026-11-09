@@ -3,7 +3,7 @@ import type {
 	LastDartHint,
 } from '../models/achievementBuilderApi.js';
 import { AchievementTier, RoundStatus, ThrowType } from '../models/enums.js';
-import type { MmrConfiguration, PlayerRounds, Round } from '../models/schemas.js';
+import type { PlayerRounds, Round } from '../models/schemas.js';
 import { bullLocation, doubleBullLocation } from './dartboard.js';
 import { defaultAchievementRewards } from './seasonDraft.js';
 
@@ -261,11 +261,11 @@ export type TierRewards = Readonly<Partial<Record<AchievementTier, number>>>;
 
 /** What the outcomes of a dart are worth, besides the achievements in the hints. */
 export interface ThrowValues {
-	tierRewards?:  TierRewards;
+	tierRewards?:   TierRewards;
 	/** The darts that win the game, in dart notation. */
-	victoryHits?:  readonly string[];
-	/** What winning the game with this dart is worth, in MMR; see `getFinishValue`. */
-	victoryValue?: number;
+	victoryHits?:   readonly string[];
+	/** The darts that leave the total on 69 when the season plays the 69 rule. */
+	sixtyNineHits?: readonly string[];
 }
 
 export interface ThrowPayoff {
@@ -278,20 +278,21 @@ export interface ThrowPayoff {
 	/** It wins the game. */
 	wins:        boolean;
 	/**
-	 * What aiming at it is worth: what hitting it is worth (achievements, and the win) times
-	 * the chance of hitting it, plus the same for where a miss mostly lands instead.
+	 * What aiming at it is worth in achievements: what hitting it unlocks times the chance of
+	 * hitting it, plus the same for where a miss mostly lands instead.
 	 */
 	payoff:      number;
 }
 
 /**
- * Every throw worth aiming at, best first: the highest expected payoff, then the one that
- * unlocks more, then the easier one. A single that unlocks a few bronzes beats a double that
- * unlocks a gold; but a double that unlocks everything its single does and much more, or that
- * wins the game, is worth going for, since a miss usually still lands in that single.
+ * Every throw worth aiming at for achievements, best first: the highest expected payoff, then
+ * the one that unlocks more, then the easier one. A single that unlocks a few bronzes beats a
+ * double that unlocks a gold; but a double that unlocks everything its single does and much
+ * more is worth going for, since a miss usually still lands in that single. The darts that
+ * win are in the list too, marked; winning itself is weighed by `planLastDart`, not here.
  */
 export function rankThrows(hints: readonly LastDartHint[], values: ThrowValues = {}): ThrowPayoff[] {
-	const { tierRewards = {}, victoryHits = [], victoryValue = 0 } = values;
+	const { tierRewards = {}, victoryHits = [] } = values;
 	const reward = (hint: LastDartHint): number => {
 		const tier = hint.tier as AchievementTier;
 
@@ -309,16 +310,16 @@ export function rankThrows(hints: readonly LastDartHint[], values: ThrowValues =
 		const mmr = hintIndexes.reduce((total, index) => total + reward(hints[index]!), 0);
 		const wins = victoryHits.includes(key);
 
-		return [ key, { hit, hintIndexes, mmr, wins, worth: mmr + (wins ? victoryValue : 0) } ];
+		return [ key, { hit, hintIndexes, mmr, wins } ];
 	}));
-	const worthOf = (hit: AchievementLegalHit | undefined): number =>
-		hit ? outcomes.get(formatHit(hit))?.worth ?? 0 : 0;
+	const mmrOf = (hit: AchievementLegalHit | undefined): number =>
+		hit ? outcomes.get(formatHit(hit))?.mmr ?? 0 : 0;
 
 	return [ ...outcomes ]
-		.map(([ key, { hit, hintIndexes, mmr, wins, worth } ]) => {
+		.map(([ key, { hit, hintIndexes, mmr, wins } ]) => {
 			const kind = getHitKind(hit);
-			const payoff = worth * throwDifficulty[kind]
-				+ worthOf(getMissFallback(hit)) * (missFallbackChance[kind] ?? 0);
+			const payoff = mmr * throwDifficulty[kind]
+				+ mmrOf(getMissFallback(hit)) * (missFallbackChance[kind] ?? 0);
 
 			return { hit, key, hintIndexes, mmr, wins, payoff };
 		})
@@ -328,19 +329,59 @@ export function rankThrows(hints: readonly LastDartHint[], values: ThrowValues =
 			|| throwDifficulty[getHitKind(right.hit)] - throwDifficulty[getHitKind(left.hit)]);
 }
 
-/**
- * What finishing the game is worth in the season's match MMR: the placement bonus for the
- * place it would take, plus the finish bonus less the round penalty for every round played
- * (as the server works it out, before the opponent factor).
- */
-export function getFinishValue(
-	{ placementBonus, finishBonus, roundPenalty }: Pick<MmrConfiguration, 'placementBonus' | 'finishBonus' | 'roundPenalty'>,
-	roundsPlayed: number,
-	placement: number,
-): number {
-	const finish = Math.min(Math.max(finishBonus - roundPenalty * roundsPlayed, 0), finishBonus);
+/** What to make of the last dart, and in which order; see `planLastDart`. */
+export interface LastDartPlan {
+	/** What to throw: the easiest dart that wins, or else the one worth the most in achievements. */
+	main?:      ThrowPayoff;
+	/** When `main` is a win: the throw worth the most in achievements, if that is another dart. */
+	second?:    ThrowPayoff;
+	/** The easiest dart that leaves the total on 69 (the 69 rule doubles the next round). */
+	sixtyNine?: ThrowPayoff;
+	/** The other throws that unlock achievements, best first. */
+	others:     ThrowPayoff[];
+}
 
-	return Math.floor(placementBonus / Math.max(1, placement)) + finish;
+/**
+ * The easiest of these to hit (see `throwDifficulty`): a single, then a treble, the 25, the
+ * bull, a double. A tie goes to the one that unlocks more, then to a miss over the rim.
+ */
+const easiest = (throws: readonly ThrowPayoff[]): ThrowPayoff | undefined =>
+	throws.toSorted((left, right) =>
+		throwDifficulty[getHitKind(right.hit)] - throwDifficulty[getHitKind(left.hit)]
+		|| right.hintIndexes.length - left.hintIndexes.length
+		|| Number(right.key === 'Miss') - Number(left.key === 'Miss'))[0];
+
+/**
+ * Winning matters most: when a dart wins, the easiest such dart is the one to throw. The throw
+ * worth the most in achievements comes second, when it is another dart (a dart that doesn't
+ * win, or a harder one that does). Without a win, that throw is the main one. Reaching 69 is
+ * its own goal, its easiest dart kept apart.
+ */
+export function planLastDart(hints: readonly LastDartHint[], values: ThrowValues = {}): LastDartPlan {
+	const { victoryHits = [], sixtyNineHits = [] } = values;
+	const ranked = rankThrows(hints, values);
+	const byKey = new Map(ranked.map(item => [ item.key, item ]));
+	const payoffsOf = (codes: readonly string[]): ThrowPayoff[] => codes.flatMap(code => {
+		const hit = parseHit(code);
+		if (!hit)
+			return [];
+
+		const key = formatHit(hit);
+
+		return [ byKey.get(key) ?? { hit, key, hintIndexes: [], mmr: 0, wins: false, payoff: 0 } ];
+	});
+
+	const rewarding = ranked.filter(item => item.hintIndexes.length > 0);
+	const win = easiest(payoffsOf(victoryHits));
+	const main = win ?? rewarding[0];
+	const second = win && rewarding[0]?.key !== win.key ? rewarding[0] : undefined;
+
+	return {
+		main,
+		second,
+		sixtyNine: easiest(payoffsOf(sixtyNineHits)),
+		others:    rewarding.filter(item => item !== main && item !== second),
+	};
 }
 
 export function getHighestTier(hints: readonly LastDartHint[]): AchievementTier | undefined {

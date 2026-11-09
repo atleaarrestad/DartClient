@@ -19,6 +19,13 @@
 .dock {
 	/* What lights a target up: a yellow edge, which shows on every board colour. */
 	--hints-glow: #ffd23f;
+	/*
+	 * The rings, from the most focus to the least: the throw to make in white, the second
+	 * choice in grey, the dart to 69 in cyan. A pointed target gets a dashed white ring.
+	 */
+	--hints-ring-main: #fff;
+	--hints-ring-second: #b9b9b9;
+	--hints-ring-sixty-nine: #3fd8e6;
 	--hints-divider: 2px dashed rgba(0, 0, 0, 0.18);
 	--hints-tile: 4.75rem;
 	--hints-line-icon: 20px;
@@ -123,8 +130,11 @@
 	transition: fill-opacity 150ms ease;
 }
 
-/* Once something is lit, everything else dims into the black board behind it. */
-.board--lit .area:not(.lit) {
+/*
+ * Once something is lit, everything else dims into the black board behind it, except the
+ * ringed targets: the easiest win or the dart to 69 may unlock nothing and must still show.
+ */
+.board--lit .area:not(.lit, .area--shown) {
 	fill-opacity: 0.2;
 	stroke-opacity: 0.35;
 }
@@ -135,28 +145,38 @@
 	stroke-linejoin: round;
 }
 
-/*
- * Singles are big enough for a wider edge, which they need: a lit black single would
- * otherwise look like a dimmed one. It also lifts to charcoal, still the board's black but
- * clearly brighter than the black wedges around it.
- */
+/* Singles are big enough for a wider edge, which they need to stand out as much as the rings. */
 .area--single.lit {
-	stroke-width: calc(var(--glow) * 2);
+	stroke-width: calc(var(--glow) * 1.6);
 }
 
-.area--single.lit.colour-black {
-	fill: #5a5a5a;
+/*
+ * Once something is lit, every single that shows (lit, or ringed though it unlocks nothing)
+ * gets the same brightness, about that of the lit red and green rings: black lifts to a mid
+ * grey, cream drops to a warm khaki. Full cream would outshine every black single, so a lit
+ * S20 would hide beside a lit S19; the yellow edge says what is lit, the hue which colour it is.
+ */
+.board--lit .area--single.colour-black:is(.lit, .area--shown) {
+	fill: #6f6f6f;
 }
 
-/* The best throw: ringed and outlined in white on a black halo, so it shows on any colour. */
+.board--lit .area--single.colour-cream:is(.lit, .area--shown) {
+	fill: #978e77;
+}
+
+/* A ringed target: ring and outline in the ring's colour on a black halo, to show on any colour. */
 .marker {
+	--ring: var(--hints-ring-main);
 	fill: none;
 	pointer-events: none;
 	stroke-linejoin: round;
 }
 
+.marker--second { --ring: var(--hints-ring-second); }
+.marker--sixty-nine { --ring: var(--hints-ring-sixty-nine); }
+
 .marker__outline {
-	stroke: #fff;
+	stroke: var(--ring);
 	stroke-width: 2.5;
 }
 
@@ -166,11 +186,24 @@
 }
 
 .marker__ring {
-	stroke: #fff;
+	stroke: var(--ring);
 	stroke-width: 5;
 }
 
-/* Another lit target under the pointer: the same ring, dashed. */
+/* The second choice has less focus: a thinner ring. */
+.marker--second .marker__ring {
+	stroke-width: 3.5;
+}
+
+.marker--second .marker__halo {
+	stroke-width: 8;
+}
+
+.marker--second .marker__outline {
+	stroke-width: 1.8;
+}
+
+/* Another lit target under the pointer: a white ring, dashed. */
 .marker--pointed .marker__ring,
 .marker--pointed .marker__outline {
 	stroke-dasharray: 9 6;
@@ -179,6 +212,60 @@
 .marker--pointed .marker__halo {
 	stroke-dasharray: 9 6;
 	stroke-width: 9;
+}
+
+/*
+ * What a ring means, in a badge just outside the board, like the rank changes on the
+ * statistics charts: white with a black edge and an offset shadow, on a leader line in the
+ * ring's colour. Sizes are in board millimetres (the text's size is set where it is drawn).
+ */
+.callout {
+	--ring: var(--hints-ring-main);
+	pointer-events: none;
+}
+
+.callout--second { --ring: var(--hints-ring-second); }
+.callout--sixty-nine { --ring: var(--hints-ring-sixty-nine); }
+
+.callout__halo,
+.callout__leader {
+	stroke-linecap: round;
+}
+
+.callout__halo {
+	stroke: #000;
+	stroke-width: 8;
+}
+
+.callout__leader {
+	stroke: var(--ring);
+	stroke-width: 3.5;
+}
+
+.callout__shadow {
+	fill: #000;
+}
+
+.callout__box {
+	fill: #fff;
+	stroke: #000;
+	stroke-width: 2.5;
+}
+
+.callout__pill {
+	stroke: #000;
+	stroke-width: 1.5;
+}
+
+.callout__pill--win { fill: var(--color-status-victory); }
+.callout__pill--sixty-nine { fill: var(--hints-ring-sixty-nine); }
+
+.callout__text {
+	fill: #000;
+	font-family: var(--font-family-ui);
+	font-weight: 800;
+	font-variant-numeric: tabular-nums;
+	dominant-baseline: central;
 }
 
 /* The rim and a miss, under the board. */
@@ -207,10 +294,19 @@
 	opacity: 1;
 }
 
-.chip--best {
-	outline: 3px solid var(--color-border-strong);
-	outline-offset: 3px;
+/* Ringed like the board: the ring's colour on a black edge. */
+.chip--main,
+.chip--second,
+.chip--sixty-nine {
+	opacity: 1;
+	outline: 3px solid var(--chip-ring);
+	outline-offset: 2px;
+	box-shadow: 0 0 0 5px var(--color-border-strong);
 }
+
+.chip--main { --chip-ring: var(--color-border-strong); }
+.chip--second { --chip-ring: var(--hints-ring-second); }
+.chip--sixty-nine { --chip-ring: var(--hints-ring-sixty-nine); }
 
 .chip--pointed {
 	outline: 2px dashed var(--color-border-strong);
@@ -239,8 +335,8 @@
  */
 .pick--throw {
 	grid-template-columns: var(--hints-tile) minmax(0, 1fr);
-	grid-template-rows: auto auto minmax(0, 1fr);
-	grid-template-areas: 'tile label' 'tile worth' 'list list';
+	grid-template-rows: auto auto auto minmax(0, 1fr);
+	grid-template-areas: 'tile label' 'tile worth' 'tile note' 'list list';
 	column-gap: 0.85rem;
 	row-gap: 0.15rem;
 	align-content: stretch;
@@ -304,6 +400,15 @@
 	white-space: nowrap;
 }
 
+/* What landing on 69 brings, under the worth of the dart to 69. */
+.pick__note {
+	grid-area: note;
+	align-self: start;
+	font-size: 0.82rem;
+	font-weight: 600;
+	opacity: 0.75;
+}
+
 .pick ul {
 	grid-area: list;
 	display: grid;
@@ -315,6 +420,11 @@
 	padding: var(--space-2) 0 0;
 	border-top: var(--hints-divider);
 	list-style: none;
+}
+
+/* A win (or the dart to 69) that unlocks nothing: no list to divide off. */
+.pick ul.is-empty {
+	border-top: none;
 }
 
 .pick li {
@@ -399,6 +509,21 @@
 	outline-offset: 2px;
 }
 
+/* The second choice and the dart to 69: their tiles ringed like their targets on the board. */
+.other--second .other__tile,
+.other--sixty-nine .other__tile {
+	box-shadow: 0 0 0 2px var(--row-ring), 0 0 0 3.5px var(--color-border-strong);
+}
+
+.other--second { --row-ring: var(--hints-ring-second); }
+.other--sixty-nine { --row-ring: var(--hints-ring-sixty-nine); }
+
+/* The second choice still stands out from the rest, a step under the main throw. */
+.other--second {
+	border-width: 2px;
+	box-shadow: var(--shadow-brutal-xs);
+}
+
 .other__tile {
 	grid-area: tile;
 	display: grid;
@@ -471,11 +596,19 @@
 	box-shadow: 0 0 0 1px var(--color-border-strong);
 }
 
-/* The best throw's ring. */
+/* The rings, as on the board. */
 .legend__ring {
-	border: 3px solid #fff;
+	border: 3px solid var(--ring);
 	border-radius: 50%;
 	box-shadow: 0 0 0 1.5px #000, inset 0 0 0 1.5px #000;
+}
+
+.legend__ring--main { --ring: var(--hints-ring-main); }
+.legend__ring--second { --ring: var(--hints-ring-second); }
+.legend__ring--sixty-nine { --ring: var(--hints-ring-sixty-nine); }
+
+.legend .is-empty {
+	visibility: hidden;
 }
 
 /*

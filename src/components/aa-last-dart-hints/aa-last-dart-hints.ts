@@ -16,7 +16,8 @@ import {
 	getMissFallback,
 	groupByName,
 	HintSegment,
-	rankThrows,
+	LastDartPlan,
+	planLastDart,
 	ThrowPayoff,
 	TierRewards,
 } from '../../helpers/lastDartHints.js';
@@ -26,8 +27,17 @@ import { visuallyHiddenStyles } from '../../styles/shared-styles.js';
 import { arcPath, circlePath, polar, wedgeAngle, wedgeSpan } from '../../ui/dartboard/dartboardGeometry.js';
 import lastDartHintsStyles from './aa-last-dart-hints.css?inline';
 
-/** How many throws the list under the chosen one offers, besides the best. */
+/** How many throws the list under the main one offers. */
 const otherThrowCount = 3;
+
+/** How a target is marked on the board, from the most to the least focus. */
+type MarkerKind = 'main' | 'second' | 'sixty-nine' | 'pointed';
+
+/** A row in the list under the main throw: the second choice, the dart to 69, or another throw. */
+interface OptionRow {
+	item: ThrowPayoff;
+	kind: 'second' | 'sixty-nine' | 'other';
+}
 
 /**
  * The hint board's rings from the centre out, in millimetres: a regulation board (the view
@@ -105,19 +115,140 @@ const boardShapes: readonly TargetShape[] = [
 
 const shapesByKey = new Map(boardShapes.map(shape => [ shape.key, shape ]));
 
+// ── Callouts: what a ring means, in a badge just outside the board ──────────
+
+/** The board's view box reaches this far, leaving room for callouts round the board. */
+const viewRadius = 290;
+
+/** One part of a callout: a word on a pill ("WIN", "69"), or a tier icon with a count. */
+type CalloutPart =
+	| { kind: 'pill'; text: string; tone: 'win' | 'sixty-nine'; }
+	| { kind: 'icon'; href: string; count: number; };
+
+interface CalloutBox {
+	left:   number;
+	top:    number;
+	width:  number;
+	height: number;
+}
+
+/** A callout to place: the target it explains, its ring and what it says. */
+interface CalloutItem {
+	shape: TargetShape;
+	kind:  MarkerKind;
+	parts: readonly CalloutPart[];
+}
+
+/** A callout placed on the board, with the leader line from its target's ring to its box. */
+interface PlacedCallout {
+	kind:  MarkerKind;
+	parts: readonly CalloutPart[];
+	box:   CalloutBox;
+	/** Smaller for less focus: the second choice. */
+	scale: number;
+	from:  readonly [ number, number ];
+	to:    readonly [ number, number ];
+}
+
+/** Callout sizes in board millimetres, at full scale. */
+const callout = {
+	font:        22,
+	icon:        30,
+	gap:         6,
+	padding:     9,
+	height:      46,
+	pill:        30,
+	pillPadding: 7,
+	/** Between the board's edge and a callout, and between two callouts. */
+	clearance:   6,
+} as const;
+
+const partWidth = (part: CalloutPart): number => part.kind === 'pill'
+	? part.text.length * callout.font * 0.68 + 2 * callout.pillPadding
+	: callout.icon + 3 + String(part.count).length * callout.font * 0.62;
+
+/** The angle (clockwise from the top) a target sits at; the bulls' callout goes below the board. */
+const angleOf = ([ x, y ]: readonly [ number, number ]): number =>
+	x === 0 && y === 0 ? Math.PI : Math.atan2(x, -y);
+
+/** A box of this size just outside the board at `angle`, and where a leader line meets it. */
+const boxAt = (angle: number, width: number, height: number): { box: CalloutBox; to: [ number, number ]; } => {
+	const [ dx, dy ] = polar(1, angle);
+	const extent = Math.abs(dx) * width / 2 + Math.abs(dy) * height / 2;
+	const distance = radii.edge + callout.clearance + extent;
+
+	return {
+		box: { left: dx * distance - width / 2, top: dy * distance - height / 2, width, height },
+		to:  [ dx * (distance - extent), dy * (distance - extent) ],
+	};
+};
+
+const overlaps = (a: CalloutBox, b: CalloutBox): boolean =>
+	a.left < b.left + b.width + callout.clearance
+	&& b.left < a.left + a.width + callout.clearance
+	&& a.top < b.top + b.height + callout.clearance
+	&& b.top < a.top + a.height + callout.clearance;
+
+/** Whether a box (and its shadow) stays inside the board's view box. */
+const fitsView = ({ left, top, width, height }: CalloutBox): boolean =>
+	left >= -viewRadius && top >= -viewRadius
+	&& left + width + 4 <= viewRadius && top + height + 4 <= viewRadius;
+
+/**
+ * Where round the board a callout may go, as offsets from its target's angle, nearest first.
+ * Never straight out: the leader line would cross the target's own number. Twelve degrees to
+ * either side puts it between that number and the next; further spots keep to the gaps.
+ */
+const calloutOffsets = [ 12, -12, 30, -30, 48, -48, 66, -66, 84, -84, 102, -102 ]
+	.map(degrees => degrees * Math.PI / 180);
+
+/**
+ * Puts each callout just outside the board beside its target, in order of focus: the nearest
+ * spot that stays in view and covers no earlier callout.
+ */
+const placeCallouts = (items: readonly CalloutItem[]): PlacedCallout[] => {
+	const placed: CalloutBox[] = [];
+
+	return items.map(({ shape, kind, parts }) => {
+		const scale = kind === 'second' ? 0.85 : 1;
+		const width = (parts.reduce((total, part) => total + partWidth(part), 0)
+			+ callout.gap * (parts.length - 1) + 2 * callout.padding) * scale;
+		const height = callout.height * scale;
+		const base = angleOf(shape.centre);
+		const spots = calloutOffsets.map(offset => boxAt(base + offset, width, height));
+		const spot = spots.find(candidate => fitsView(candidate.box) && !placed.some(box => overlaps(box, candidate.box)))
+			?? spots.find(candidate => fitsView(candidate.box))
+			?? spots[0]!;
+		placed.push(spot.box);
+
+		// The leader starts on the target's ring, pointing at the box.
+		const [ cx, cy ] = shape.centre;
+		const [ tx, ty ] = spot.to;
+		const length = Math.hypot(tx - cx, ty - cy) || 1;
+		const from: [ number, number ] = [
+			cx + (tx - cx) / length * shape.markerRadius,
+			cy + (ty - cy) / length * shape.markerRadius,
+		];
+
+		return { kind, parts, box: spot.box, scale, from, to: spot.to };
+	});
+};
+
 /** The targets off the board, shown as chips under it. */
 const offBoardKeys = [ 'Rim', 'Miss' ] as const;
 
 /**
  * What the throw gets, as parts that read as one line: "Win + 4 achievements (+65 MMR)",
- * "4 achievements (+65 MMR)" or "Win". The win leads: it matters most.
+ * "4 achievements (+65 MMR)", "Win", or "Lands on 69 + 1 achievement (+5 MMR)" for the dart
+ * to 69. The win leads: it matters most.
  */
-const describeWorth = (count: number, chosen: ThrowPayoff): string[] => {
+const describeWorth = (count: number, chosen: ThrowPayoff, isSixtyNine = false): string[] => {
+	const goal = chosen.wins ? 'Win' : isSixtyNine ? 'Lands on 69' : undefined;
 	if (count === 0)
-		return chosen.wins ? [ 'Win' ] : [];
+		return goal ? [ goal ] : [];
 
 	return [
-		...chosen.wins ? [ 'Win +' ] : [],
+		...goal ? [ `${ goal } +` ] : [],
 		`${ count } ${ count === 1 ? 'achievement' : 'achievements' }`,
 		`(+${ chosen.mmr } MMR)`,
 	];
@@ -154,10 +285,15 @@ const colourClass = (hit: AchievementLegalHit): string => `colour-${ colourOf(hi
  * The last-dart hints, docked beside the game: a regulation dartboard in its own colours,
  * where the targets the last dart can unlock achievements with light up and the rest dims.
  * A lit target keeps its colour and gets a yellow edge, thicker the more it unlocks (a heat
- * map against the most on the board). The rim and a miss are chips under the board. The throw
- * worth the most (MMR weighed by how hard it is to hit) is ringed, and shown below the board,
- * on a tile in its board colour, with what it unlocks; pointing at another lit target, or at
- * one of the other throws listed under it, shows that one instead.
+ * map against the most on the board). The rim and a miss are chips under the board.
+ *
+ * What to throw (`planLastDart`) is ringed on the board and shown below it, on a tile in its
+ * board colour, with what it unlocks: the easiest dart that wins, or without one the throw
+ * worth the most in achievements (MMR weighed by how hard it is to hit). When it wins, the
+ * throw worth the most in achievements, if another dart, is the second choice: a fainter ring
+ * and the first row of the list. The easiest dart to 69, when the season plays the 69 rule,
+ * gets a ring of its own colour and a row. Pointing at another lit target, or at a row, shows
+ * that throw instead.
  *
  * In a tall box (the side dock) everything stacks; in a wide one (under the game on a narrow
  * screen) the board goes on the left. Either way it is always there and always the same size:
@@ -172,8 +308,6 @@ export class AaLastDartHints extends LitElement {
 	@property({ attribute: false }) hints:       LastDartHints | null = null;
 	/** The season's MMR per achievement tier. */
 	@property({ attribute: false }) tierRewards: TierRewards = {};
-	/** What winning the game with this dart is worth to the player, in MMR. */
-	@property({ type: Number }) victoryValue = 0;
 	/** Hints for `playerName`'s last dart are on their way. */
 	@property({ type: Boolean }) loading = false;
 
@@ -202,79 +336,199 @@ export class AaLastDartHints extends LitElement {
 
 	override render(): TemplateResult {
 		const hints = this.list;
-		const throws = rankThrows(hints, {
-			tierRewards:  this.tierRewards,
-			victoryHits:  this.hints?.victoryHits,
-			victoryValue: this.victoryValue,
+		const plan = planLastDart(hints, {
+			tierRewards:   this.tierRewards,
+			victoryHits:   this.hints?.victoryHits,
+			sixtyNineHits: this.hints?.sixtyNineHits,
 		});
-		const best = throws[0];
-		const shown = throws.find(item => item.key === this.pointedKey) ?? best;
+		const { main, second, sixtyNine } = plan;
+		const candidates = [ main, second, sixtyNine, ...plan.others ].flatMap(item => item ? [ item ] : []);
+		const shown = candidates.find(item => item.key === this.pointedKey) ?? main;
 		const targets = buildHintTargets(hints);
 		const most = Math.max(0, ...[ ...targets.values() ].map(target => target.count));
-		const summary = best
-			? `${ this.playerName }: best last dart ${ describeHit(best.hit) }, `
-				+ describeWorth(best.hintIndexes.length, best).join(' ')
+		const markers = this.getMarkers(plan, shown?.key);
+		const summary = main
+			? `${ this.playerName }: ${ main.wins ? 'easiest win' : 'best last dart' } ${ describeHit(main.hit) }, `
+				+ describeWorth(main.hintIndexes.length, main, main.key === sixtyNine?.key).join(' ')
 			: '';
 
 		return html`
 			<span class="visually-hidden" role="status" aria-live="polite">${ summary }</span>
-			<section class="dock" aria-label="Last-dart achievement hints" aria-busy=${ this.loading ? 'true' : 'false' }>
+			<section class="dock" aria-label="Last-dart hints" aria-busy=${ this.loading ? 'true' : 'false' }>
 				<div class="who">
 					<span class="eyebrow">Last dart</span>
 					<strong>${ this.playerName || '—' }</strong>
 				</div>
 				<div class="board-area" aria-hidden="true" @mouseleave=${ this.clearPoint }>
-					${ this.renderBoard(targets, best?.key, shown?.key, most) }
-					${ this.renderOffBoard(targets, best?.key, shown?.key, most) }
+					${ this.renderBoard(targets, markers, most, placeCallouts(this.getCallouts(plan))) }
+					${ this.renderOffBoard(targets, markers, most) }
 				</div>
-				${ shown ? this.renderThrow(shown, shown === best) : this.renderIdle() }
-				${ this.renderOthers(throws.slice(1, 1 + otherThrowCount), targets, shown?.key) }
+				${ shown && main
+					? this.renderThrow(shown, this.getThrowLabel(shown, main), shown.key === sixtyNine?.key)
+					: this.renderIdle() }
+				${ this.renderRows(this.getOptionRows(plan), targets, shown?.key) }
 				<div class="legend" aria-hidden="true">
-					<span><i class="legend__lit"></i>Unlocks achievements; thicker edge, more</span>
-					<span><i class="legend__ring"></i>Best throw</span>
+					<span><i class="legend__lit"></i>Unlocks achievements (thicker edge: more)</span>
+					<span><i class="legend__ring legend__ring--main"></i>Throw this</span>
+					<span><i class="legend__ring legend__ring--second"></i>Second choice</span>
+					<span class=${ classMap({ 'is-empty': !sixtyNine }) }>
+						<i class="legend__ring legend__ring--sixty-nine"></i>To 69: next round doubles
+					</span>
 				</div>
 			</section>
 		`;
 	}
 
+	/** "Easiest win" or "Best throw" for the main throw; "If you hit" for one pointed at. */
+	private getThrowLabel(shown: ThrowPayoff, main: ThrowPayoff): string {
+		if (shown !== main)
+			return 'If you hit';
+
+		return main.wins ? 'Easiest win' : 'Best throw';
+	}
+
 	/**
-	 * The board in its own colours. Once something is lit, the rest dims; lit targets are drawn
-	 * last, so their edges show over their neighbours. The best throw is ringed in white, and a
-	 * target under the pointer gets a dashed ring.
+	 * Which target gets which ring: the main throw, the second choice and the dart to 69 each
+	 * their own, and the throw pointed at a dashed one unless it has one already. A target
+	 * has one ring at most, the one with the most focus.
+	 */
+	private getMarkers(plan: LastDartPlan, shownKey: string | undefined): ReadonlyMap<string, MarkerKind> {
+		const markers: Map<string, MarkerKind> = new Map();
+		const mark = (key: string | undefined, kind: MarkerKind): void => {
+			if (key && !markers.has(key))
+				markers.set(key, kind);
+		};
+		mark(plan.main?.key, 'main');
+		mark(plan.second?.key, 'second');
+		mark(plan.sixtyNine?.key, 'sixty-nine');
+		mark(shownKey, 'pointed');
+
+		return markers;
+	}
+
+	/**
+	 * What each ring on the board means, for its callout: "WIN" when it wins, "69" when it
+	 * lands on 69, and the highest tier it unlocks with how many achievements. The main throw
+	 * first, then the second choice, then the dart to 69; the rim and a miss have none (their
+	 * chips say what they are).
+	 */
+	private getCallouts({ main, second, sixtyNine }: LastDartPlan): CalloutItem[] {
+		const ringed: [ ThrowPayoff | undefined, MarkerKind ][] = [
+			[ main, 'main' ],
+			[ second, 'second' ],
+			[ sixtyNine, 'sixty-nine' ],
+		];
+		const seen: Set<string> = new Set();
+
+		return ringed.flatMap(([ item, kind ]) => {
+			const shape = item && shapesByKey.get(item.key);
+			if (!item || !shape || seen.has(item.key))
+				return [];
+
+			seen.add(item.key);
+			const hints = item.hintIndexes.map(index => this.list[index]!);
+			const tier = getHighestTier(hints);
+			const parts: CalloutPart[] = [
+				...item.wins ? [ { kind: 'pill', text: 'WIN', tone: 'win' } as const ] : [],
+				...item.key === sixtyNine?.key ? [ { kind: 'pill', text: '69', tone: 'sixty-nine' } as const ] : [],
+				...tier === undefined ? [] : [ { kind: 'icon', href: getAchievementTierIcon(tier), count: hints.length } as const ],
+			];
+
+			return parts.length > 0 ? [ { shape, kind, parts } ] : [];
+		});
+	}
+
+	/**
+	 * The board in its own colours. Once something is lit, the rest dims, except the ringed
+	 * targets; lit targets are drawn last, so their edges show over their neighbours, then the
+	 * rings, the most focused on top, and the callouts round the board.
 	 */
 	private renderBoard(
 		targets: ReadonlyMap<string, HintSegment>,
-		bestKey: string | undefined,
-		shownKey: string | undefined,
+		markers: ReadonlyMap<string, MarkerKind>,
 		most: number,
+		callouts: readonly PlacedCallout[],
 	): TemplateResult {
 		const levelOf = (shape: TargetShape): number => getHeatLevel(targets.get(shape.key)?.count ?? 0, most);
 		const unlit = boardShapes.filter(shape => levelOf(shape) === 0);
 		const lit = boardShapes.filter(shape => levelOf(shape) > 0);
-		const pointed = shownKey !== bestKey ? shapesByKey.get(shownKey ?? '') : undefined;
-		const best = shapesByKey.get(bestKey ?? '');
+		const focus: readonly MarkerKind[] = [ 'pointed', 'sixty-nine', 'second', 'main' ];
+		const ringed = [ ...markers ]
+			.flatMap(([ key, kind ]) => shapesByKey.has(key) ? [ { shape: shapesByKey.get(key)!, kind } ] : [])
+			.sort((left, right) => focus.indexOf(left.kind) - focus.indexOf(right.kind));
 
 		return html`
-			<svg class=${ classMap({ 'board': true, 'board--lit': lit.length > 0 }) } viewBox="-226 -226 452 452">
+			<svg
+				class=${ classMap({ 'board': true, 'board--lit': lit.length > 0 }) }
+				viewBox="${ -viewRadius } ${ -viewRadius } ${ 2 * viewRadius } ${ 2 * viewRadius }"
+			>
 				<circle class="board__edge" r=${ radii.edge }></circle>
-				${ unlit.map(shape => this.renderShape(shape, 0)) }
-				${ lit.map(shape => this.renderShape(shape, levelOf(shape))) }
+				${ unlit.map(shape => this.renderShape(shape, 0, markers.has(shape.key))) }
+				${ lit.map(shape => this.renderShape(shape, levelOf(shape), markers.has(shape.key))) }
 				${ dartboardNumbers.map((number, index) => {
 					const [ x, y ] = polar(radii.numbers, index * wedgeAngle);
 
 					return svg`<text class="board__number" x=${ x } y=${ y }>${ number }</text>`;
 				}) }
-				${ pointed ? this.renderMarker(pointed, 'pointed') : nothing }
-				${ best ? this.renderMarker(best, 'best') : nothing }
+				${ ringed.map(({ shape, kind }) => this.renderMarker(shape, kind)) }
+				${ callouts.map(item => this.renderCallout(item)) }
 			</svg>
 		`;
 	}
 
-	private renderShape(shape: TargetShape, level: number): SVGTemplateResult {
-		const single = shape.key.startsWith('S') ? ' area--single' : '';
-		const classes = level > 0
-			? `area${ single } colour-${ shape.colour } lit heat-${ level }`
-			: `area${ single } colour-${ shape.colour }`;
+	/**
+	 * A badge like the rank changes on the statistics charts: white with a black edge and an
+	 * offset shadow, on a leader line in its ring's colour from the target's ring.
+	 */
+	private renderCallout({ kind, parts, box, scale, from, to }: PlacedCallout): SVGTemplateResult {
+		const { left, top, width, height } = box;
+		const middle = top + height / 2;
+		let x = left + callout.padding * scale;
+		const content = parts.map(part => {
+			const at = x;
+			const partSize = partWidth(part) * scale;
+			x += partSize + callout.gap * scale;
+			if (part.kind === 'pill') {
+				const pill = callout.pill * scale;
+
+				return svg`
+					<rect class="callout__pill callout__pill--${ part.tone }" x=${ at } y=${ middle - pill / 2 }
+						width=${ partSize } height=${ pill } rx=${ 8 * scale }></rect>
+					<text class="callout__text" x=${ at + partSize / 2 } y=${ middle } text-anchor="middle"
+						font-size=${ callout.font * scale }>${ part.text }</text>
+				`;
+			}
+
+			const icon = callout.icon * scale;
+
+			return svg`
+				<image href=${ part.href } x=${ at } y=${ middle - icon / 2 } width=${ icon } height=${ icon }></image>
+				<text class="callout__text" x=${ at + icon + 3 * scale } y=${ middle }
+					font-size=${ callout.font * scale }>${ part.count }</text>
+			`;
+		});
+
+		return svg`
+			<g class="callout callout--${ kind }">
+				<line class="callout__halo" x1=${ from[0] } y1=${ from[1] } x2=${ to[0] } y2=${ to[1] }></line>
+				<line class="callout__leader" x1=${ from[0] } y1=${ from[1] } x2=${ to[0] } y2=${ to[1] }></line>
+				<rect class="callout__shadow" x=${ left + 4 * scale } y=${ top + 4 * scale }
+					width=${ width } height=${ height } rx=${ 10 * scale }></rect>
+				<rect class="callout__box" x=${ left } y=${ top } width=${ width } height=${ height } rx=${ 10 * scale }></rect>
+				${ content }
+			</g>
+		`;
+	}
+
+	/** `shown` keeps an unlit target in its full colour when the rest of the board dims. */
+	private renderShape(shape: TargetShape, level: number, shown: boolean): SVGTemplateResult {
+		const classes = [
+			'area',
+			`colour-${ shape.colour }`,
+			shape.key.startsWith('S') ? 'area--single' : '',
+			level > 0 ? `lit heat-${ level }` : '',
+			shown ? 'area--shown' : '',
+		].join(' ');
 
 		return svg`${ shape.paths.map(path => svg`
 			<path
@@ -285,8 +539,8 @@ export class AaLastDartHints extends LitElement {
 		`) }`;
 	}
 
-	/** A ring round the target (and an outline of it), white on a black halo to show on any colour. */
-	private renderMarker(shape: TargetShape, kind: 'best' | 'pointed'): SVGTemplateResult {
+	/** A ring round the target (and an outline of it), on a black halo to show on any colour. */
+	private renderMarker(shape: TargetShape, kind: MarkerKind): SVGTemplateResult {
 		const [ x, y ] = shape.centre;
 
 		return svg`
@@ -298,11 +552,10 @@ export class AaLastDartHints extends LitElement {
 		`;
 	}
 
-	/** The rim and a miss: chips under the board, lit and marked like the segments. */
+	/** The rim and a miss: chips under the board, lit and ringed like the segments. */
 	private renderOffBoard(
 		targets: ReadonlyMap<string, HintSegment>,
-		bestKey: string | undefined,
-		shownKey: string | undefined,
+		markers: ReadonlyMap<string, MarkerKind>,
 		most: number,
 	): TemplateResult {
 		return html`
@@ -310,16 +563,16 @@ export class AaLastDartHints extends LitElement {
 				${ offBoardKeys.map(key => {
 					const count = targets.get(key)?.count ?? 0;
 					const level = getHeatLevel(count, most);
+					const marker = markers.get(key);
 
 					return html`
 						<span
 							class=${ classMap({
-								'chip':              true,
-								'colour-off':        true,
-								'lit':               level > 0,
-								[`heat-${ level }`]: level > 0,
-								'chip--best':        key === bestKey,
-								'chip--pointed':     key === shownKey && key !== bestKey,
+								'chip':                true,
+								'colour-off':          true,
+								'lit':                 level > 0,
+								[`heat-${ level }`]:   level > 0,
+								[`chip--${ marker }`]: marker !== undefined,
 							}) }
 							@mouseenter=${ level > 0 ? () => this.point(key) : nothing }
 						>${ key }${ level > 0 ? html`<b>${ count }</b>` : nothing }</span>
@@ -330,10 +583,10 @@ export class AaLastDartHints extends LitElement {
 	}
 
 	/**
-	 * The chosen throw: a big tile in its ring's colour, the first thing to see, then what it
-	 * is worth and which achievements it unlocks.
+	 * The throw shown: a big tile in its board colour, the first thing to see, then what it is
+	 * worth and which achievements it unlocks. The dart to 69 says what that brings.
 	 */
-	private renderThrow(chosen: ThrowPayoff, isBest: boolean): TemplateResult {
+	private renderThrow(chosen: ThrowPayoff, label: string, isSixtyNine: boolean): TemplateResult {
 		const hints = chosen.hintIndexes.map(index => this.list[index]!);
 		const lines = groupByName(hints);
 		// When not all fit, the last line that fits says how many are left out.
@@ -343,12 +596,13 @@ export class AaLastDartHints extends LitElement {
 		return html`
 			<div class="pick pick--throw">
 				<span class="pick__tile ${ colourClass(chosen.hit) }">${ renderTileText(chosen.hit) }</span>
-				<span class="eyebrow pick__label">${ isBest ? 'Best throw' : 'If you hit' }</span>
+				<span class="eyebrow pick__label">${ label }</span>
 				<span class="pick__worth">
-					${ describeWorth(hints.length, chosen)
+					${ describeWorth(hints.length, chosen, isSixtyNine)
 						.map((part, index) => html`${ index > 0 ? ' ' : '' }<span>${ part }</span>`) }
 				</span>
-				<ul ${ ref(this.observeList) }>
+				${ isSixtyNine ? html`<span class="pick__note">69 rule: the next round scores double</span>` : nothing }
+				<ul class=${ lines.length > 0 ? '' : 'is-empty' } ${ ref(this.observeList) }>
 					${ visible.map(line => html`
 						<li title=${ line.name }>
 							<img src=${ getAchievementTierIcon(getHighestTier(line.hints) ?? AchievementTier.bronze) } alt="" />
@@ -370,37 +624,73 @@ export class AaLastDartHints extends LitElement {
 		if (this.loading)
 			text = html`<p class="idle"><span class="waiting__note">Looking for throws…</span></p>`;
 		else if (this.playerName)
-			text = html`<p class="idle">Nothing to unlock with this dart.</p>`;
+			text = html`<p class="idle">Nothing to aim for with this dart.</p>`;
 
 		return html`<div class="pick">${ text }</div>`;
 	}
 
 	/**
-	 * The next best throws after the best one, with what they are worth and where a miss
-	 * usually lands. The rows keep their space when there are fewer, so nothing moves.
+	 * The rows under the main throw: the second choice first, then the dart to 69 (unless it
+	 * is the main throw or the second choice), then the next best throws for achievements.
 	 */
-	private renderOthers(
-		others: readonly ThrowPayoff[],
+	private getOptionRows({ main, second, sixtyNine, others }: LastDartPlan): OptionRow[] {
+		const showSixtyNine = sixtyNine && sixtyNine.key !== main?.key && sixtyNine.key !== second?.key;
+		const rows: OptionRow[] = [
+			...second ? [ { item: second, kind: 'second' } as const ] : [],
+			...showSixtyNine ? [ { item: sixtyNine, kind: 'sixty-nine' } as const ] : [],
+			...others
+				.filter(item => item.key !== sixtyNine?.key)
+				.map(item => ({ item, kind: 'other' }) as const),
+		];
+
+		return rows.slice(0, otherThrowCount);
+	}
+
+	/**
+	 * The rows under the main throw, with what each is worth and where a miss usually lands.
+	 * The second choice and the dart to 69 say what they are, their tiles ringed like on the
+	 * board. The rows keep their space when there are fewer, so nothing moves.
+	 */
+	private renderRows(
+		rows: readonly OptionRow[],
 		targets: ReadonlyMap<string, HintSegment>,
 		shownKey: string | undefined,
 	): TemplateResult {
 		return html`
 			<div class="others" aria-hidden="true" @mouseleave=${ this.clearPoint }>
-				<span class=${ classMap({ 'eyebrow': true, 'is-empty': others.length === 0 }) }>Also worth aiming at</span>
+				<span class=${ classMap({ 'eyebrow': true, 'is-empty': rows.length === 0 }) }>Also worth aiming at</span>
 				<ol>
-					${ others.map(item => html`
+					${ rows.map(({ item, kind }) => html`
 						<li
-							class=${ classMap({ 'other': true, 'other--pointed': item.key === shownKey }) }
+							class=${ classMap({
+								'other':              true,
+								[`other--${ kind }`]: true,
+								'other--pointed':     item.key === shownKey,
+							}) }
 							@mouseenter=${ () => this.point(item.key) }
 						>
 							<span class="other__tile ${ colourClass(item.hit) }">${ renderTileText(item.hit) }</span>
-							<span class="other__worth">${ describeWorth(item.hintIndexes.length, item).join(' ') }</span>
-							<span class="other__miss">${ this.describeMiss(item.hit, targets) }</span>
+							<span class="other__worth">
+								${ describeWorth(item.hintIndexes.length, item, kind === 'sixty-nine').join(' ') }
+							</span>
+							<span class="other__miss">${ this.describeRow(kind, item.hit, targets) }</span>
 						</li>
 					`) }
 				</ol>
 			</div>
 		`;
+	}
+
+	/** A row's second line: what the row is, then where a miss usually lands. */
+	private describeRow(kind: OptionRow['kind'], hit: AchievementLegalHit, targets: ReadonlyMap<string, HintSegment>): string {
+		const miss = this.describeMiss(hit, targets);
+		if (kind === 'sixty-nine')
+			return 'Next round scores double';
+
+		if (kind === 'second')
+			return miss ? `Second choice · ${ miss }` : 'Second choice';
+
+		return miss;
 	}
 
 	/** Where a dart aimed at `hit` mostly lands when it misses, and what that still gets. */

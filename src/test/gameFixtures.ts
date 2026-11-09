@@ -75,6 +75,7 @@ export function createLastDartHints(achievement: AchievementInstanceResponse): L
 			tier: achievement.achievementTier,
 			hits: [ 'T20' ],
 		} ],
-		victoryHits: [],
+		victoryHits:   [],
+		sixtyNineHits: [],
 	};
 }

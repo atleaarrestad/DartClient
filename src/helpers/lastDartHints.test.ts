@@ -13,7 +13,6 @@ import {
 	buildHintTargets,
 	describeHit,
 	formatHit,
-	getFinishValue,
 	getHeatLevel,
 	getHighestTier,
 	getHitKind,
@@ -22,6 +21,7 @@ import {
 	isLastDartUp,
 	isLastDartWindowOpen,
 	parseHit,
+	planLastDart,
 	rankThrows,
 } from './lastDartHints.js';
 
@@ -249,19 +249,16 @@ describe('rankThrows', () => {
 
 		expect(ranked[0]!.key).toBe('D20');
 		expect(ranked[0]!.hintIndexes).toHaveLength(26);
-		// 0.18 × 280 + 0.35 × 60 = 71.4 against 60; winning as well adds 0.18 × 118.
+		// 0.18 × 280 + 0.35 × 60 = 71.4 against 60.
 		expect(ranked[0]!.payoff).toBeCloseTo(71.4);
 	});
 
-	it('weighs a dart that wins the game by what finishing is worth, even with nothing else to unlock', () => {
-		const hints = golds(2, s20);
-		const values = { tierRewards: rewards, victoryHits: [ 'D20' ], victoryValue: 118 };
+	it('marks the darts that win the game but ranks them by achievements alone', () => {
+		const ranked = rankThrows(golds(2, s20), { tierRewards: rewards, victoryHits: [ 'D20' ] });
 
-		const ranked = rankThrows(hints, values);
-
-		expect(ranked.map(item => [ item.key, item.wins ])).toEqual([ [ 'D20', true ], [ 'S20', false ] ]);
-		expect(ranked[0]!.hintIndexes).toEqual([]);
-		expect(rankThrows(hints, { ...values, victoryValue: 0 })[0]!.key).toBe('S20');
+		// D20 unlocks nothing itself; a miss into the S20 gets 0.35 × 30.
+		expect(ranked.map(item => [ item.key, item.wins ])).toEqual([ [ 'S20', false ], [ 'D20', true ] ]);
+		expect(ranked[1]!.payoff).toBeCloseTo(10.5);
 	});
 
 	it('ranks singles, trebles, 25 and doubles in that order for the same reward and no fallback', () => {
@@ -306,17 +303,59 @@ describe('rankThrows', () => {
 	});
 });
 
-describe('getFinishValue', () => {
-	const configuration = { placementBonus: 30, finishBonus: 100, roundPenalty: 6 };
-
-	it('is the placement bonus for the place plus the finish bonus less the rounds played', () => {
-		expect(getFinishValue(configuration, 2, 1)).toBe(30 + 88);
-		expect(getFinishValue(configuration, 2, 2)).toBe(15 + 88);
-		expect(getFinishValue(configuration, 4, 3)).toBe(10 + 76);
+describe('planLastDart', () => {
+	const s20 = hit(20, ThrowType.Single);
+	const t19 = hit(19, ThrowType.Triple);
+	const keys = (plan: ReturnType<typeof planLastDart>) => ({
+		main:      plan.main?.key,
+		second:    plan.second?.key,
+		sixtyNine: plan.sixtyNine?.key,
+		others:    plan.others.map(item => item.key),
 	});
 
-	it('never takes away from the placement bonus however long the game ran', () => {
-		expect(getFinishValue(configuration, 40, 1)).toBe(30);
+	it('throws the easiest winning dart, with the best throw for achievements as the second choice', () => {
+		const plan = planLastDart([
+			hint('Treble 19', [ t19 ], AchievementTier.diamond),
+			hint('Twenty', [ s20 ]),
+		], { victoryHits: [ 'D6', 'S12', 'T4' ] });
+
+		expect(keys(plan)).toEqual({ main: 'S12', second: 'T19', sixtyNine: undefined, others: [ 'S20' ] });
+		expect(plan.main!.wins).toBe(true);
+		expect(plan.second!.wins).toBe(false);
+	});
+
+	it('has no second choice when the easiest win is also the best throw for achievements', () => {
+		const plan = planLastDart([ hint('Twenty', [ s20 ], AchievementTier.gold) ], { victoryHits: [ 'S20', 'D10' ] });
+
+		expect(keys(plan)).toEqual({ main: 'S20', second: undefined, sixtyNine: undefined, others: [] });
+	});
+
+	it('makes a harder winning dart the second choice when it unlocks the most', () => {
+		const plan = planLastDart([ hint('Double ten', [ hit(10, ThrowType.Double) ], AchievementTier.diamond) ], {
+			victoryHits: [ 'S20', 'D10' ],
+		});
+
+		expect(keys(plan)).toEqual({ main: 'S20', second: 'D10', sixtyNine: undefined, others: [] });
+		expect(plan.second!.wins).toBe(true);
+	});
+
+	it('throws for achievements when no dart wins', () => {
+		const plan = planLastDart([ hint('Treble 19', [ t19 ], AchievementTier.diamond), hint('Twenty', [ s20 ]) ]);
+
+		expect(keys(plan)).toEqual({ main: 'T19', second: undefined, sixtyNine: undefined, others: [ 'S20' ] });
+	});
+
+	it('picks the easiest dart to 69: a single, then a treble, then a double, and a miss over the rim', () => {
+		expect(planLastDart([], { sixtyNineHits: [ 'D15', 'T10' ] }).sixtyNine?.key).toBe('T10');
+		expect(planLastDart([], { sixtyNineHits: [ 'D6', 'T4', 'S12' ] }).sixtyNine?.key).toBe('S12');
+		expect(planLastDart([], { sixtyNineHits: [ 'Rim', 'Miss' ] }).sixtyNine?.key).toBe('Miss');
+		expect(planLastDart([]).sixtyNine).toBeUndefined();
+	});
+
+	it('keeps what the dart to 69 also unlocks', () => {
+		const plan = planLastDart([ hint('Ten', [ hit(10, ThrowType.Triple) ]) ], { sixtyNineHits: [ 'D15', 'T10' ] });
+
+		expect(plan.sixtyNine?.hintIndexes).toEqual([ 0 ]);
 	});
 });
 

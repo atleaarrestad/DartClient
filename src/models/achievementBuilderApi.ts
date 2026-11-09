@@ -168,6 +168,9 @@ export const LastDartHintsSchema = z.object({
 	hints: z.array(LastDartHintSchema),
 	// The last darts that win the game, in dart notation; usually none. Older servers leave it out.
 	victoryHits: z.array(z.string()).default([]),
+	// The last darts that leave the total on 69 when the season plays the 69 rule; usually none.
+	// Older servers leave it out.
+	sixtyNineHits: z.array(z.string()).default([]),
 });
 
 export const PredictAchievementThrowsResponseSchema = z.object({
