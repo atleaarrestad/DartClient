@@ -2,7 +2,6 @@ import type { PropertyValues } from 'lit';
 import { html, LitElement, nothing, svg, SVGTemplateResult, TemplateResult, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
-import { ref } from 'lit/directives/ref.js';
 
 import { getAchievementTierIcon } from '../../helpers/achievementHelper.js';
 import { dartboardNumbers } from '../../helpers/dartboard.js';
@@ -22,22 +21,28 @@ import {
 	TierRewards,
 } from '../../helpers/lastDartHints.js';
 import type { AchievementLegalHit, LastDartHint, LastDartHints } from '../../models/achievementBuilderApi.js';
-import { AchievementTier } from '../../models/enums.js';
+import { achievementTiersAscending } from '../../models/enums.js';
 import { visuallyHiddenStyles } from '../../styles/shared-styles.js';
 import { arcPath, circlePath, polar, wedgeAngle, wedgeSpan } from '../../ui/dartboard/dartboardGeometry.js';
 import lastDartHintsStyles from './aa-last-dart-hints.css?inline';
 
-/** How many throws the list under the main one offers. */
-const otherThrowCount = 3;
+/** How many throws the list suggests, the one to make first. */
+const suggestionCount = 4;
 
 /** How a target is marked on the board, from the most to the least focus. */
 type MarkerKind = 'main' | 'second' | 'sixty-nine' | 'pointed';
 
-/** A row in the list under the main throw: the second choice, the dart to 69, or another throw. */
-interface OptionRow {
+/**
+ * A suggested throw: the main one, the second choice, the dart to 69, another throw for
+ * achievements, or one pointed at on the board that the list doesn't have.
+ */
+interface Suggestion {
 	item: ThrowPayoff;
-	kind: 'second' | 'sixty-nine' | 'other';
+	kind: MarkerKind | 'other';
 }
+
+/** The tiers, highest first, for the icon counts of a suggestion. */
+const tiersHighestFirst = [ ...achievementTiersAscending ].reverse();
 
 /**
  * The hint board's rings from the centre out, in millimetres: a regulation board (the view
@@ -287,13 +292,14 @@ const colourClass = (hit: AchievementLegalHit): string => `colour-${ colourOf(hi
  * A lit target keeps its colour and gets a yellow edge, thicker the more it unlocks (a heat
  * map against the most on the board). The rim and a miss are chips under the board.
  *
- * What to throw (`planLastDart`) is ringed on the board and shown below it, on a tile in its
- * board colour, with what it unlocks: the easiest dart that wins, or without one the throw
- * worth the most in achievements (MMR weighed by how hard it is to hit). When it wins, the
- * throw worth the most in achievements, if another dart, is the second choice: a fainter ring
- * and the first row of the list. The easiest dart to 69, when the season plays the 69 rule,
- * gets a ring of its own colour and a row. Pointing at another lit target, or at a row, shows
- * that throw instead.
+ * What to throw (`planLastDart`) is ringed on the board, with a callout saying what it gets,
+ * and listed below it: up to four suggestions, the one to make first on top, each on a tile in
+ * its board colour with the tiers it unlocks as icons and counts. First the easiest dart that
+ * wins, or without one the throw worth the most in achievements (MMR weighed by how hard it is
+ * to hit). When it wins, the throw worth the most in achievements, if another dart, is the
+ * second choice: a fainter ring. The easiest dart to 69, when the season plays the 69 rule,
+ * gets a ring of its own colour. Then the next throws for achievements. Pointing at a lit
+ * target the list doesn't have puts it in the last row for as long as it is pointed at.
  *
  * In a tall box (the side dock) everything stacks; in a wide one (under the game on a narrow
  * screen) the board goes on the left. Either way it is always there and always the same size:
@@ -311,19 +317,8 @@ export class AaLastDartHints extends LitElement {
 	/** Hints for `playerName`'s last dart are on their way. */
 	@property({ type: Boolean }) loading = false;
 
-	/** The target under the pointer, shown instead of the best throw. */
+	/** The target under the pointer, marked on the board and in the list. */
 	@state() private pointedKey?: string;
-	/** How many achievement lines fit under the chosen throw, measured from the list. */
-	@state() private visibleLines = 3;
-
-	private listResizeObserver?: ResizeObserver;
-	private observedList?:       Element;
-
-	override disconnectedCallback(): void {
-		super.disconnectedCallback();
-		this.listResizeObserver?.disconnect();
-		this.observedList = undefined;
-	}
 
 	protected override willUpdate(changedProperties: PropertyValues<this>): void {
 		if (changedProperties.has('hints'))
@@ -341,12 +336,12 @@ export class AaLastDartHints extends LitElement {
 			victoryHits:   this.hints?.victoryHits,
 			sixtyNineHits: this.hints?.sixtyNineHits,
 		});
-		const { main, second, sixtyNine } = plan;
-		const candidates = [ main, second, sixtyNine, ...plan.others ].flatMap(item => item ? [ item ] : []);
-		const shown = candidates.find(item => item.key === this.pointedKey) ?? main;
+		const { main, sixtyNine } = plan;
+		const candidates = [ main, plan.second, sixtyNine, ...plan.others ].flatMap(item => item ? [ item ] : []);
+		const pointed = candidates.find(item => item.key === this.pointedKey);
 		const targets = buildHintTargets(hints);
 		const most = Math.max(0, ...[ ...targets.values() ].map(target => target.count));
-		const markers = this.getMarkers(plan, shown?.key);
+		const markers = this.getMarkers(plan, pointed?.key);
 		const summary = main
 			? `${ this.playerName }: ${ main.wins ? 'easiest win' : 'best last dart' } ${ describeHit(main.hit) }, `
 				+ describeWorth(main.hintIndexes.length, main, main.key === sixtyNine?.key).join(' ')
@@ -363,28 +358,13 @@ export class AaLastDartHints extends LitElement {
 					${ this.renderBoard(targets, markers, most, placeCallouts(this.getCallouts(plan))) }
 					${ this.renderOffBoard(targets, markers, most) }
 				</div>
-				${ shown && main
-					? this.renderThrow(shown, this.getThrowLabel(shown, main), shown.key === sixtyNine?.key)
-					: this.renderIdle() }
-				${ this.renderRows(this.getOptionRows(plan), targets, shown?.key) }
-				<div class="legend" aria-hidden="true">
-					<span><i class="legend__lit"></i>Unlocks achievements (thicker edge: more)</span>
-					<span><i class="legend__ring legend__ring--main"></i>Throw this</span>
-					<span><i class="legend__ring legend__ring--second"></i>Second choice</span>
-					<span class=${ classMap({ 'is-empty': !sixtyNine }) }>
-						<i class="legend__ring legend__ring--sixty-nine"></i>To 69: next round doubles
-					</span>
-				</div>
+				${ this.renderSuggestions(
+					this.getSuggestions(plan, pointed),
+					plan,
+					new Map(candidates.map(item => [ item.key, item ])),
+				) }
 			</section>
 		`;
-	}
-
-	/** "Easiest win" or "Best throw" for the main throw; "If you hit" for one pointed at. */
-	private getThrowLabel(shown: ThrowPayoff, main: ThrowPayoff): string {
-		if (shown !== main)
-			return 'If you hit';
-
-		return main.wins ? 'Easiest win' : 'Best throw';
 	}
 
 	/**
@@ -583,129 +563,149 @@ export class AaLastDartHints extends LitElement {
 	}
 
 	/**
-	 * The throw shown: a big tile in its board colour, the first thing to see, then what it is
-	 * worth and which achievements it unlocks. The dart to 69 says what that brings.
+	 * Up to four throws, the one to make first on top: the main throw, the second choice, the
+	 * dart to 69 (unless it is one of those), then the next throws for achievements. A lit
+	 * target pointed at on the board that isn't listed takes the last row while pointed at.
 	 */
-	private renderThrow(chosen: ThrowPayoff, label: string, isSixtyNine: boolean): TemplateResult {
-		const hints = chosen.hintIndexes.map(index => this.list[index]!);
-		const lines = groupByName(hints);
-		// When not all fit, the last line that fits says how many are left out.
-		const visible = lines.length > this.visibleLines ? lines.slice(0, Math.max(1, this.visibleLines - 1)) : lines;
-		const hidden = lines.slice(visible.length).reduce((count, line) => count + line.hints.length, 0);
+	private getSuggestions({ main, second, sixtyNine, others }: LastDartPlan, pointed: ThrowPayoff | undefined): Suggestion[] {
+		const listed: Suggestion[] = [];
+		const add = (item: ThrowPayoff | undefined, kind: Suggestion['kind']): void => {
+			if (item && !listed.some(entry => entry.item.key === item.key))
+				listed.push({ item, kind });
+		};
+		add(main, 'main');
+		add(second, 'second');
+		add(sixtyNine, 'sixty-nine');
+		others.forEach(item => add(item, 'other'));
 
-		return html`
-			<div class="pick pick--throw">
-				<span class="pick__tile ${ colourClass(chosen.hit) }">${ renderTileText(chosen.hit) }</span>
-				<span class="eyebrow pick__label">${ label }</span>
-				<span class="pick__worth">
-					${ describeWorth(hints.length, chosen, isSixtyNine)
-						.map((part, index) => html`${ index > 0 ? ' ' : '' }<span>${ part }</span>`) }
-				</span>
-				${ isSixtyNine ? html`<span class="pick__note">69 rule: the next round scores double</span>` : nothing }
-				<ul class=${ lines.length > 0 ? '' : 'is-empty' } ${ ref(this.observeList) }>
-					${ visible.map(line => html`
-						<li title=${ line.name }>
-							<img src=${ getAchievementTierIcon(getHighestTier(line.hints) ?? AchievementTier.bronze) } alt="" />
-							<span class="name">${ line.name }</span>
-						</li>
-					`) }
-					${ hidden > 0 ? html`<li class="more">+${ hidden } more</li>` : nothing }
-				</ul>
-			</div>
-		`;
+		const suggestions = listed.slice(0, suggestionCount);
+		if (pointed && !suggestions.some(entry => entry.item.key === pointed.key))
+			suggestions.splice(Math.min(suggestions.length, suggestionCount - 1), 1, { item: pointed, kind: 'pointed' });
+
+		return suggestions;
 	}
 
 	/**
-	 * No throw to show: empty between last darts, keeping its space. While hints are on their
-	 * way a quiet note appears only if they take a while; if none come, it says so.
+	 * The suggested throws as one list. The rows keep their space when there are fewer, so
+	 * nothing moves; with none, the first says why (or, while hints are on their way and only
+	 * if they take a while, that they are coming).
 	 */
-	private renderIdle(): TemplateResult {
-		let text: TemplateResult | typeof nothing = nothing;
-		if (this.loading)
-			text = html`<p class="idle"><span class="waiting__note">Looking for throws…</span></p>`;
-		else if (this.playerName)
-			text = html`<p class="idle">Nothing to aim for with this dart.</p>`;
-
-		return html`<div class="pick">${ text }</div>`;
-	}
-
-	/**
-	 * The rows under the main throw: the second choice first, then the dart to 69 (unless it
-	 * is the main throw or the second choice), then the next best throws for achievements.
-	 */
-	private getOptionRows({ main, second, sixtyNine, others }: LastDartPlan): OptionRow[] {
-		const showSixtyNine = sixtyNine && sixtyNine.key !== main?.key && sixtyNine.key !== second?.key;
-		const rows: OptionRow[] = [
-			...second ? [ { item: second, kind: 'second' } as const ] : [],
-			...showSixtyNine ? [ { item: sixtyNine, kind: 'sixty-nine' } as const ] : [],
-			...others
-				.filter(item => item.key !== sixtyNine?.key)
-				.map(item => ({ item, kind: 'other' }) as const),
-		];
-
-		return rows.slice(0, otherThrowCount);
-	}
-
-	/**
-	 * The rows under the main throw, with what each is worth and where a miss usually lands.
-	 * The second choice and the dart to 69 say what they are, their tiles ringed like on the
-	 * board. The rows keep their space when there are fewer, so nothing moves.
-	 */
-	private renderRows(
-		rows: readonly OptionRow[],
-		targets: ReadonlyMap<string, HintSegment>,
-		shownKey: string | undefined,
+	private renderSuggestions(
+		suggestions: readonly Suggestion[],
+		plan: LastDartPlan,
+		throwsByKey: ReadonlyMap<string, ThrowPayoff>,
 	): TemplateResult {
+		let idle: TemplateResult | typeof nothing = nothing;
+		if (this.loading)
+			idle = html`<li class="idle"><span class="waiting__note">Looking for throws…</span></li>`;
+		else if (this.playerName)
+			idle = html`<li class="idle">Nothing to aim for with this dart.</li>`;
+
 		return html`
-			<div class="others" aria-hidden="true" @mouseleave=${ this.clearPoint }>
-				<span class=${ classMap({ 'eyebrow': true, 'is-empty': rows.length === 0 }) }>Also worth aiming at</span>
+			<div class="suggestions" aria-hidden="true" @mouseleave=${ this.clearPoint }>
 				<ol>
-					${ rows.map(({ item, kind }) => html`
-						<li
-							class=${ classMap({
-								'other':              true,
-								[`other--${ kind }`]: true,
-								'other--pointed':     item.key === shownKey,
-							}) }
-							@mouseenter=${ () => this.point(item.key) }
-						>
-							<span class="other__tile ${ colourClass(item.hit) }">${ renderTileText(item.hit) }</span>
-							<span class="other__worth">
-								${ describeWorth(item.hintIndexes.length, item, kind === 'sixty-nine').join(' ') }
-							</span>
-							<span class="other__miss">${ this.describeRow(kind, item.hit, targets) }</span>
-						</li>
-					`) }
+					${ suggestions.length === 0
+						? idle
+						: suggestions.map(suggestion => this.renderSuggestion(suggestion, plan, throwsByKey)) }
 				</ol>
 			</div>
 		`;
 	}
 
-	/** A row's second line: what the row is, then where a miss usually lands. */
-	private describeRow(kind: OptionRow['kind'], hit: AchievementLegalHit, targets: ReadonlyMap<string, HintSegment>): string {
-		const miss = this.describeMiss(hit, targets);
-		if (kind === 'sixty-nine')
-			return 'Next round scores double';
+	/**
+	 * One suggestion: the throw on a tile in its board colour, ringed like on the board; what
+	 * it gets; and what it is. When a treble or double that misses usually still gets something,
+	 * a quieter third of the row shows where the miss lands and what that gets. The
+	 * achievements' names are the tooltips.
+	 */
+	private renderSuggestion(
+		{ item, kind }: Suggestion,
+		plan: LastDartPlan,
+		throwsByKey: ReadonlyMap<string, ThrowPayoff>,
+	): TemplateResult {
+		const hints = item.hintIndexes.map(index => this.list[index]!);
+		const landsOnSixtyNine = item.key === plan.sixtyNine?.key;
+		const miss = this.renderMiss(item.hit, throwsByKey);
+		const labels: Record<Suggestion['kind'], string> = {
+			'main':       item.wins ? 'Easiest win' : 'Best throw',
+			'second':     'Second choice',
+			'sixty-nine': 'Next round scores double',
+			'pointed':    'If you hit',
+			'other':      '',
+		};
 
-		if (kind === 'second')
-			return miss ? `Second choice · ${ miss }` : 'Second choice';
-
-		return miss;
+		return html`
+			<li
+				class=${ classMap({
+					'suggestion':              true,
+					[`suggestion--${ kind }`]: true,
+					'suggestion--with-miss':   miss !== nothing,
+					'suggestion--pointed':     item.key === this.pointedKey,
+				}) }
+				@mouseenter=${ () => this.point(item.key) }
+			>
+				<span class="suggestion__main" title=${ groupByName(hints).map(line => line.name).join('\n') }>
+					<span class="suggestion__tile ${ colourClass(item.hit) }">${ renderTileText(item.hit) }</span>
+					<span class="suggestion__worth">
+						${ this.renderWorth(hints, item.mmr, item.wins, landsOnSixtyNine) }
+					</span>
+					<span class="suggestion__note">${ labels[kind] }</span>
+				</span>
+				${ miss }
+			</li>
+		`;
 	}
 
-	/** Where a dart aimed at `hit` mostly lands when it misses, and what that still gets. */
-	private describeMiss(hit: AchievementLegalHit, targets: ReadonlyMap<string, HintSegment>): string {
-		const fallback = getMissFallback(hit);
+	/** What a throw gets: a pill for a win or 69, each tier's icon with a count, the MMR. */
+	private renderWorth(
+		hints: readonly LastDartHint[],
+		mmr: number,
+		wins: boolean,
+		landsOnSixtyNine: boolean,
+	): TemplateResult {
+		const tiers = tiersHighestFirst.flatMap(tier => {
+			const count = hints.filter(hint => hint.tier === tier).length;
+
+			return count > 0 ? [ { tier, count } ] : [];
+		});
+
+		return html`
+			${ wins ? html`<span class="pill pill--win">WIN</span>` : nothing }
+			${ landsOnSixtyNine ? html`<span class="pill pill--sixty-nine">69</span>` : nothing }
+			${ tiers.map(({ tier, count }) => html`
+				<span class="tier"><img src=${ getAchievementTierIcon(tier) } alt="" />${ count }</span>
+			`) }
+			${ mmr > 0 ? html`<span class="mmr">+${ mmr } MMR</span>` : nothing }
+		`;
+	}
+
+	/**
+	 * Where a treble or double usually lands when it misses (the single of its number), and
+	 * what that still gets: a small version of the throw beside it, its tile with what it gets
+	 * on top (achievements, a win or 69) and the MMR below. Nothing when it gets nothing, or
+	 * for the other targets.
+	 */
+	private renderMiss(hit: AchievementLegalHit, throwsByKey: ReadonlyMap<string, ThrowPayoff>): TemplateResult | typeof nothing {
+		const kind = getHitKind(hit);
+		const fallback = kind === 'treble' || kind === 'double' ? getMissFallback(hit) : undefined;
 		if (!fallback)
-			return '';
+			return nothing;
 
 		const key = formatHit(fallback);
-		const count = targets.get(key)?.count ?? 0;
-		const where = `A miss in ${ describeHit(fallback) }`;
-		if (this.hints?.victoryHits?.includes(key))
-			return `${ where } still wins`;
+		const payoff = throwsByKey.get(key);
+		const hints = payoff?.hintIndexes.map(index => this.list[index]!) ?? [];
+		const wins = this.hints?.victoryHits?.includes(key) ?? false;
+		const landsOnSixtyNine = this.hints?.sixtyNineHits?.includes(key) ?? false;
+		if (hints.length === 0 && !wins && !landsOnSixtyNine)
+			return nothing;
 
-		return count > 0 ? `${ where } still gets ${ count }` : `${ where } gets nothing`;
+		return html`
+			<span class="suggestion__miss" title=${ groupByName(hints).map(line => line.name).join('\n') }>
+				<span class="miss__tile ${ colourClass(fallback) }">${ describeHit(fallback) }</span>
+				<span class="miss__worth">${ this.renderWorth(hints, 0, wins, landsOnSixtyNine) }</span>
+				<span class="miss__mmr">${ payoff && payoff.mmr > 0 ? `+${ payoff.mmr } MMR` : '' }</span>
+			</span>
+		`;
 	}
 
 	private point(key: string | undefined): void {
@@ -713,36 +713,6 @@ export class AaLastDartHints extends LitElement {
 	}
 
 	private readonly clearPoint = (): void => this.point(undefined);
-
-	/** Keeps the line count in step with the list's height, which the box's size decides. */
-	private readonly observeList = (list?: Element): void => {
-		if (list === this.observedList)
-			return;
-
-		if (this.observedList)
-			this.listResizeObserver?.unobserve(this.observedList);
-
-		this.observedList = list;
-		if (!list)
-			return;
-
-		this.listResizeObserver ??= new ResizeObserver(entries => {
-			for (const entry of entries)
-				this.fitLines(entry.target as HTMLElement);
-		});
-		this.listResizeObserver.observe(list);
-	};
-
-	private fitLines(list: HTMLElement): void {
-		const line = list.querySelector<HTMLElement>('li:not(.more)');
-		if (!line || line.offsetHeight === 0)
-			return;
-
-		const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
-		const fit = Math.max(1, Math.floor((list.clientHeight + gap) / (line.offsetHeight + gap)));
-		if (fit !== this.visibleLines)
-			this.visibleLines = fit;
-	}
 
 	static override styles = [
 		visuallyHiddenStyles,

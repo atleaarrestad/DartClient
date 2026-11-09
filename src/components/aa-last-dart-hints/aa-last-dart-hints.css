@@ -1,9 +1,8 @@
 /*
  * Docked beside the game, or under it on a narrow screen (the game page decides). Always there
  * and always the same size, so lighting up targets or clearing them never moves anything.
- * - Tall (the side dock): the name, the board, the chosen throw, the other throws and the key,
- *   stacked. The chosen throw takes what is left; its list shows as many lines as fit.
- * - Wide (under the game): the board on the left, the rest in two columns beside it.
+ * - Tall (the side dock): the name, the board, the suggested throws and the key, stacked.
+ * - Wide (under the game): the board on the left, the suggestions two by two beside it.
  */
 :host {
 	display: block;
@@ -26,15 +25,14 @@
 	--hints-ring-main: #fff;
 	--hints-ring-second: #b9b9b9;
 	--hints-ring-sixty-nine: #3fd8e6;
-	--hints-divider: 2px dashed rgba(0, 0, 0, 0.18);
-	--hints-tile: 4.75rem;
-	--hints-line-icon: 20px;
-	--hints-other-row: 2.6rem;
+	/* A suggested throw's row. */
+	--hints-row: 3.3rem;
 	box-sizing: border-box;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	grid-template-rows: auto auto minmax(0, 1fr) auto auto;
-	grid-template-areas: 'who' 'board' 'pick' 'others' 'legend';
+	grid-template-rows: auto auto auto;
+	grid-template-areas: 'who' 'board' 'list';
+	align-content: start;
 	gap: var(--space-3);
 	height: 100%;
 	padding: var(--space-4);
@@ -93,8 +91,8 @@
 	justify-self: center;
 	display: grid;
 	gap: var(--space-2);
-	/* As wide as the dock, but leave the throw and the list below their room. */
-	width: min(100%, 44cqh);
+	/* As wide as the dock, but leave the suggestions and the key below their room. */
+	width: min(100%, 52cqh);
 }
 
 .board {
@@ -313,62 +311,173 @@
 	outline-offset: 3px;
 }
 
-/* ── The chosen throw and what it unlocks ────────────────────────────────── */
+/* ── The suggested throws ────────────────────────────────────────────────── */
 
-.pick {
-	grid-area: pick;
-	box-sizing: border-box;
+.suggestions {
+	grid-area: list;
 	display: grid;
 	align-content: start;
-	gap: 0.25rem;
+	gap: var(--space-2);
 	min-width: 0;
-	min-height: 0;
-	overflow: hidden;
-	padding: var(--space-3);
-	border: 2px dashed rgba(0, 0, 0, 0.18);
-	border-radius: var(--radius-lg);
+}
+
+/* Room for every row, even when there are fewer throws or none: nothing moves. */
+.suggestions ol {
+	display: grid;
+	grid-template-rows: repeat(4, var(--hints-row));
+	gap: 0.45rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
 }
 
 /*
- * With a throw: the tile on the left with what it is worth beside it, then the achievements,
- * which take whatever height is left (the component counts how many lines fit).
+ * A row: the throw, and when a miss of it usually still gets something, a quieter third
+ * beside it for that miss.
  */
-.pick--throw {
-	grid-template-columns: var(--hints-tile) minmax(0, 1fr);
-	grid-template-rows: auto auto auto minmax(0, 1fr);
-	grid-template-areas: 'tile label' 'tile worth' 'tile note' 'list list';
-	column-gap: 0.85rem;
-	row-gap: 0.15rem;
-	align-content: stretch;
+.suggestion {
+	box-sizing: border-box;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	min-width: 0;
+	overflow: hidden;
 	background: var(--color-surface-card);
-	border: 2px solid var(--color-border-strong);
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: 9px;
+}
+
+/* About two thirds for the throw, a third for where a miss of it lands. */
+.suggestion--with-miss {
+	grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.suggestion__main {
+	display: grid;
+	grid-template-columns: 3.6rem minmax(0, 1fr);
+	grid-template-rows: auto auto;
+	grid-template-areas: 'tile worth' 'tile note';
+	column-gap: 0.7rem;
+	row-gap: 0.15rem;
+	align-content: center;
+	min-width: 0;
+	padding: 0.25rem 0.6rem 0.25rem 0.35rem;
+}
+
+/*
+ * Where a miss usually lands and what that gets: a small version of the throw beside it,
+ * fainter, the tile on the left with the achievements on top and the MMR below.
+ */
+.suggestion__miss {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	grid-template-rows: auto auto;
+	grid-template-areas: 'tile worth' 'tile mmr';
+	column-gap: 0.45rem;
+	row-gap: 0.1rem;
+	align-content: center;
+	align-items: center;
+	min-width: 0;
+	padding: 0.25rem 0.45rem;
+	background: rgba(0, 0, 0, 0.04);
+	border-left: 1.5px dashed rgba(0, 0, 0, 0.35);
+	opacity: 0.8;
+}
+
+.miss__tile {
+	grid-area: tile;
+	display: grid;
+	place-items: center;
+	min-width: 2.4rem;
+	height: calc(var(--hints-row) - 1.4rem);
+	padding: 0 0.3rem;
+	box-sizing: border-box;
+	background: var(--target);
+	color: var(--target-ink);
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: 6px;
+	font-size: 0.85rem;
+	font-weight: 800;
+	line-height: 1;
+}
+
+.miss__worth {
+	grid-area: worth;
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-width: 0;
+	overflow: hidden;
+	font-size: 0.85rem;
+	font-weight: 800;
+	white-space: nowrap;
+}
+
+.miss__worth .tier img {
+	width: 18px;
+	height: 18px;
+}
+
+.miss__worth .pill {
+	font-size: 0.68rem;
+}
+
+.miss__mmr {
+	grid-area: mmr;
+	min-width: 0;
+	overflow: hidden;
+	font-size: 0.72rem;
+	font-weight: 700;
+	opacity: 0.75;
+	white-space: nowrap;
+}
+
+/* A miss that only wins or lands on 69: its one line in the middle. */
+.miss__mmr:empty {
+	display: none;
+}
+
+/* The throw to make first stands out most, the second choice a step under it. */
+.suggestion--main {
+	border-width: 2.5px;
 	box-shadow: var(--shadow-brutal-control);
 }
 
-/* The chosen throw, big and in its board colour: the first thing the eye lands on. */
-.pick__tile {
+.suggestion--second {
+	border-width: 2px;
+	box-shadow: var(--shadow-brutal-xs);
+}
+
+.suggestion--pointed {
+	outline: 2px dashed var(--color-border-strong);
+	outline-offset: 2px;
+}
+
+.suggestion__tile {
 	grid-area: tile;
-	align-self: start;
 	display: grid;
 	place-items: center;
 	align-content: center;
-	gap: 0.15em;
-	box-sizing: border-box;
-	width: var(--hints-tile);
-	height: var(--hints-tile);
-	margin-bottom: var(--space-2);
+	height: calc(var(--hints-row) - 0.95rem);
 	background: var(--target);
 	color: var(--target-ink);
-	border: 2px solid var(--color-border-strong);
-	border-radius: 10px;
-	box-shadow: var(--shadow-brutal-control);
-	font-size: calc(var(--hints-tile) * 0.32);
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: 7px;
+	font-size: 1rem;
 	font-weight: 800;
 	font-variant-numeric: tabular-nums;
-	letter-spacing: -0.02em;
 	line-height: 1;
-	text-align: center;
 }
+
+/* The tiles of ringed throws are ringed like their targets on the board. */
+.suggestion--main .suggestion__tile,
+.suggestion--second .suggestion__tile,
+.suggestion--sixty-nine .suggestion__tile {
+	box-shadow: 0 0 0 2px var(--row-ring), 0 0 0 3.5px var(--color-border-strong);
+}
+
+.suggestion--main { --row-ring: var(--hints-ring-main); }
+.suggestion--second { --row-ring: var(--hints-ring-second); }
+.suggestion--sixty-nine { --row-ring: var(--hints-ring-sixty-nine); }
 
 /* The first word of a two-word throw ("Double" bull), small above the big one. */
 .tile-small {
@@ -377,239 +486,72 @@
 	text-transform: uppercase;
 }
 
-.pick__label {
-	grid-area: label;
-	align-self: end;
-}
-
-/* Up to two lines, so the win and the count both show; it only breaks between the parts. */
-.pick__worth {
+/* What it gets, at a glance: a pill for a win or 69, each tier's icon with a count, the MMR. */
+.suggestion__worth {
 	grid-area: worth;
-	align-self: start;
-	display: -webkit-box;
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
 	min-width: 0;
 	overflow: hidden;
-	font-size: 1.05rem;
-	font-weight: 700;
-	line-height: 1.25;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 2;
-}
-
-.pick__worth > span {
+	font-size: 0.95rem;
+	font-weight: 800;
 	white-space: nowrap;
 }
 
-/* What landing on 69 brings, under the worth of the dart to 69. */
-.pick__note {
-	grid-area: note;
-	align-self: start;
-	font-size: 0.82rem;
-	font-weight: 600;
-	opacity: 0.75;
-}
-
-.pick ul {
-	grid-area: list;
-	display: grid;
-	align-content: start;
-	gap: 1px;
-	min-height: 0;
-	overflow: hidden;
-	margin: 0;
-	padding: var(--space-2) 0 0;
-	border-top: var(--hints-divider);
-	list-style: none;
-}
-
-/* A win (or the dart to 69) that unlocks nothing: no list to divide off. */
-.pick ul.is-empty {
-	border-top: none;
-}
-
-.pick li {
-	display: flex;
+.tier {
+	display: inline-flex;
 	align-items: center;
-	gap: 0.5rem;
-	min-width: 0;
-	padding: 2px 4px;
-	font-size: 0.95rem;
-	font-weight: 600;
-	line-height: 1.25;
+	gap: 0.15rem;
+	font-variant-numeric: tabular-nums;
 }
 
-.pick img {
-	flex: none;
-	width: var(--hints-line-icon);
-	height: var(--hints-line-icon);
+.tier img {
+	width: 22px;
+	height: 22px;
 	object-fit: contain;
 }
 
-.pick .name {
+.mmr {
+	font-size: 0.8em;
+	font-weight: 700;
+	opacity: 0.7;
+}
+
+.pill {
+	padding: 0.1rem 0.4rem;
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: 6px;
+	font-size: 0.78rem;
+	font-weight: 800;
+	line-height: 1.2;
+}
+
+.pill--win { background: var(--color-status-victory); }
+.pill--sixty-nine { background: var(--hints-ring-sixty-nine); }
+
+.suggestion__note {
+	grid-area: note;
 	min-width: 0;
 	overflow: hidden;
+	font-size: 0.74rem;
+	opacity: 0.7;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.pick .more {
-	font-size: 0.88rem;
-	font-weight: 700;
-	opacity: 0.65;
+.suggestion__note:empty {
+	display: none;
 }
 
 .idle {
+	align-self: center;
 	margin: 0;
 	font-size: 0.9rem;
 	line-height: 1.35;
 	opacity: 0.65;
 }
 
-/* ── The other throws ────────────────────────────────────────────────────── */
-
-.others {
-	grid-area: others;
-	display: grid;
-	align-content: start;
-	gap: var(--space-2);
-	min-width: 0;
-}
-
-.others .is-empty {
-	visibility: hidden;
-}
-
-/* Room for every row, even when there are fewer throws or none: nothing moves. */
-.others ol {
-	display: grid;
-	grid-template-rows: repeat(3, var(--hints-other-row));
-	gap: 0.35rem;
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-
-.other {
-	box-sizing: border-box;
-	display: grid;
-	grid-template-columns: 3.5rem minmax(0, 1fr);
-	grid-template-rows: auto auto;
-	grid-template-areas: 'tile worth' 'tile miss';
-	column-gap: 0.65rem;
-	align-content: center;
-	min-width: 0;
-	padding: 0.2rem 0.6rem 0.2rem 0.25rem;
-	background: var(--color-surface-card);
-	border: 1.5px solid var(--color-border-strong);
-	border-radius: 8px;
-}
-
-.other--pointed {
-	outline: 2px dashed var(--color-border-strong);
-	outline-offset: 2px;
-}
-
-/* The second choice and the dart to 69: their tiles ringed like their targets on the board. */
-.other--second .other__tile,
-.other--sixty-nine .other__tile {
-	box-shadow: 0 0 0 2px var(--row-ring), 0 0 0 3.5px var(--color-border-strong);
-}
-
-.other--second { --row-ring: var(--hints-ring-second); }
-.other--sixty-nine { --row-ring: var(--hints-ring-sixty-nine); }
-
-/* The second choice still stands out from the rest, a step under the main throw. */
-.other--second {
-	border-width: 2px;
-	box-shadow: var(--shadow-brutal-xs);
-}
-
-.other__tile {
-	grid-area: tile;
-	display: grid;
-	place-items: center;
-	align-content: center;
-	height: calc(var(--hints-other-row) - 0.75rem);
-	background: var(--target);
-	color: var(--target-ink);
-	border: 1.5px solid var(--color-border-strong);
-	border-radius: 6px;
-	font-size: 0.9rem;
-	font-weight: 800;
-	line-height: 1;
-}
-
-.other__worth,
-.other__miss {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.other__worth {
-	grid-area: worth;
-	font-size: 0.88rem;
-	font-weight: 700;
-}
-
-.other__miss {
-	grid-area: miss;
-	font-size: 0.74rem;
-	opacity: 0.7;
-}
-
-.other__miss:empty {
-	display: none;
-}
-
-/* ── The key ─────────────────────────────────────────────────────────────── */
-
-.legend {
-	grid-area: legend;
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.3rem 0.9rem;
-	font-size: 0.74rem;
-	font-weight: 600;
-	opacity: 0.8;
-}
-
-.legend span {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.35rem;
-}
-
-.legend i {
-	flex: none;
-	box-sizing: border-box;
-	width: 0.85rem;
-	height: 0.85rem;
-}
-
-/* A lit target: board colour with the yellow edge. */
-.legend__lit {
-	background: #c0392b;
-	border: 3px solid var(--hints-glow);
-	border-radius: 3px;
-	box-shadow: 0 0 0 1px var(--color-border-strong);
-}
-
-/* The rings, as on the board. */
-.legend__ring {
-	border: 3px solid var(--ring);
-	border-radius: 50%;
-	box-shadow: 0 0 0 1.5px #000, inset 0 0 0 1.5px #000;
-}
-
-.legend__ring--main { --ring: var(--hints-ring-main); }
-.legend__ring--second { --ring: var(--hints-ring-second); }
-.legend__ring--sixty-nine { --ring: var(--hints-ring-sixty-nine); }
-
-.legend .is-empty {
-	visibility: hidden;
-}
 
 /*
  * Waiting for hints. Nothing shows for the first 400ms, so a quick answer goes straight from
@@ -648,15 +590,20 @@
 
 @container hints (aspect-ratio > 2) {
 	.dock {
-		--hints-tile: 4rem;
-		grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 1fr);
-		grid-template-rows: auto minmax(0, 1fr) auto;
+		--hints-row: 3rem;
+		grid-template-columns: auto minmax(0, 1fr);
+		grid-template-rows: auto auto;
 		grid-template-areas:
-			'board who others'
-			'board pick others'
-			'board pick legend';
+			'board who'
+			'board list';
 		column-gap: var(--space-5);
 		padding: var(--space-3) var(--space-4);
+	}
+
+	.suggestions ol {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-template-rows: repeat(2, var(--hints-row));
+		column-gap: var(--space-3);
 	}
 
 	/* The board as tall as the box, less its padding and the rim and miss chips. */

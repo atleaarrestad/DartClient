@@ -21,8 +21,20 @@ Chosen from the redesign canvas (frame 11, "Side dock + dartboard"). On the play
   - Empty rounds now only fill the rows the card shows, capped at the round limit.
   - Before, with a round limit, it added a full screen of empty rows after the played rounds and then scrolled to the end. With half-height cards, that pushed the round being thrown out of view.
 - **Hints dock** (`aa-last-dart-hints`, rewritten)
-  - The strip and panel placements are replaced by one docked layout, stacked top to bottom: the name, an SVG dartboard, the Rim and Miss chips, the chosen throw, up to three other throws, and the colour key.
-  - When the box is wide (`aspect-ratio > 2`, the narrow-screen fallback), the board moves to the left.
+  - The strip and panel placements are replaced by one docked layout, stacked top to bottom: the name, an SVG dartboard, the Rim and Miss chips, and one list of up to four suggested throws. There is no heading over the list and no colour key under it: the user found both useless, and the rows, rings and callouts explain themselves.
+  - When the box is wide (`aspect-ratio > 2`, the narrow-screen fallback), the board moves to the left and the four suggestions sit two by two.
+  - **Suggested throws** (one list, max 4, replacing the big throw card and the "also worth" rows):
+    - The one to make first is on top. Each row has a tile in its target's board colour, ringed like the board for the main throw, second choice and 69 dart.
+    - Then pills for a win or 69, each tier's icon with a count (e.g. silver 6, bronze 6), and the MMR.
+    - The second line says only what it is: "Easiest win", "Best throw", "Second choice", "If you hit", or "Next round scores double" for 69. No dot-separated extras.
+    - **Miss cell:** a treble or double whose miss usually still gets something gets a quieter right third (a 2/3 + 1/3 split, dashed divider, faint background).
+      - The miss usually lands in the single of the same number (`getMissFallback`).
+      - The cell is a small version of the throw beside it, with no label: a tile for that target in its board colour, what it gets on top (tier icons with counts, a "WIN" pill, or a "69" pill), and its MMR below.
+      - Other targets, and misses that get nothing, use the full width.
+    - The achievements' names are the row's tooltip.
+    - The old card grouped names that differ only in brackets, e.g. "(Raw, Modified)", so 12 achievements showed as 6 lines and looked like 6. The tier counts don't have that problem.
+    - The main row has the strongest border and shadow, and the second choice a lighter one.
+    - Pointing at a lit target the list doesn't have puts it in the last row ("If you hit") while pointed at.
   - The board is a regulation board, measured in millimetres:
     - bull 6.35, 25 at 15.9, trebles 99–107, doubles 162–170;
     - a 451mm black surround with the numbers.
@@ -33,11 +45,11 @@ Chosen from the redesign canvas (frame 11, "Side dock + dartboard"). On the play
     - Full cream outshone the black singles, so a lit S20 was lost next to a lit S19.
     - A lit black single kept black would look like a dimmed one.
     - The yellow edge says what is lit; the hue says black or cream.
-  - There are no count badges on the board, because the 8mm rings can't hold them. The counts show in the throw card when you point at a target.
-  - The best throw is ringed and outlined in white on a black halo. A pointed target gets the same ring, dashed. Pointing at an "also worth aiming at" row shows that throw too.
+  - There are no count badges on the segments, because the 8mm rings can't hold them. The ringed throws get callouts outside the board (below), and every lit target shows its counts in the list when pointed at.
+  - The best throw is ringed and outlined in white on a black halo. A pointed target gets the same ring, dashed. Pointing at a suggestion rings its target.
   - The throw tiles use their target's board colour: T19 green, T13 red, S20 black, Bull red.
-  - Each other throw says where a miss usually lands and what that still gets (`getMissFallback`, now exported).
-  - The dock is always the same size, and the rows for the other throws keep their space, so nothing moves between darts.
+  - Trebles and doubles show where a miss usually lands, when that still gets something (`getMissFallback`, now exported).
+  - The dock is always the same size, and the list keeps room for four rows, so nothing moves between darts.
 - **Helpers**
   - `buildHintStrip` (columns) is replaced by `buildHintTargets`: a map of every target by dart notation, with tests updated.
   - Board geometry (`polar`, `arcPath`, `circlePath`, `wedgeSpan`) moved to `src/ui/dartboard/dartboardGeometry.ts`, which `aa-dartboard` now uses too.
@@ -48,11 +60,11 @@ Chosen from the redesign canvas (frame 11, "Side dock + dartboard"). On the play
 Decided with the user: winning matters most.
 
 - **What the dock shows** (`planLastDart` in `lastDartHints.ts`, tested)
-  - **Main throw:** if any dart wins, the easiest winning dart. It gets the main card, labelled "Easiest win", and a bold white ring.
+  - **Main throw:** if any dart wins, the easiest winning dart. It gets the top suggestion, labelled "Easiest win", and a bold white ring.
   - **Ease order:** the same order the ranking uses (`throwDifficulty`): single, treble, 25, bull, double.
   - **No win:** the main throw is the best throw for achievements ("Best throw"), as before.
-  - **Second choice:** when the main throw is a win, the best throw for achievements, if it's a different dart. That's usually a dart that doesn't win, but it can be a harder winning dart that unlocks more. It gets a thinner grey ring and the first row of the list, labelled "Second choice", with its tile ringed grey. If it's the same dart as the easiest win, there's only one ring.
-  - **69 rule:** when the season plays it, the easiest dart that leaves the total on exactly 69 gets a cyan ring and a row: "Lands on 69", "Next round scores double". If the dart to 69 is also the main throw, the card says "Lands on 69" with a note instead.
+  - **Second choice:** when the main throw is a win, the best throw for achievements, if it's a different dart. That's usually a dart that doesn't win, but it can be a harder winning dart that unlocks more. It gets a thinner grey ring and the second suggestion, labelled "Second choice", with its tile ringed grey. If it's the same dart as the easiest win, there's only one ring.
+  - **69 rule:** when the season plays it, the easiest dart that leaves the total on exactly 69 gets a cyan ring and a suggestion with a "69" pill and "Next round scores double". If the dart to 69 is also the main throw or the second choice, that row gets the pill instead.
     - Already on 69 after two darts, the last dart counts double. So only a Miss (or Rim) keeps the total there, and the dock suggests a Miss.
   - **Undimmed:** ringed targets never dim, even when they unlock nothing.
   - **Callouts:** like the rank-change badges on the statistics charts, each ring gets a badge just outside the board on a leader line in the ring's colour.
@@ -60,7 +72,7 @@ Decided with the user: winning matters most.
     - The second choice's badge is drawn at 85% size.
     - Rim and Miss get no badge; their chips already say what they are.
     - Badges sit 12°, 30°, 48° and so on to either side of their target, never straight out, so the leader passes between numbers instead of covering the target's own. A spot is used only if it stays inside the view box (±290mm, which leaves the board some margin) and covers no earlier badge (`placeCallouts`).
-  - **The rest of the list** is the next throws for achievements. Three rows are kept in total.
+  - **The rest of the list** is the next throws for achievements, up to four suggestions in total.
   - **Ranking:** `rankThrows` now ranks by achievements alone, since the win is handled by `planLastDart`. `victoryValue`, `getFinishValue` and the game page's `getVictoryValue` are gone.
 - **Backend**
   - `AchievementPredictionService.FindLastDartTargets` replaces `FindVictoryHits`. In one pass over every legal last dart it finds:
