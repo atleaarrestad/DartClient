@@ -1,13 +1,14 @@
 /*
- * The overlay covers the game; only the floats are drawn, and pointer events pass through.
- * Floats move with transform and opacity only, so the compositor runs them (the Pi's GPU).
+ * The overlay covers the area above the watch panel (the page places it); only the floats
+ * are drawn, and pointer events pass through. Floats move with transform and opacity only,
+ * so the compositor runs them (the Pi's GPU).
  */
 :host {
 	--picture-size: clamp(44px, 4.5vw, 72px);
 	/* Floats start somewhere in this band along the right edge, */
 	--lane-width: min(300px, 30vw);
-	/* just above the crowd in the corner: the reactions rise out of it. */
-	--crowd-clearance: 52px;
+	/* just above the bottom edge, where the watch panel is: the reactions rise out of it. */
+	--crowd-clearance: var(--space-2);
 
 	position: absolute;
 	inset: 0;
@@ -99,85 +100,6 @@
 	height: 18px;
 }
 
-/*
- * The crowd: who is watching, quietly in the corner. Lighter than the floats (thinner, a
- * little see-through), and it never moves the board: it sits in the overlay layer.
- */
-.crowd {
-	position: absolute;
-	right: var(--space-3);
-	bottom: var(--space-3);
-	display: inline-flex;
-	align-items: center;
-	gap: var(--space-2);
-	padding: 3px var(--space-2);
-	border: var(--border-width-strong) solid var(--color-border-strong);
-	border-radius: var(--radius-pill);
-	background: color-mix(in srgb, var(--color-surface-plain) 80%, transparent);
-	box-shadow: var(--shadow-brutal-xs);
-	color: var(--color-text-primary);
-	font: 700 0.75rem / 1 var(--font-family-ui);
-	opacity: 0.88;
-	/* The tooltip lists everyone on hover. */
-	pointer-events: auto;
-}
-
-.crowd__eye {
-	font-size: 0.8rem;
-	opacity: 0.7;
-}
-
-.crowd__avatars {
-	display: inline-flex;
-}
-
-.crowd__avatar {
-	display: grid;
-	place-items: center;
-	width: 24px;
-	height: 24px;
-	margin-left: -6px;
-	border-radius: 50%;
-	background: var(--color-surface-plain);
-	box-shadow: 0 0 0 2px var(--color-surface-plain);
-	animation: crowd-arrive 300ms ease-out both;
-}
-
-.crowd__avatar:first-child {
-	margin-left: 0;
-}
-
-.crowd__picture {
-	width: 20px;
-	height: 20px;
-}
-
-.crowd__picture--cheering {
-	animation: crowd-cheer 450ms ease-out;
-}
-
-.crowd__initial {
-	font-size: 0.7rem;
-}
-
-.crowd__more {
-	padding-right: 2px;
-	opacity: 0.75;
-}
-
-@keyframes crowd-arrive {
-	from {
-		transform: scale(0.3);
-		opacity: 0;
-	}
-}
-
-@keyframes crowd-cheer {
-	40% {
-		transform: translateY(-5px) scale(1.2);
-	}
-}
-
 @keyframes float-rise {
 	0% {
 		transform: translate3d(0, 0, 0);
@@ -260,9 +182,7 @@
 	.picture,
 	.sticker,
 	.tag,
-	.name,
-	.crowd__avatar,
-	.crowd__picture--cheering {
+	.name {
 		animation: none;
 	}
 }

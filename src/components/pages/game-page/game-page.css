@@ -35,26 +35,43 @@ aa-loading-state {
 
 /*
  * The side column: the page's own header (the spectate page's) on top, the last-dart hints
- * under it, and the spectators over both, their reactions rising up the column. The cards
- * keep the rest of the screen to themselves.
+ * under it, and at its foot the watch panel (who watches, and the QR code to join them),
+ * the reactions rising out of it up the column. The cards keep the rest of the screen to
+ * themselves. Every part has its place set, so the reactions can lie over the others.
  */
 .side {
 	position: relative;
 	min-width: 0;
 	min-height: 0;
 	display: grid;
-	grid-template-rows: auto minmax(0, 1fr);
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-rows: auto minmax(0, 1fr) auto;
+	grid-template-areas: 'header' 'hints' 'footer';
 	background: var(--color-surface-warning-subtle);
 	border-left: var(--border-width-strong) solid var(--color-border-strong);
 }
 
+.side > .player-header {
+	grid-area: header;
+}
+
 .side > aa-last-dart-hints {
+	grid-area: hints;
 	min-height: 0;
 }
 
-/* Reactions rise across most of the column, not just a strip at its edge. */
+.side__footer {
+	grid-area: footer;
+	padding: 0 var(--space-4) var(--space-4);
+}
+
+/* Over the header and the hints, so reactions rise from just above the watch panel. */
 .side > aa-reaction-overlay {
+	/* Reactions rise across most of the column, not just a strip at its edge. */
 	--lane-width: 55%;
+	grid-area: header-start / header-start / hints-end / hints-end;
+	position: relative;
+	inset: auto;
 }
 
 /* Too narrow for a column beside the cards: it goes under them, the board on its left. */
@@ -67,6 +84,15 @@ aa-loading-state {
 	.side {
 		border-top: var(--border-width-strong) solid var(--color-border-strong);
 		border-left: none;
+	}
+
+	/*
+	 * The watch panel stays, without its QR code: too little room, and a small screen isn't
+	 * one the room watches from afar.
+	 */
+	.side__footer {
+		--aa-watch-panel-code: none;
+		padding: 0 var(--space-3) var(--space-3);
 	}
 }
 

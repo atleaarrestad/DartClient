@@ -1,0 +1,133 @@
+:host {
+	display: block;
+}
+
+/* A white card like the app's others, so the code keeps its contrast on any background. */
+.panel {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	padding: 0.45rem 0.6rem;
+	background: var(--color-surface-plain);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+	box-shadow: var(--shadow-brutal-sm);
+	color: var(--color-text-primary);
+	font-family: var(--font-family-ui);
+}
+
+.panel--code {
+	padding: 0.4rem 0.75rem 0.4rem 0.4rem;
+}
+
+/* The page hides the code where the screen is too small to be watched from across a room. */
+.code {
+	display: var(--aa-watch-panel-code, block);
+	flex: none;
+	width: var(--aa-watch-panel-code-size, 7rem);
+	height: auto;
+	aspect-ratio: 1;
+	/* Sharp module edges: no anti-aliased seams between neighbouring squares. */
+	shape-rendering: crispEdges;
+}
+
+.code__paper {
+	fill: #fff;
+}
+
+.code__modules {
+	fill: #000;
+}
+
+.panel__text {
+	display: grid;
+	gap: 0.55rem;
+	min-width: 0;
+}
+
+/* Hidden with the code: there is nothing to scan without it. */
+.panel__title {
+	display: var(--aa-watch-panel-code, block);
+	font-size: 0.82rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+/* Who watches: the eye, their animals, how many. */
+.crowd {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-2);
+	min-width: 0;
+	font-size: 0.78rem;
+	font-weight: 700;
+}
+
+.crowd .fa-eye {
+	font-size: 0.85rem;
+	opacity: 0.7;
+}
+
+.crowd--empty {
+	opacity: 0.6;
+}
+
+.crowd__avatars {
+	display: inline-flex;
+}
+
+.crowd__avatar {
+	display: grid;
+	place-items: center;
+	width: 26px;
+	height: 26px;
+	margin-left: -6px;
+	border-radius: 50%;
+	background: var(--color-surface-plain);
+	box-shadow: 0 0 0 2px var(--color-surface-plain);
+	animation: crowd-arrive 300ms ease-out both;
+}
+
+.crowd__avatar:first-child {
+	margin-left: 0;
+}
+
+.crowd__picture {
+	width: 22px;
+	height: 22px;
+}
+
+.crowd__picture--cheering {
+	animation: crowd-cheer 450ms ease-out;
+}
+
+.crowd__initial {
+	font-size: 0.7rem;
+}
+
+.crowd__count {
+	white-space: nowrap;
+	opacity: 0.75;
+}
+
+@keyframes crowd-arrive {
+	from {
+		transform: scale(0.3);
+		opacity: 0;
+	}
+}
+
+@keyframes crowd-cheer {
+	40% {
+		transform: translateY(-5px) scale(1.2);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.crowd__avatar,
+	.crowd__picture--cheering {
+		animation: none;
+	}
+}

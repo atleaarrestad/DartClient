@@ -1,10 +1,8 @@
 import { html, LitElement, nothing, unsafeCSS } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { classMap } from 'lit/directives/class-map.js';
+import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
-import { faIcons } from '../../faIcons.js';
 import {
 	getAnimalImageUrl,
 	getAnimalName,
@@ -17,12 +15,6 @@ import reactionOverlayStyles from './aa-reaction-overlay.css?inline';
 
 /** More than this on screen at once and new reactions are dropped: the board stays readable. */
 const maximumFloats = 12;
-/** The crowd shows this many avatars, the newest arrivals; the rest are a "+N". */
-const maximumCrowdAvatars = 5;
-/** How long a spectator's avatar hops after they react. */
-const cheerMs = 450;
-
-const listFormat = new Intl.ListFormat('en', { type: 'conjunction' });
 
 interface ReactionFloat {
 	readonly id:       number;
@@ -58,28 +50,20 @@ const preloadReactionImages = (): void => {
 };
 
 /**
- * The crowd in the board's bottom-right corner and its reactions rising out of it.
- *
- * The crowd is an eye and the watching spectators' animal avatars; it is not there when nobody
- * watches. A reaction floats up the right edge: the picture (or a sticker for a darts call)
- * with the spectator's animal under it, while their avatar in the crowd hops. Each float pops
- * in, rises with a sway and fades out after a few seconds. Everything animates transform and
- * opacity only, and the overlay owns its state, so neither reactions nor arrivals re-render
- * the board.
+ * Spectators' reactions rising over the side column, out of the watch panel at its foot
+ * (where the crowd is, see `aa-watch-panel`). A reaction floats up: the picture (or a sticker
+ * for a darts call) with the spectator's animal under it. Each float pops in, rises with a
+ * sway and fades out after a few seconds. Everything animates transform and opacity only, and
+ * the overlay owns its state, so reactions never re-render the board.
  */
 @customElement('aa-reaction-overlay')
 export class AaReactionOverlay extends LitElement {
 
-	/** The animals watching, in arrival order. */
-	@property({ attribute: false }) spectators: readonly string[] = [];
-	@state() private floats:                    readonly ReactionFloat[] = [];
-	/** Spectators whose avatar is hopping because they just reacted. */
-	@state() private cheering:                  ReadonlySet<string> = new Set();
+	@state() private floats:        readonly ReactionFloat[] = [];
 	private nextFloatId = 0;
 	/** Where the last float started across the lane (0–1); the next one starts well apart. */
 	private lastLane = Math.random();
-	private readonly removalTimers:             Set<ReturnType<typeof setTimeout>> = new Set();
-	private readonly cheerTimers:               Map<string, ReturnType<typeof setTimeout>> = new Map();
+	private readonly removalTimers: Set<ReturnType<typeof setTimeout>> = new Set();
 
 	override connectedCallback(): void {
 		super.connectedCallback();
@@ -90,10 +74,7 @@ export class AaReactionOverlay extends LitElement {
 		super.disconnectedCallback();
 		this.removalTimers.forEach(timer => clearTimeout(timer));
 		this.removalTimers.clear();
-		this.cheerTimers.forEach(timer => clearTimeout(timer));
-		this.cheerTimers.clear();
 		this.floats = [];
-		this.cheering = new Set();
 	}
 
 	/**
@@ -127,7 +108,6 @@ export class AaReactionOverlay extends LitElement {
 		};
 
 		this.floats = [ ...this.floats, float ];
-		this.cheer(animal);
 
 		const timer = setTimeout(() => {
 			this.removalTimers.delete(timer);
@@ -136,65 +116,8 @@ export class AaReactionOverlay extends LitElement {
 		this.removalTimers.add(timer);
 	}
 
-	/** The reacting spectator's avatar hops, so players see who cheered without reading. */
-	private cheer(animal: string): void {
-		if (!this.spectators.includes(animal))
-			return;
-
-		clearTimeout(this.cheerTimers.get(animal));
-		this.cheering = new Set([ ...this.cheering, animal ]);
-		this.cheerTimers.set(animal, setTimeout(() => {
-			this.cheerTimers.delete(animal);
-			this.cheering = new Set([ ...this.cheering ].filter(other => other !== animal));
-		}, cheerMs));
-	}
-
 	override render(): unknown {
-		return html`${ this.renderFloats() }${ this.renderCrowd() }`;
-	}
-
-	private renderCrowd(): unknown {
-		const count = this.spectators.length;
-		if (count === 0)
-			return nothing;
-
-		const shown = this.spectators.slice(-maximumCrowdAvatars);
-		const label = `${ count } watching: ${ listFormat.format(this.spectators.map(getAnimalName)) }`;
-		// Keys stay stable for each avatar, so only a new arrival pops in. The same animal
-		// twice (more spectators than animals) gets a key per occurrence.
-		const seen: Map<string, number> = new Map();
-		const keyed = shown.map(animal => {
-			const occurrence = (seen.get(animal) ?? 0) + 1;
-			seen.set(animal, occurrence);
-
-			return { animal, key: `${ animal }:${ occurrence }` };
-		});
-
-		return html`
-			<div class="crowd" role="img" aria-label=${ label } title=${ label }>
-				<i class="crowd__eye fa-solid fa-eye" aria-hidden="true"></i>
-				<span class="crowd__avatars">
-					${ repeat(keyed, ({ key }) => key, ({ animal }) => this.renderCrowdAvatar(animal)) }
-				</span>
-				${ count > shown.length ? html`<span class="crowd__more">+${ count - shown.length }</span>` : nothing }
-			</div>
-		`;
-	}
-
-	private renderCrowdAvatar(animal: string): unknown {
-		const avatar = getAnimalImageUrl(animal);
-		const pictureClasses = classMap({
-			'crowd__picture':           true,
-			'crowd__picture--cheering': this.cheering.has(animal),
-		});
-
-		return html`
-			<span class="crowd__avatar">
-				${ avatar
-					? html`<img class=${ pictureClasses } src=${ avatar } alt="" width="20" height="20">`
-					: html`<span class="crowd__initial">${ getAnimalName(animal)[0] }</span>` }
-			</span>
-		`;
+		return this.renderFloats();
 	}
 
 	private renderFloats(): unknown {
@@ -221,7 +144,7 @@ export class AaReactionOverlay extends LitElement {
 		});
 	}
 
-	static override styles = [ faIcons, unsafeCSS(reactionOverlayStyles) ];
+	static override styles = unsafeCSS(reactionOverlayStyles);
 
 }
 

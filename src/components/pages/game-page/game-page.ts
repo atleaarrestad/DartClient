@@ -1,6 +1,7 @@
 import '../../aa-loading-state/aa-loading-state.js';
 import '../../aa-last-dart-hints/aa-last-dart-hints.js';
 import '../../aa-reaction-overlay/aa-reaction-overlay.js';
+import '../../aa-watch-panel/aa-watch-panel.js';
 import '../../../ui/button/aa-button.js';
 import '../../../ui/error-state/aa-error-state.js';
 
@@ -47,9 +48,11 @@ import {
 } from '../../../services/signalRService.js';
 import { CacheService } from '../../../services/cacheService.js';
 import { getErrorMessage } from '../../../helpers/getErrorMessage.js';
+import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
 import type { AchievementInstanceResponse } from '../../../models/achievementBuilderApi.js';
 import { LastDartHintsLoader, LastDartHintsTarget } from './last-dart-hints-loader.js';
 import type { AaReactionOverlay } from '../../aa-reaction-overlay/aa-reaction-overlay.js';
+import type { AaWatchPanel } from '../../aa-watch-panel/aa-watch-panel.js';
 
 /** Below this, player rows stop shrinking and the player grid scrolls. */
 const minimumPlayerRowHeight = 240;
@@ -110,11 +113,13 @@ export class GamePage extends LitElement {
 	private reactionSubscription?: SignalRSubscription;
 	// Bumped on every (un)subscribe, so a subscribe that was overtaken while awaiting backs off.
 	private gameEventsGeneration = 0;
-	/** Spectators' reactions float over the game, on the players' page and the spectators'. */
-	@query('aa-reaction-overlay') protected reactionOverlay?: AaReactionOverlay;
+	/** Spectators' reactions float up the side column, on the players' page and the spectators'. */
+	@query('aa-reaction-overlay') private reactionOverlay?: AaReactionOverlay;
+	/** Who watches (and on the players' page the QR code to join them), at the column's foot. */
+	@query('aa-watch-panel') private watchPanel?: AaWatchPanel;
 	/**
-	 * Who watches the game, as animals. A plain field, handed straight to the overlay, so a
-	 * spectator arriving never re-renders the board.
+	 * Who watches the game, as animals. A plain field, handed straight to the watch panel, so
+	 * a spectator arriving never re-renders the board.
 	 */
 	private spectators: readonly string[] = [];
 	/** The version of `spectators`; older snapshots arriving late are ignored. */
@@ -186,6 +191,12 @@ export class GamePage extends LitElement {
 
 	/** The navigation link of this page; the sync dot sits on it. */
 	protected readonly playStatusLink: PlayStatus['link'] = 'play';
+
+	/**
+	 * Whether the watch panel shows a QR code of the game's spectate link, for people in the
+	 * room to watch on their phones. Not on the spectate page: there they already are.
+	 */
+	protected readonly showsSpectateCode: boolean = true;
 
 	/** Opens this page's gameplay shortcuts, if it has any. */
 	protected getShortcutsAction(): (() => void) | undefined {
@@ -362,7 +373,13 @@ export class GamePage extends LitElement {
 		if (gameId !== this.gameIdFromLocalStorage)
 			return;
 
-		this.reactionOverlay?.show(reaction.reaction, reaction.animal);
+		this.showReaction(reaction.reaction, reaction.animal);
+	}
+
+	/** A reaction rises up the side column, and the spectator's avatar in the crowd hops. */
+	protected showReaction(reactionKey: string, animal: string): void {
+		this.reactionOverlay?.show(reactionKey, animal);
+		this.watchPanel?.cheer(animal);
 	}
 
 	private applySpectators(gameId: string, snapshot: SpectatorsSnapshot): void {
@@ -375,8 +392,8 @@ export class GamePage extends LitElement {
 	private setSpectators(animals: readonly string[], version: number): void {
 		this.spectators = animals;
 		this.spectatorsVersion = version;
-		if (this.reactionOverlay)
-			this.reactionOverlay.spectators = animals;
+		if (this.watchPanel)
+			this.watchPanel.spectators = animals;
 	}
 
 	private async HandleV2AchievementProjected(
@@ -1288,17 +1305,30 @@ export class GamePage extends LitElement {
 				<!--
 					Everything that isn't a player sits in the side column, so the cards keep the
 					board to themselves: the page's own header (the spectate page's), the last-dart
-					hints, and the spectators with their reactions rising over the column.
+					hints, and at its foot who watches (with the QR code to join them on the
+					players' page), their reactions rising up the column out of it.
 				-->
 				<aside class="side">
 					<div class="player-header">
 						${ this.renderPlayerHeaderContent() }
 					</div>
 					${ this.renderLastDartHints() }
-					<aa-reaction-overlay .spectators=${ this.spectators }></aa-reaction-overlay>
+					<div class="side__footer">
+						<aa-watch-panel .url=${ this.getSpectateUrl() } .spectators=${ this.spectators }></aa-watch-panel>
+					</div>
+					<aa-reaction-overlay></aa-reaction-overlay>
 				</aside>
 			</div>
 		`;
+	}
+
+	/** The link that opens this game's spectate page, for the watch panel's QR code; none where it has none. */
+	private getSpectateUrl(): string {
+		const gameId = this.gameIdFromLocalStorage;
+		if (!this.showsSpectateCode || !gameId)
+			return '';
+
+		return new URL(`${ getAbsoluteBase() }spectate/${ encodeURIComponent(gameId) }`, window.location.origin).href;
 	}
 
 	static override styles = [ sharedStyles, unsafeCSS(gamePageStyles) ];

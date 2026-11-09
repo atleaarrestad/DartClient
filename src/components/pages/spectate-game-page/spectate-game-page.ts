@@ -20,6 +20,7 @@ export class SpectateGamePage extends GamePage {
 	/** The animal this spectator reacts as; the server names it on every (re)join. */
 	@state() private spectatorAnimal?: string;
 	protected override readonly playStatusLink = 'sessions';
+	protected override readonly showsSpectateCode = false;
 	private spectateSubscription?: SignalRSubscription;
 	private readonly onGameUpdated = (gameId: string, gameTracker: GameTracker) => this.HandleOnGameUpdated(gameId, gameTracker);
 	private readonly onGameDelta = (gameId: string, delta: GameTrackerDelta) => void this.HandleOnGameDelta(gameId, delta);
@@ -87,7 +88,7 @@ export class SpectateGamePage extends GamePage {
 		const gameId = this.gameId;
 		const shownAs = this.spectatorAnimal;
 		if (shownAs)
-			this.reactionOverlay?.show(reaction, shownAs);
+			this.showReaction(reaction, shownAs);
 
 		try {
 			const result = await this.gameLiveService.sendSpectatorReaction(gameId, reaction);
@@ -98,7 +99,7 @@ export class SpectateGamePage extends GamePage {
 			if (result.animal !== this.spectatorAnimal)
 				this.spectatorAnimal = result.animal;
 			if (!shownAs)
-				this.reactionOverlay?.show(reaction, result.animal);
+				this.showReaction(reaction, result.animal);
 		}
 		catch (error) {
 			console.warn('[Reactions] could not send a reaction', error);

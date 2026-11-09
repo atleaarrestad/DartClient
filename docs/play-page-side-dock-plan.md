@@ -65,8 +65,19 @@ Chosen from the redesign canvas (frame 11, "Side dock + dartboard"). On the play
 - **Side column** (`<aside class="side">` in `game-page.ts`): everything that isn't a player moved out of the card area, so the cards have it to themselves.
   - Top: the page's own header (`renderPlayerHeaderContent`; only the spectate page has one). It shows "Spectating", the React picker and "Join game" on one line, divided off from the hints. "Spectator mode" was shortened to "Spectating" so it fits.
   - Then the last-dart hints.
-  - Over both: `aa-reaction-overlay`. The crowd pill sits in the column's bottom-right corner, in the free space under the suggestions, and reactions rise up the column (`--lane-width: 55%`).
+  - Over the header and the hints: `aa-reaction-overlay`, the reactions only. They rise from just above the watch panel up the column (`--lane-width: 55%`). Every part of the column has a grid area, so the overlay can lie over the others.
   - The column carries the border and background. Below 1000px wide it goes under the cards.
+  - **Watch panel** (`aa-watch-panel`) at the foot of the column: watching, in one card, so the code and the crowd read as one thing.
+    - On the play page: a QR code of the game's spectate link on the left; on the right "Scan to watch" and the crowd. Someone in the room points their phone at the screen and the game opens for them to watch and react.
+    - The crowd is the eye, the five newest spectators' animal avatars, and "7 watching" (or "No one watching yet").
+      - It moved here from the overlay's corner pill. An avatar still hops when its spectator reacts: `GamePage.showReaction` floats the reaction and calls `cheer`.
+      - The spectators are handed to the panel directly, so arrivals never re-render the board.
+    - On the spectate page there's no code (`showsSpectateCode = false`), only the crowd.
+    - Below 1000px wide the page hides the code and its title (`--aa-watch-panel-code: none`); the crowd stays.
+    - The link is `location.origin` + base + `spectate/<gameId>`. In dev that's `localhost`, which a phone can't reach; on the deployed screen it is the real address.
+    - Error correction is medium, so glare or a slanted phone still scans. The code is 7rem, adjustable with `--aa-watch-panel-code-size`.
+    - Drawn as an SVG from the module grid of `uqr` (unjs, MIT, no dependencies). It's pinned to 0.1.3 in `package.json`.
+    - Checked by screenshotting the real play page on a live game and decoding the code with jsQR. It read back `http://localhost:5173/spectate/<that game's id>`. At 900px wide there's no code, as intended.
   - The spectate page's `.player-container` top-padding override is gone, since the header no longer sits above the cards.
 
 ## Last-dart goals: win first, then achievements, and the 69 rule

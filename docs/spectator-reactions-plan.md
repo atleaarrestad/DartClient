@@ -29,6 +29,13 @@ Rounds 1 and 2 are implemented and unstaged in both repos (dartBackend and dartC
 
 ### "Who's watching" on the board
 
+> **2026-11-09:** the crowd now lives in the **watch panel** (`aa-watch-panel`) at the foot of
+> the side column, next to the QR code that opens the spectate page (play page only). It shows
+> the eye, the newest 5 avatars and "N watching". Reactions rise from just above it. The
+> overlay draws only the floats; the avatar hop is `aa-watch-panel.cheer()`, which
+> `GamePage.showReaction` calls. See `docs/play-page-side-dock-plan.md`. The notes below
+> describe the original corner chip.
+
 - **What:** a small chip in the bottom-right corner of the board with an eye icon and the
   watching spectators' animal avatars (the newest 5, then "+N").
   - The reactions rise out of it, so the crowd and its reactions read as one thing.
