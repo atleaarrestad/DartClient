@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 
 import { bullLocation, dartboardNumbers, doubleBullLocation } from '../../helpers/dartboard.js';
 import dartboardStyles from './aa-dartboard.css?inline';
+import { arcPath, polar, wedgeAngle, wedgeSpan } from './dartboardGeometry.js';
 
 /** A part of one wedge; `single` is both single areas, `segment` the whole wedge. */
 export type DartboardRing = 'inner' | 'triple' | 'outer' | 'double' | 'single' | 'segment';
@@ -41,22 +42,6 @@ const areaRadii: Record<Area, readonly [ number, number ]> = {
 };
 const markerRadii: Record<DartboardMarker['ring'], number> = { inner: 22, triple: 38.5, outer: 50, double: 62.5 };
 const areas = Object.keys(areaRadii) as Area[];
-const step = (Math.PI * 2) / dartboardNumbers.length;
-
-const polar = (radius: number, angle: number): [ number, number ] =>
-	[ radius * Math.sin(angle), -radius * Math.cos(angle) ];
-
-const arcPath = (inner: number, outer: number, start: number, end: number): string => {
-	const [ x1, y1 ] = polar(outer, start);
-	const [ x2, y2 ] = polar(outer, end);
-	const [ x3, y3 ] = polar(inner, end);
-	const [ x4, y4 ] = polar(inner, start);
-
-	const outerArc = `A${ outer } ${ outer } 0 0 1 ${ x2 } ${ y2 }`;
-	const innerArc = `A${ inner } ${ inner } 0 0 0 ${ x4 } ${ y4 }`;
-
-	return `M${ x1 } ${ y1 } ${ outerArc } L${ x3 } ${ y3 } ${ innerArc } Z`;
-};
 
 const ringAreas: Record<DartboardRing, readonly Area[]> = {
 	inner:   [ 'inner' ],
@@ -112,8 +97,7 @@ export class AaDartboard extends LitElement {
 	}
 
 	private renderWedge(number: number, index: number): SVGTemplateResult {
-		const start = (index - 0.5) * step;
-		const end = (index + 0.5) * step;
+		const [ start, end ] = wedgeSpan(index);
 
 		return svg`${ areas.map(area => {
 			const [ inner, outer ] = areaRadii[area];
@@ -133,7 +117,7 @@ export class AaDartboard extends LitElement {
 	}
 
 	private renderNumber(number: number, index: number): SVGTemplateResult {
-		const [ x, y ] = polar(72.5, index * step);
+		const [ x, y ] = polar(72.5, index * wedgeAngle);
 		const label = this.labels[number];
 
 		return svg`
@@ -146,7 +130,7 @@ export class AaDartboard extends LitElement {
 		if (index < 0)
 			return nothing;
 
-		const [ x, y ] = polar(markerRadii[marker.ring], index * step);
+		const [ x, y ] = polar(markerRadii[marker.ring], index * wedgeAngle);
 
 		return svg`
 			<circle class="marker" cx=${ x } cy=${ y } r="7.5"></circle>

@@ -135,7 +135,7 @@ export function getHitKind(hit: AchievementLegalHit): HitKind {
 		: hit.throwType === ThrowType.Double ? 'double' : 'single';
 }
 
-// ── The hint strip: the board unrolled into columns ─────────────────────────
+// ── Every target, with what it unlocks ──────────────────────────────────────
 
 export interface HintSegment {
 	hit:          AchievementLegalHit;
@@ -148,26 +148,16 @@ export interface HintSegment {
 	hintIndexes:  number[];
 }
 
-export interface HintColumn {
-	label:    string;
-	/** In the treble, double, single rows; the bulls skip the treble row, rim and miss only fill the single row. */
-	segments: (HintSegment | undefined)[];
-}
-
 const legalHit = (hitLocation: number, throwType: ThrowType): AchievementLegalHit => ({ hitLocation, throwType });
 
-/** Every hit the server can suggest, as columns: 1 to 20, the bulls, the rim and a miss. */
-const stripLayout: readonly { label: string; hits: (AchievementLegalHit | undefined)[]; }[] = [
-	...Array.from({ length: 20 }, (_, index) => ({
-		label: String(index + 1),
-		hits:  [ ThrowType.Triple, ThrowType.Double, ThrowType.Single ].map(type => legalHit(index + 1, type)),
-	})),
-	{
-		label: 'Bull',
-		hits:  [ undefined, legalHit(doubleBullLocation, ThrowType.Single), legalHit(bullLocation, ThrowType.Single) ],
-	},
-	{ label: 'Rim', hits: [ undefined, undefined, legalHit(0, ThrowType.Rim) ] },
-	{ label: 'Miss', hits: [ undefined, undefined, legalHit(0, ThrowType.Miss) ] },
+/** Every hit the server can suggest: 1 to 20 (treble, double, single), the bulls, the rim and a miss. */
+const allTargets: readonly AchievementLegalHit[] = [
+	...Array.from({ length: 20 }, (_, index) =>
+		[ ThrowType.Triple, ThrowType.Double, ThrowType.Single ].map(type => legalHit(index + 1, type))).flat(),
+	legalHit(doubleBullLocation, ThrowType.Single),
+	legalHit(bullLocation, ThrowType.Single),
+	legalHit(0, ThrowType.Rim),
+	legalHit(0, ThrowType.Miss),
 ];
 
 /** Which hints (by position in the list) each hit unlocks, by dart notation. Unknown codes are skipped. */
@@ -189,27 +179,23 @@ const indexHintsByHit = (hints: readonly LastDartHint[]): Map<string, { hit: Ach
 	return byKey;
 };
 
-/** The strip with every segment marked by the hints it unlocks. */
-export function buildHintStrip(hints: readonly LastDartHint[]): HintColumn[] {
+/** Every target on and off the board, by dart notation, marked by the hints it unlocks. */
+export function buildHintTargets(hints: readonly LastDartHint[]): Map<string, HintSegment> {
 	const byKey = indexHintsByHit(hints);
 
-	return stripLayout.map(column => ({
-		label:    column.label,
-		segments: column.hits.map(hit => {
-			if (!hit)
-				return undefined;
+	return new Map(allTargets.map(hit => {
+		const key = formatHit(hit);
+		const hintIndexes = byKey.get(key)?.hintIndexes ?? [];
 
-			const key = formatHit(hit);
-			const hintIndexes = byKey.get(key)?.hintIndexes ?? [];
-
-			return {
+		return [
+			key, {
 				hit,
 				key,
 				hintIndexes,
 				count:       hintIndexes.length,
 				highestTier: getHighestTier(hintIndexes.map(index => hints[index]!)),
-			};
-		}),
+			},
+		];
 	}));
 }
 
@@ -257,7 +243,8 @@ export const missFallbackChance: Readonly<Partial<Record<HitKind, number>>> = {
 	bull:   0.35,
 };
 
-const getMissFallback = (hit: AchievementLegalHit): AchievementLegalHit | undefined => {
+/** Where a dart aimed at `hit` mostly lands when it misses, if anywhere in particular. */
+export const getMissFallback = (hit: AchievementLegalHit): AchievementLegalHit | undefined => {
 	switch (getHitKind(hit)) {
 	case 'treble':
 	case 'double':

@@ -1,85 +1,40 @@
 /*
- * Always there and always the same size, so lighting up segments or clearing them never
- * moves anything. Two placements, chosen by the game page:
- * - strip (the default): the footer of the page. The page may make it taller
- *   (`--aa-last-dart-hints-growth`) to take the space under the last player row; the board
- *   and the list grow with it.
- * - panel: the free cells at the end of the last player row, as tall as that row, with a
- *   bigger board and the name on top or down the side (see the end of this file).
+ * Docked beside the game, or under it on a narrow screen (the game page decides). Always there
+ * and always the same size, so lighting up targets or clearing them never moves anything.
+ * - Tall (the side dock): the name, the board, the chosen throw, the other throws and the key,
+ *   stacked. The chosen throw takes what is left; its list shows as many lines as fit.
+ * - Wide (under the game): the board on the left, the rest in two columns beside it.
  */
 :host {
-	--aa-last-dart-hints-height: 6.75rem;
 	display: block;
 	min-width: 0;
-	height: calc(var(--aa-last-dart-hints-height) + var(--aa-last-dart-hints-growth, 0px));
+	min-height: 0;
 	overflow: hidden;
 	container: hints / size;
 	background: var(--color-surface-warning-subtle);
-	border-top: var(--border-width-strong) solid var(--color-border-strong);
 	color: var(--color-text-primary);
 	font-family: var(--font-family-ui);
 }
 
-/* Fills its grid cells and ends the row like the player cards do. */
-:host([placement='panel']) {
-	align-self: stretch;
-	justify-self: stretch;
-	height: auto;
-	border: 1px solid var(--color-border-strong);
-	border-radius: 0 10px 10px 0;
-	box-shadow: var(--shadow-brutal-control);
-}
-
-.strip {
-	/*
-	 * The board follows the height of a segment row, roughly a third of what is left after
-	 * the padding, icons and numbers. At the usual height that gives the small sizes;
-	 * a taller strip gets bigger numbers and icons.
-	 */
-	--hints-row: calc((100cqh - 4rem) / 3);
-	--hints-segment: 1fr;
-	--hints-column: 3.25rem;
-	--hints-segment-font: clamp(0.66rem, var(--hints-row) * 0.42, 1.1rem);
-	--hints-label-font: clamp(0.66rem, var(--hints-row) * 0.3, 0.9rem);
-	--hints-icon: clamp(16px, var(--hints-row) * 0.5, 22px);
-	--hints-cap: calc(var(--hints-icon) + 2px);
-	--hints-label: calc(var(--hints-label-font) * 1.35);
-	--hints-line-icon: 16px;
-	--hints-name-font: 1.05rem;
-	--hints-eyebrow-font: 0.62rem;
-	--hints-text-font: 0.78rem;
-	/* The best throw's tile: as tall as the strip allows. */
-	--hints-tile: min(100cqh - 1.5rem, 9rem);
-	--hints-worth-font: clamp(0.78rem, var(--hints-row) * 0.3, 1rem);
-	--hints-line-font: clamp(0.8rem, var(--hints-row) * 0.28, 0.95rem);
-	--hints-star: clamp(18px, var(--hints-row) * 0.45, 24px);
+.dock {
+	/* What lights a target up: a yellow edge, which shows on every board colour. */
+	--hints-glow: #ffd23f;
 	--hints-divider: 2px dashed rgba(0, 0, 0, 0.18);
-	/*
-	 * One hue per ring, the same for every number, from pale (a few achievements) to strong
-	 * (the most on the board); see the segment colours below. Black text reads on both ends.
-	 */
-	--hints-treble-pale: #efe8ff;
-	--hints-treble: #9466ef;
-	--hints-double-pale: #ffe9da;
-	--hints-double: #f2782f;
-	--hints-single-pale: #e2f1ff;
-	--hints-single: #3d9be9;
-	--hints-off-board-pale: #f3f3f3;
-	--hints-off-board: #b4b4b4;
+	--hints-tile: 4.75rem;
+	--hints-line-icon: 20px;
+	--hints-other-row: 2.6rem;
 	box-sizing: border-box;
 	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) minmax(16rem, 32rem);
-	/* One row exactly as tall as the box: the legend can never stretch the board. */
-	grid-template-rows: minmax(0, 1fr);
-	grid-template-areas: 'who board pick';
-	align-items: stretch;
-	gap: var(--space-4);
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+	grid-template-areas: 'who' 'board' 'pick' 'others' 'legend';
+	gap: var(--space-3);
 	height: 100%;
-	padding: var(--space-2) var(--space-4);
+	padding: var(--space-4);
 }
 
 .eyebrow {
-	font-size: var(--hints-eyebrow-font);
+	font-size: 0.68rem;
 	font-weight: 800;
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
@@ -88,237 +43,226 @@
 
 .who {
 	grid-area: who;
-	display: grid;
-	align-content: center;
-	gap: 0.15rem;
-	min-width: 6rem;
-	padding-right: var(--space-4);
-	border-right: var(--hints-divider);
+	display: flex;
+	align-items: baseline;
+	gap: 0.6rem;
+	min-width: 0;
 }
 
 .who strong {
+	min-width: 0;
+	overflow: hidden;
 	font-family: var(--font-family-body);
-	font-size: var(--hints-name-font);
+	font-size: 1.45rem;
+	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-/* ── The board, unrolled ─────────────────────────────────────────────────── */
-
-.board {
-	grid-area: board;
-	display: flex;
-	align-items: stretch;
-	justify-content: center;
-	gap: 3px;
-	min-width: 0;
-}
-
-.rows,
-.column {
-	display: grid;
-	grid-template-rows: var(--hints-cap) repeat(3, minmax(0, var(--hints-segment))) var(--hints-label);
-	align-content: center;
-	gap: 3px;
-}
-
-.rows {
-	flex: none;
-	padding-right: 3px;
-	font-size: var(--hints-label-font);
-	font-weight: 800;
-}
-
-/* The row letters, in their ring's colour: the key to the colours. */
-.rows span {
-	place-self: center;
-	min-width: 1.4em;
-	padding: 0.15em 0.2em;
-	border: 1px solid var(--color-border-strong);
-	border-radius: 4px;
-	line-height: 1;
-	text-align: center;
-}
-
-.rows span:nth-child(1) { grid-row: 2; background: var(--hints-treble); }
-.rows span:nth-child(2) { grid-row: 3; background: var(--hints-double); }
-.rows span:nth-child(3) { grid-row: 4; background: var(--hints-single); }
-
-.column {
-	flex: 1 1 0;
-	min-width: 0;
-	max-width: var(--hints-column);
-}
-
-.cap {
-	display: grid;
-	place-items: center;
-}
-
-.cap img {
-	width: var(--hints-icon);
-	height: var(--hints-icon);
-	object-fit: contain;
-}
-
-.segment {
-	display: grid;
-	place-items: center;
-	min-width: 0;
-	border: 1.5px solid var(--color-border-strong);
-	border-radius: 4px;
-	font-size: var(--hints-segment-font);
-	font-weight: 800;
-	font-variant-numeric: tabular-nums;
-	opacity: 0.45;
-	transition: opacity 150ms ease, box-shadow 150ms ease;
-}
-
-/* Unlit: a faint tint of the ring, so the palest lit segment still stands out. */
-.segment:not(.segment--lit) {
-	border-color: rgba(0, 0, 0, 0.25);
-}
-
-.segment--none {
-	visibility: hidden;
-}
-
-.segment--lit {
-	opacity: 1;
-	box-shadow: var(--shadow-brutal-xs);
-}
-
-/* The throw worth the most: a star on its corner, the segment itself left as it is. */
-.segment--best {
-	position: relative;
-	z-index: 1;
-}
-
-.segment--best::after {
-	content: '\2605';
-	position: absolute;
-	top: calc(var(--hints-star) * -0.6);
-	right: calc(var(--hints-star) * -0.55);
-	display: grid;
-	place-items: center;
-	width: var(--hints-star);
-	height: var(--hints-star);
-	background: var(--color-status-success);
-	border: 1.5px solid var(--color-border-strong);
-	border-radius: 50%;
-	color: var(--color-text-primary);
-	font-size: calc(var(--hints-star) * 0.62);
-	line-height: 1;
-}
-
-/* Another lit segment under the pointer; the side shows what it unlocks. */
-.segment--pointed {
-	position: relative;
-	z-index: 1;
-	outline: 2px dashed var(--color-border-strong);
-	outline-offset: 2px;
 }
 
 /*
- * Coloured by ring, the same for every number: trebles, doubles (with the bull) and
- * singles (with the 25) each have their own hue; the rim and a miss are grey. A lit
- * segment's heat (1 to 4, from how many achievements it unlocks) moves it from the pale
- * end of its hue to the strong end, in steps big enough to tell apart at a glance.
+ * A dartboard's own colours, on the board and on the tiles for its targets, so a tile reads
+ * as the place to aim: black and cream singles, red and green trebles and doubles (red on
+ * the black wedges), a red bull and a green 25. The rim and a miss are grey.
  */
-.segment--treble {
-	--ring-pale: var(--hints-treble-pale);
-	--ring: var(--hints-treble);
+.colour-black { --target: #1c1c1c; --target-ink: #fff; }
+.colour-cream { --target: #efe3c2; --target-ink: #000; }
+.colour-red { --target: #c0392b; --target-ink: #fff; }
+.colour-green { --target: #23784a; --target-ink: #fff; }
+.colour-off { --target: #d4d4d4; --target-ink: #000; }
+
+/*
+ * A lit target's heat (1 to 4, from how many achievements it unlocks against the most on the
+ * board) is the width of its yellow edge, in board millimetres: thin enough that an 8mm
+ * treble or double keeps its own colour inside.
+ */
+.heat-1 { --glow: 1.5; }
+.heat-2 { --glow: 2.3; }
+.heat-3 { --glow: 3.1; }
+.heat-4 { --glow: 4; }
+
+/* ── The board ───────────────────────────────────────────────────────────── */
+
+.board-area {
+	grid-area: board;
+	justify-self: center;
+	display: grid;
+	gap: var(--space-2);
+	/* As wide as the dock, but leave the throw and the list below their room. */
+	width: min(100%, 44cqh);
 }
 
-.segment--double,
-.segment--bull {
-	--ring-pale: var(--hints-double-pale);
-	--ring: var(--hints-double);
+.board {
+	display: block;
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1;
+	overflow: visible;
 }
 
-.segment--single,
-.segment--outer-bull {
-	--ring-pale: var(--hints-single-pale);
-	--ring: var(--hints-single);
+/* The black surround with the numbers, and the silver spider between the targets. */
+.board__edge {
+	fill: #111;
+	stroke: var(--color-border-strong);
+	stroke-width: 2;
 }
 
-.segment--off-board {
-	--ring-pale: var(--hints-off-board-pale);
-	--ring: var(--hints-off-board);
+.board__number {
+	fill: #fff;
+	font-family: var(--font-family-ui);
+	font-size: 30px;
+	font-weight: 700;
+	text-anchor: middle;
+	dominant-baseline: central;
+	pointer-events: none;
 }
 
-.segment {
-	--heat: 0%;
-	background: var(--ring-pale);
-	color: var(--color-text-primary);
+.area {
+	fill: var(--target);
+	fill-rule: evenodd;
+	stroke: #a9a9a9;
+	stroke-width: 1;
+	transition: fill-opacity 150ms ease;
 }
 
-.heat-1 { --heat: 15%; }
-.heat-2 { --heat: 42%; }
-.heat-3 { --heat: 70%; }
-.heat-4 { --heat: 100%; }
-
-/* Without colour mixing, lit segments simply take the strong colour. */
-.segment--lit {
-	background: var(--ring);
+/* Once something is lit, everything else dims into the black board behind it. */
+.board--lit .area:not(.lit) {
+	fill-opacity: 0.2;
+	stroke-opacity: 0.35;
 }
 
-@supports (background: color-mix(in oklab, red 50%, blue)) {
-	.segment--lit {
-		background: color-mix(in oklab, var(--ring) var(--heat), var(--ring-pale));
-	}
+.area.lit {
+	stroke: var(--hints-glow);
+	stroke-width: var(--glow);
+	stroke-linejoin: round;
 }
 
-/* The best throw's tile: always the strong colour of its ring. */
-.pick__tile {
-	background: var(--ring);
-	color: var(--color-text-primary);
+/*
+ * Singles are big enough for a wider edge, which they need: a lit black single would
+ * otherwise look like a dimmed one. It also lifts to charcoal, still the board's black but
+ * clearly brighter than the black wedges around it.
+ */
+.area--single.lit {
+	stroke-width: calc(var(--glow) * 2);
 }
 
-.label {
-	border-radius: 4px;
-	font-size: var(--hints-label-font);
-	font-weight: 800;
-	line-height: var(--hints-label);
-	text-align: center;
-	white-space: nowrap;
+.area--single.lit.colour-black {
+	fill: #5a5a5a;
+}
+
+/* The best throw: ringed and outlined in white on a black halo, so it shows on any colour. */
+.marker {
+	fill: none;
+	pointer-events: none;
+	stroke-linejoin: round;
+}
+
+.marker__outline {
+	stroke: #fff;
+	stroke-width: 2.5;
+}
+
+.marker__halo {
+	stroke: #000;
+	stroke-width: 11;
+}
+
+.marker__ring {
+	stroke: #fff;
+	stroke-width: 5;
+}
+
+/* Another lit target under the pointer: the same ring, dashed. */
+.marker--pointed .marker__ring,
+.marker--pointed .marker__outline {
+	stroke-dasharray: 9 6;
+}
+
+.marker--pointed .marker__halo {
+	stroke-dasharray: 9 6;
+	stroke-width: 9;
+}
+
+/* The rim and a miss, under the board. */
+.off-board {
+	display: flex;
+	justify-content: center;
+	gap: var(--space-2);
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.2rem 0.65rem;
+	border: 1.5px solid rgba(0, 0, 0, 0.25);
+	border-radius: var(--radius-pill);
+	background: var(--target);
+	font-size: 0.8rem;
+	font-weight: 700;
+	opacity: 0.55;
+}
+
+.chip.lit {
+	border-color: var(--color-border-strong);
+	box-shadow: 0 0 0 calc(var(--glow) * 0.6px) var(--hints-glow);
+	opacity: 1;
+}
+
+.chip--best {
+	outline: 3px solid var(--color-border-strong);
+	outline-offset: 3px;
+}
+
+.chip--pointed {
+	outline: 2px dashed var(--color-border-strong);
+	outline-offset: 3px;
 }
 
 /* ── The chosen throw and what it unlocks ────────────────────────────────── */
 
 .pick {
 	grid-area: pick;
+	box-sizing: border-box;
 	display: grid;
-	align-content: center;
+	align-content: start;
 	gap: 0.25rem;
 	min-width: 0;
 	min-height: 0;
 	overflow: hidden;
-	padding-left: var(--space-4);
-	border-left: var(--hints-divider);
+	padding: var(--space-3);
+	border: 2px dashed rgba(0, 0, 0, 0.18);
+	border-radius: var(--radius-lg);
 }
 
 /*
- * With a throw: the tile on the left, then what it is worth, then the achievements, which
- * take whatever height is left (the component counts how many lines fit).
+ * With a throw: the tile on the left with what it is worth beside it, then the achievements,
+ * which take whatever height is left (the component counts how many lines fit).
  */
 .pick--throw {
 	grid-template-columns: var(--hints-tile) minmax(0, 1fr);
 	grid-template-rows: auto auto minmax(0, 1fr);
-	grid-template-areas: 'tile label' 'tile worth' 'tile list';
-	column-gap: 0.75rem;
-	row-gap: 0.1rem;
+	grid-template-areas: 'tile label' 'tile worth' 'list list';
+	column-gap: 0.85rem;
+	row-gap: 0.15rem;
 	align-content: stretch;
+	background: var(--color-surface-card);
+	border: 2px solid var(--color-border-strong);
+	box-shadow: var(--shadow-brutal-control);
 }
 
-/* The chosen throw, big and in its ring's colour: the first thing the eye lands on. */
+/* The chosen throw, big and in its board colour: the first thing the eye lands on. */
 .pick__tile {
 	grid-area: tile;
 	align-self: start;
 	display: grid;
 	place-items: center;
+	align-content: center;
+	gap: 0.15em;
 	box-sizing: border-box;
 	width: var(--hints-tile);
 	height: var(--hints-tile);
+	margin-bottom: var(--space-2);
+	background: var(--target);
+	color: var(--target-ink);
 	border: 2px solid var(--color-border-strong);
 	border-radius: 10px;
 	box-shadow: var(--shadow-brutal-control);
@@ -328,12 +272,10 @@
 	letter-spacing: -0.02em;
 	line-height: 1;
 	text-align: center;
-	align-content: center;
-	gap: 0.15em;
 }
 
 /* The first word of a two-word throw ("Double" bull), small above the big one. */
-.pick__tile-small {
+.tile-small {
 	font-size: 0.42em;
 	letter-spacing: 0.02em;
 	text-transform: uppercase;
@@ -341,16 +283,17 @@
 
 .pick__label {
 	grid-area: label;
+	align-self: end;
 }
 
-/* Up to two lines, so the win and the count both show in a narrow side; it only breaks
-   between the parts. */
+/* Up to two lines, so the win and the count both show; it only breaks between the parts. */
 .pick__worth {
 	grid-area: worth;
+	align-self: start;
 	display: -webkit-box;
 	min-width: 0;
 	overflow: hidden;
-	font-size: var(--hints-worth-font);
+	font-size: 1.05rem;
 	font-weight: 700;
 	line-height: 1.25;
 	-webkit-box-orient: vertical;
@@ -361,36 +304,34 @@
 	white-space: nowrap;
 }
 
-.pick--throw ul {
-	grid-area: list;
-}
-
 .pick ul {
+	grid-area: list;
 	display: grid;
 	align-content: start;
 	gap: 1px;
 	min-height: 0;
 	overflow: hidden;
 	margin: 0;
-	padding: 0;
+	padding: var(--space-2) 0 0;
+	border-top: var(--hints-divider);
 	list-style: none;
 }
 
 .pick li {
 	display: flex;
 	align-items: center;
-	gap: 0.4rem;
+	gap: 0.5rem;
 	min-width: 0;
-	padding: 1px 4px;
-	font-size: var(--hints-line-font);
+	padding: 2px 4px;
+	font-size: 0.95rem;
 	font-weight: 600;
 	line-height: 1.25;
 }
 
 .pick img {
+	flex: none;
 	width: var(--hints-line-icon);
 	height: var(--hints-line-icon);
-	flex: none;
 	object-fit: contain;
 }
 
@@ -402,16 +343,139 @@
 }
 
 .pick .more {
-	font-size: calc(var(--hints-line-font) * 0.94);
+	font-size: 0.88rem;
 	font-weight: 700;
 	opacity: 0.65;
 }
 
 .idle {
 	margin: 0;
-	font-size: var(--hints-text-font);
+	font-size: 0.9rem;
 	line-height: 1.35;
 	opacity: 0.65;
+}
+
+/* ── The other throws ────────────────────────────────────────────────────── */
+
+.others {
+	grid-area: others;
+	display: grid;
+	align-content: start;
+	gap: var(--space-2);
+	min-width: 0;
+}
+
+.others .is-empty {
+	visibility: hidden;
+}
+
+/* Room for every row, even when there are fewer throws or none: nothing moves. */
+.others ol {
+	display: grid;
+	grid-template-rows: repeat(3, var(--hints-other-row));
+	gap: 0.35rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.other {
+	box-sizing: border-box;
+	display: grid;
+	grid-template-columns: 3.5rem minmax(0, 1fr);
+	grid-template-rows: auto auto;
+	grid-template-areas: 'tile worth' 'tile miss';
+	column-gap: 0.65rem;
+	align-content: center;
+	min-width: 0;
+	padding: 0.2rem 0.6rem 0.2rem 0.25rem;
+	background: var(--color-surface-card);
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: 8px;
+}
+
+.other--pointed {
+	outline: 2px dashed var(--color-border-strong);
+	outline-offset: 2px;
+}
+
+.other__tile {
+	grid-area: tile;
+	display: grid;
+	place-items: center;
+	align-content: center;
+	height: calc(var(--hints-other-row) - 0.75rem);
+	background: var(--target);
+	color: var(--target-ink);
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: 6px;
+	font-size: 0.9rem;
+	font-weight: 800;
+	line-height: 1;
+}
+
+.other__worth,
+.other__miss {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.other__worth {
+	grid-area: worth;
+	font-size: 0.88rem;
+	font-weight: 700;
+}
+
+.other__miss {
+	grid-area: miss;
+	font-size: 0.74rem;
+	opacity: 0.7;
+}
+
+.other__miss:empty {
+	display: none;
+}
+
+/* ── The key ─────────────────────────────────────────────────────────────── */
+
+.legend {
+	grid-area: legend;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem 0.9rem;
+	font-size: 0.74rem;
+	font-weight: 600;
+	opacity: 0.8;
+}
+
+.legend span {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.legend i {
+	flex: none;
+	box-sizing: border-box;
+	width: 0.85rem;
+	height: 0.85rem;
+}
+
+/* A lit target: board colour with the yellow edge. */
+.legend__lit {
+	background: #c0392b;
+	border: 3px solid var(--hints-glow);
+	border-radius: 3px;
+	box-shadow: 0 0 0 1px var(--color-border-strong);
+}
+
+/* The best throw's ring. */
+.legend__ring {
+	border: 3px solid #fff;
+	border-radius: 50%;
+	box-shadow: 0 0 0 1.5px #000, inset 0 0 0 1.5px #000;
 }
 
 /*
@@ -421,20 +485,6 @@
  */
 .waiting__note {
 	font-style: italic;
-	animation:
-		hints-fade-in 200ms ease 400ms both,
-		hints-breathe 1.8s ease-in-out 600ms infinite alternate;
-}
-
-/* The same cue where the side is hidden (narrow strip): a dot above the row letters. */
-.waiting-dot {
-	display: none;
-	grid-row: 1;
-	place-self: center;
-	width: 6px;
-	height: 6px;
-	border-radius: 50%;
-	background: currentColor;
 	animation:
 		hints-fade-in 200ms ease 400ms both,
 		hints-breathe 1.8s ease-in-out 600ms infinite alternate;
@@ -451,126 +501,34 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.segment {
+	.area {
 		transition: none;
 	}
 
 	/* Still only after the 400ms, but shown at once and without breathing. */
-	.waiting__note,
-	.waiting-dot {
+	.waiting__note {
 		animation: hints-fade-in 0s 400ms both;
 	}
 }
 
-/* ── A narrower strip: drop the name, then the side ───────────────────────── */
+/* ── Wide and low (under the game): the board on the left ────────────────── */
 
-@container hints (width <= 900px) {
-	:host(:not([placement='panel'])) .who {
-		display: none;
-	}
-
-	:host(:not([placement='panel'])) .strip {
-		--hints-tile: min(100cqh - 1.5rem, 4.5rem);
-		grid-template-columns: minmax(0, 1fr) minmax(14rem, 19rem);
-		grid-template-areas: 'board pick';
-	}
-}
-
-@container hints (width <= 600px) {
-	:host(:not([placement='panel'])) .pick {
-		display: none;
-	}
-
-	:host(:not([placement='panel'])) .waiting-dot {
-		display: block;
-	}
-
-	:host(:not([placement='panel'])) .strip {
-		grid-template-columns: minmax(0, 1fr);
-		grid-template-areas: 'board';
-	}
-}
-
-/* ── The panel: a bigger board, the name on top, the list below ────────────── */
-
-:host([placement='panel']) .strip {
-	/*
-	 * Everything on the board scales with the width of a column (about a 24th of the box),
-	 * up to a size readable from the oche. Segments may be a little taller than wide, but
-	 * leave the name, the best throw and a few achievements their room below.
-	 */
-	--hints-size: min(4.5rem, (100cqw - 3rem) / 24);
-	--hints-column: 4.5rem;
-	--hints-segment: max(1.1rem, min(6rem, var(--hints-size) * 1.3, (100cqh - 17rem) / 3));
-	--hints-segment-font: clamp(0.66rem, var(--hints-size) * 0.3, 1.3rem);
-	--hints-label-font: clamp(0.62rem, var(--hints-size) * 0.26, 1rem);
-	--hints-icon: clamp(16px, var(--hints-size) * 0.34, 26px);
-	--hints-cap: calc(var(--hints-icon) + 6px);
-	--hints-label: calc(var(--hints-label-font) * 1.6);
-	--hints-star: clamp(18px, var(--hints-size) * 0.36, 28px);
-	--hints-line-icon: 20px;
-	--hints-name-font: 1.45rem;
-	--hints-eyebrow-font: 0.72rem;
-	--hints-text-font: 0.95rem;
-	--hints-tile: 5.5rem;
-	--hints-worth-font: 1.05rem;
-	--hints-line-font: 1rem;
-	grid-template-columns: minmax(0, 1fr);
-	grid-template-rows: auto auto minmax(0, 1fr);
-	grid-template-areas: 'who' 'board' 'pick';
-	gap: var(--space-3);
-	padding: var(--space-3) var(--space-4);
-}
-
-:host([placement='panel']) .who {
-	display: flex;
-	align-items: baseline;
-	gap: 0.6rem;
-	padding: 0;
-	border: none;
-}
-
-:host([placement='panel']) .pick {
-	align-content: start;
-	padding: var(--space-3) 0 0;
-	border-top: var(--hints-divider);
-	border-left: none;
-}
-
-:host([placement='panel']) .pick--throw {
-	align-content: stretch;
-}
-
-:host([placement='panel']) .pick li {
-	gap: 0.5rem;
-	padding: 2px 4px;
-}
-
-/* A wide panel: the board takes the full height, the name and list go down the side. */
-@container hints (width > 1400px) {
-	:host([placement='panel']) .strip {
-		--hints-size: min(4.5rem, (100cqw - 28rem) / 24);
-		--hints-segment: max(1.1rem, min(6rem, var(--hints-size) * 1.3, (100cqh - 6rem) / 3));
-		--hints-tile: 7.5rem;
-		grid-template-columns: minmax(0, 1fr) clamp(20rem, 28cqw, 30rem);
-		grid-template-rows: auto minmax(0, 1fr);
-		grid-template-areas: 'board who' 'board pick';
+@container hints (aspect-ratio > 2) {
+	.dock {
+		--hints-tile: 4rem;
+		grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 1fr);
+		grid-template-rows: auto minmax(0, 1fr) auto;
+		grid-template-areas:
+			'board who others'
+			'board pick others'
+			'board pick legend';
 		column-gap: var(--space-5);
+		padding: var(--space-3) var(--space-4);
 	}
 
-	:host([placement='panel']) .who {
-		display: grid;
-		gap: 0.15rem;
-	}
-
-	:host([placement='panel']) .who,
-	:host([placement='panel']) .pick {
-		padding-left: var(--space-5);
-		border-left: var(--hints-divider);
-	}
-
-	:host([placement='panel']) .pick {
-		padding-top: var(--space-3);
-		border-top: none;
+	/* The board as tall as the box, less its padding and the rim and miss chips. */
+	.board-area {
+		align-self: start;
+		width: calc(100cqh - 2 * var(--space-3) - 2.25rem);
 	}
 }

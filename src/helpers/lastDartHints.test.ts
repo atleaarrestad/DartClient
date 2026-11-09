@@ -10,7 +10,7 @@ import {
 	testPlayerId,
 } from '../test/gameFixtures.js';
 import {
-	buildHintStrip,
+	buildHintTargets,
 	describeHit,
 	formatHit,
 	getFinishValue,
@@ -91,7 +91,7 @@ describe('formatHit', () => {
 
 describe('parseHit', () => {
 	it('reads back every segment of the board', () => {
-		const segments = buildHintStrip([]).flatMap(column => column.segments).filter(segment => segment !== undefined);
+		const segments = [ ...buildHintTargets([]).values() ];
 
 		expect(segments).toHaveLength(20 * 3 + 2 + 2);
 		for (const segment of segments)
@@ -179,7 +179,7 @@ describe('getHeatLevel', () => {
 	});
 });
 
-describe('buildHintStrip', () => {
+describe('buildHintTargets', () => {
 	const hints = [
 		hint('Classic 20', [ hit(20, ThrowType.Single) ]),
 		hint('Score At Least 60 (Raw)', [ hit(20, ThrowType.Triple), hit(19, ThrowType.Triple) ]),
@@ -187,36 +187,32 @@ describe('buildHintStrip', () => {
 		hint('Rimmer', [ hit(0, ThrowType.Rim) ]),
 	];
 
-	it('has a column per number, then the bulls, the rim and a miss', () => {
-		const strip = buildHintStrip([]);
+	it('has every number in all three rings, then the bulls, the rim and a miss', () => {
+		const keys = [ ...buildHintTargets([]).keys() ];
 
-		const numbers = Array.from({ length: 20 }, (_, index) => String(index + 1));
-
-		expect(strip.map(column => column.label)).toEqual([ ...numbers, 'Bull', 'Rim', 'Miss' ]);
-		expect(strip[19]!.segments.map(segment => segment?.key)).toEqual([ 'T20', 'D20', 'S20' ]);
-		expect(strip[20]!.segments.map(segment => segment?.key)).toEqual([ undefined, 'Bull', '25' ]);
-		expect(strip[21]!.segments.map(segment => segment?.key)).toEqual([ undefined, undefined, 'Rim' ]);
-		expect(strip[22]!.segments.map(segment => segment?.key)).toEqual([ undefined, undefined, 'Miss' ]);
-		expect(strip.every(column => column.segments.every(segment => !segment?.hintIndexes.length))).toBe(true);
+		expect(keys.slice(0, 3)).toEqual([ 'T1', 'D1', 'S1' ]);
+		expect(keys.slice(57, 60)).toEqual([ 'T20', 'D20', 'S20' ]);
+		expect(keys.slice(60)).toEqual([ 'Bull', '25', 'Rim', 'Miss' ]);
+		expect([ ...buildHintTargets([]).values() ].every(target => target.hintIndexes.length === 0)).toBe(true);
 	});
 
-	it('marks every segment with the hints it unlocks', () => {
-		const strip = buildHintStrip(hints);
-		const indexes = (column: number, row: number): number[] | undefined => strip[column]!.segments[row]?.hintIndexes;
+	it('marks every target with the hints it unlocks', () => {
+		const targets = buildHintTargets(hints);
+		const indexes = (key: string): number[] | undefined => targets.get(key)?.hintIndexes;
 
-		expect(indexes(19, 0)).toEqual([ 1 ]);
-		expect(indexes(19, 2)).toEqual([ 0 ]);
-		expect(indexes(18, 0)).toEqual([ 1 ]);
-		expect(indexes(19, 1)).toEqual([]);
-		expect(indexes(20, 1)).toEqual([ 2 ]);
-		expect(indexes(21, 2)).toEqual([ 3 ]);
+		expect(indexes('T20')).toEqual([ 1 ]);
+		expect(indexes('S20')).toEqual([ 0 ]);
+		expect(indexes('T19')).toEqual([ 1 ]);
+		expect(indexes('D20')).toEqual([]);
+		expect(indexes('Bull')).toEqual([ 2 ]);
+		expect(indexes('Rim')).toEqual([ 3 ]);
+		expect(targets.get('T20')?.count).toBe(1);
 	});
 
 	it('leaves out hits it cannot read', () => {
-		const strip = buildHintStrip([ { ...hint('Odd', []), hits: [ 'Q7', 'S7' ] } ]);
+		const targets = buildHintTargets([ { ...hint('Odd', []), hits: [ 'Q7', 'S7' ] } ]);
 
-		expect(strip.flatMap(column => column.segments).filter(segment => segment?.hintIndexes.length).map(segment => segment!.key))
-			.toEqual([ 'S7' ]);
+		expect([ ...targets.values() ].filter(target => target.count > 0).map(target => target.key)).toEqual([ 'S7' ]);
 	});
 });
 

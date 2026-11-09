@@ -4,7 +4,7 @@ import '../../aa-reaction-overlay/aa-reaction-overlay.js';
 import '../../../ui/button/aa-button.js';
 import '../../../ui/error-state/aa-error-state.js';
 
-import { html, nothing, unsafeCSS } from 'lit';
+import { html, unsafeCSS } from 'lit';
 import type { PropertyValues } from 'lit';
 import { LitElement } from 'lit';
 import { property, query, state } from 'lit/decorators.js';
@@ -53,10 +53,11 @@ import type { AaReactionOverlay } from '../../aa-reaction-overlay/aa-reaction-ov
 
 /** Below this, player rows stop shrinking and the player grid scrolls. */
 const minimumPlayerRowHeight = 240;
-/** How much taller than usual the last-dart hints may grow into space the players leave. */
-const maximumHintsGrowthRem = 8;
-/** The last-dart hints move into the last player row when it has this many free cells. */
-const minimumHintPanelCells = 2;
+/**
+ * Player rows are this fraction of the grid's height: two rows show at once, so a player that
+ * doesn't fit in the first row slots into the second, and a third row scrolls.
+ */
+const playerRowsPerScreen = 2;
 
 export class GamePage extends LitElement {
 
@@ -71,10 +72,8 @@ export class GamePage extends LitElement {
 	@state() protected syncStatusMessage = 'Live sync offline';
 	@state() protected browserOnline = navigator.onLine;
 	@state() protected visibleRoundCapacity = 10;
-	/** Free cells at the end of the last player row that hold the hints; 0 keeps them at the bottom. */
-	@state() private hintPanelCells = 0;
-	/** Extra height for the hints at the bottom: the space under the last player row, in px. */
-	@state() private hintsGrowth = 0;
+	/** How many player cards fit side by side; the cards that start and end a row are rounded. */
+	@state() private playerColumnCount = 1;
 	@state() protected maximumRounds: number | null = null;
 	@state() protected configuredMaximumRounds: number | null = null;
 	@state() protected compactAchievementPlayers: ReadonlySet<string> = new Set();
@@ -626,13 +625,18 @@ export class GamePage extends LitElement {
 		return this.maximumRounds;
 	}
 
+	/**
+	 * Empty rounds after the played ones, filling the rows the card shows (never past the round
+	 * limit). Once the played rounds fill the card it scrolls to the latest, so the round being
+	 * thrown is always in view.
+	 */
 	protected getPlaceholderRoundCount(player: PlayerRounds): number {
 		const maximumRounds = this.getMaximumRoundCount();
-		const remainingRounds = maximumRounds === null
-			? this.visibleRoundCapacity - player.rounds.length
-			: Math.min(this.visibleRoundCapacity, maximumRounds - player.rounds.length);
+		const shownRounds = maximumRounds === null
+			? this.visibleRoundCapacity
+			: Math.min(this.visibleRoundCapacity, maximumRounds);
 
-		return Math.max(0, remainingRounds);
+		return Math.max(0, shownRounds - player.rounds.length);
 	}
 
 	protected getRoundLimitBarrierCount(player: PlayerRounds): number {
@@ -729,27 +733,24 @@ export class GamePage extends LitElement {
 		if (playerCards.length === 0)
 			return;
 
-		const rowCount = new Set(
-			playerCards.map(playerCard => Math.round(playerCard.offsetTop)),
-		).size;
+		const firstRowTop = Math.round(playerCards[0]!.offsetTop);
+		const columnCount = playerCards.filter(card => Math.round(card.offsetTop) === firstRowTop).length;
+		if (this.playerColumnCount !== columnCount)
+			this.playerColumnCount = columnCount;
 
 		const styles = getComputedStyle(playerContainer);
 		const verticalPadding =
 			Number.parseFloat(styles.paddingTop)
 			+ Number.parseFloat(styles.paddingBottom);
 		const rowGap = Number.parseFloat(styles.rowGap) || 0;
-		// As if the hints strip had its usual height (or with no strip, when the hints are a
-		// panel): growing the strip into the space the rows leave (below) never changes the rows.
 		const availableHeight =
 			playerContainer.clientHeight
-			+ this.getAppliedHintsGrowth()
 			- verticalPadding
-			- rowGap * (rowCount - 1);
+			- rowGap * (playerRowsPerScreen - 1);
 		const availableRowHeight = Math.max(
 			minimumPlayerRowHeight,
-			Math.floor(availableHeight / rowCount),
+			Math.floor(availableHeight / playerRowsPerScreen),
 		);
-		const hintsMoved = this.placeLastDartHints(playerCards, rowCount, availableHeight);
 		const playerLayouts = playerCards.map(playerCard => {
 			const roundsViewport =
 				playerCard.querySelector<HTMLElement>('.rounds-scroll-container');
@@ -796,49 +797,7 @@ export class GamePage extends LitElement {
 		if (playerContainer.style.getPropertyValue('--player-row-height') !== rowHeightValue)
 			playerContainer.style.setProperty('--player-row-height', rowHeightValue);
 
-		// Right after a move the space was measured with the hints elsewhere: wait for the next pass.
-		this.growLastDartHints(hintsMoved ? 0 : availableHeight - rowCount * rowHeight);
 		this.updateAchievementLayouts(playerCards);
-	}
-
-	/**
-	 * The hints take the free cells at the end of the last player row when there are enough
-	 * of them and every row is on screen (the grid doesn't scroll); otherwise they stay along
-	 * the bottom. Only the cards are measured, so where the hints are now doesn't matter, and
-	 * the choice only changes with the players or the window, never between darts.
-	 */
-	private placeLastDartHints(playerCards: HTMLElement[], rowCount: number, availableHeight: number): boolean {
-		const firstRowTop = Math.round(playerCards[0]!.offsetTop);
-		const columnCount = playerCards.filter(card => Math.round(card.offsetTop) === firstRowTop).length;
-		const freeCells = columnCount * rowCount - playerCards.length;
-		const rowsFit = availableHeight / rowCount >= minimumPlayerRowHeight;
-		const cells = freeCells >= minimumHintPanelCells && rowsFit ? freeCells : 0;
-		const moved = (this.hintPanelCells > 0) !== (cells > 0);
-		if (this.hintPanelCells !== cells)
-			this.hintPanelCells = cells;
-
-		return moved;
-	}
-
-	/**
-	 * Lets the hints along the bottom take the space under the last player row, so there is
-	 * no empty band between them, up to a limit. It changes with the window or the players,
-	 * not between darts.
-	 */
-	private growLastDartHints(spaceLeft: number): void {
-		const rootFontSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-		const growth = this.hintPanelCells > 0
-			? 0
-			: Math.max(0, Math.min(Math.floor(spaceLeft), maximumHintsGrowthRem * rootFontSize));
-		if (this.hintsGrowth !== growth)
-			this.hintsGrowth = growth;
-	}
-
-	/** The growth the hints have on screen now (read back, so a pending render can't skew it). */
-	private getAppliedHintsGrowth(): number {
-		const hints = this.shadowRoot?.querySelector<HTMLElement>('aa-last-dart-hints');
-
-		return Number.parseFloat(hints?.style.getPropertyValue('--aa-last-dart-hints-growth') ?? '') || 0;
 	}
 
 	private updateAchievementLayouts(playerCards: HTMLElement[]): void {
@@ -980,16 +939,12 @@ export class GamePage extends LitElement {
 		this.savingThrowCounts = saving;
 	}
 
-	/** Along the bottom, or across `panelCells` free cells at the end of the last player row. */
-	protected renderLastDartHints(panelCells = 0): unknown {
+	/** Docked beside the board (under it on a narrow screen; see the page's styles). */
+	protected renderLastDartHints(): unknown {
 		const state = this.lastDartHints.state;
 
 		return html`
 			<aa-last-dart-hints
-				placement=${ panelCells > 0 ? 'panel' : 'strip' }
-				style=${ panelCells > 0
-					? `grid-column: span ${ panelCells }`
-					: `--aa-last-dart-hints-growth: ${ this.hintsGrowth }px` }
 				.playerName=${ state.status === 'idle' ? '' : state.target.playerName }
 				.hints=${ state.status === 'ready' ? state.hints : null }
 				.loading=${ state.status === 'loading' }
@@ -1153,6 +1108,11 @@ export class GamePage extends LitElement {
 							const isAchievementCompact =
 								this.compactAchievementPlayers.has(player.playerId);
 							const isActive = this.isPlayerActive(playerIndex);
+							// Cards in a row are joined; only the row's outer corners are rounded.
+							const columnCount = Math.max(1, this.playerColumnCount);
+							const isRowStart = playerIndex % columnCount === 0;
+							const isRowEnd = playerIndex % columnCount === columnCount - 1
+								|| playerIndex === this.players.length - 1;
 
 							return guard([
 								player,
@@ -1166,10 +1126,16 @@ export class GamePage extends LitElement {
 								projectedV2Achievements,
 								isAchievementCompact,
 								isActive,
+								isRowStart,
+								isRowEnd,
 								this.isReadOnly,
 							], () => html`
 								<article
-									class="player"
+									class=${ classMap({
+										'player':            true,
+										'player--row-start': isRowStart,
+										'player--row-end':   isRowEnd,
+									}) }
 									@focusin=${this.onPlayerInteract}
 									@mouseenter=${this.onPlayerInteract}
 								>
@@ -1327,13 +1293,12 @@ export class GamePage extends LitElement {
 								</article>
 							`);
 						})}
-						${ this.hintPanelCells > 0 ? this.renderLastDartHints(this.hintPanelCells) : nothing }
 					</div>
 
 					<aa-reaction-overlay .spectators=${ this.spectators }></aa-reaction-overlay>
 				</div>
 
-				${ this.hintPanelCells > 0 ? nothing : this.renderLastDartHints() }
+				${ this.renderLastDartHints() }
 			</div>
 		`;
 	}

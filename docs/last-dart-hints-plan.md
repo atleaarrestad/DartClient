@@ -9,6 +9,11 @@ Ground rules from `achievement-release-plan.md` apply: Claude leaves every chang
 > **2026-11-08:** hints no longer travel in game state or with throw saves. They have their own
 > cancellable request; see [last-dart-hints-loading-plan.md](last-dart-hints-loading-plan.md).
 >
+> **2026-11-09:** the strip and panel placements below are gone. The hints are a dock beside the
+> game, with a dartboard instead of the unrolled strip; see
+> [play-page-side-dock-plan.md](play-page-side-dock-plan.md). Colours, heat steps and ranking
+> are unchanged.
+>
 > **2026-11-08, placement:** where the hints go only changes with the players or the window
 > (`placeLastDartHints`), never between darts.
 > - **Panel:** used when the last player row has at least two free cells and every row fits
