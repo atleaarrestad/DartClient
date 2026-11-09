@@ -1,3 +1,5 @@
+import '../../aa-reaction-picker/aa-reaction-picker.js';
+
 import { Router } from '@vaadin/router';
 import { html, unsafeCSS } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
@@ -7,6 +9,7 @@ import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
 import { GameResult, GameTracker, GameTrackerDelta } from '../../../models/schemas.js';
 import { SignalRSubscription } from '../../../services/signalRService.js';
 import { postGameTemplate } from '../../../templates/dialogTemplates.js';
+import type { ReactionPickDetail } from '../../aa-reaction-picker/aa-reaction-picker.js';
 import { GamePage } from '../game-page/game-page.js';
 import spectateGamePageStyles from './spectate-game-page.css?inline';
 
@@ -14,6 +17,8 @@ import spectateGamePageStyles from './spectate-game-page.css?inline';
 export class SpectateGamePage extends GamePage {
 
 	@state() private gameId!: string;
+	/** The animal this spectator reacts as; the server names it on every (re)join. */
+	@state() private spectatorAnimal?: string;
 	protected override readonly playStatusLink = 'sessions';
 	private spectateSubscription?: SignalRSubscription;
 	private readonly onGameUpdated = (gameId: string, gameTracker: GameTracker) => this.HandleOnGameUpdated(gameId, gameTracker);
@@ -53,10 +58,52 @@ export class SpectateGamePage extends GamePage {
 					<i class="fa-solid fa-eye" aria-hidden="true"></i>
 					Spectator mode
 				</span>
+				<aa-reaction-picker
+					.animal=${ this.spectatorAnimal }
+					?available=${ this.getDisplaySyncStatus() === 'connected' }
+					@reaction-pick=${ this.onReactionPick }
+				></aa-reaction-picker>
 				<a class="spectator-game-header__join" href=${ getAbsoluteBase() }>Join game</a>
 			</div>
 		`;
 	}
+
+	/** A reconnect is a new connection, so the server picks a new animal for it. */
+	protected override async onReactionsJoined(gameId: string): Promise<void> {
+		this.spectatorAnimal = undefined;
+		try {
+			const animal = await this.gameLiveService.claimSpectatorName(gameId);
+			if (gameId === this.gameId)
+				this.spectatorAnimal = animal;
+		}
+		catch (error) {
+			console.warn('[Reactions] could not get a spectator name', error);
+		}
+	}
+
+	/** Shows the reaction here at once, then sends it to everyone else on the game. */
+	private readonly onReactionPick = async (event: CustomEvent<ReactionPickDetail>): Promise<void> => {
+		const { reaction } = event.detail;
+		const gameId = this.gameId;
+		const shownAs = this.spectatorAnimal;
+		if (shownAs)
+			this.reactionOverlay?.show(reaction, shownAs);
+
+		try {
+			const result = await this.gameLiveService.sendSpectatorReaction(gameId, reaction);
+			if (!result?.accepted || !result.animal || gameId !== this.gameId)
+				return;
+
+			// The server names spectators; after a reconnect race its answer is the truth.
+			if (result.animal !== this.spectatorAnimal)
+				this.spectatorAnimal = result.animal;
+			if (!shownAs)
+				this.reactionOverlay?.show(reaction, result.animal);
+		}
+		catch (error) {
+			console.warn('[Reactions] could not send a reaction', error);
+		}
+	};
 
 	protected override async registerSignalRSubscriptions(): Promise<void> {
 		const baseSubscriptionsReady = super.registerSignalRSubscriptions();

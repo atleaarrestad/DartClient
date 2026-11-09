@@ -435,7 +435,7 @@ export class IndexPage extends GamePage {
 
 	protected async requestNewGame(): Promise<string> {
 		if (this.gameIdFromLocalStorage) {
-			await this.unsubscribeFromAchievementEvents();
+			await this.unsubscribeFromGameEvents();
 		}
 
 		this.pendingDartThrowUpdates.clear();
@@ -445,7 +445,7 @@ export class IndexPage extends GamePage {
 			this.gameRevisionId = newGameID;
 			this.gameRevision = 0;
 			this.projectedV2AchievementsByPlayer = {};
-			await this.subscribeToAchievementEvents(newGameID);
+			await this.subscribeToGameEvents(newGameID);
 		}
 
 		return newGameID;
@@ -618,7 +618,7 @@ export class IndexPage extends GamePage {
 			const gameResult: GameResult = await this.gameService.submitGame(this.gameIdFromLocalStorage);
 			const lastPlayedUserIds = this.players.map(player => player.playerId);
 
-			await this.unsubscribeFromAchievementEvents();
+			await this.unsubscribeFromGameEvents();
 			this.gameService.removeCachedGameId();
 			this.pendingDartThrowUpdates.clear();
 

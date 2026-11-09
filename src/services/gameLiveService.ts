@@ -34,6 +34,33 @@ function parsePayload<T>(event: string, schema: z.ZodType<T>, payload: unknown):
 	return undefined;
 }
 
+/** Keys only: the reaction and the sender's animal. The client gives them their look. */
+const SpectatorReactionKeySchema = z.string().min(1).max(32);
+
+const SpectatorReactionSchema = z.object({
+	reaction: SpectatorReactionKeySchema,
+	animal:   SpectatorReactionKeySchema,
+});
+export type SpectatorReaction = z.infer<typeof SpectatorReactionSchema>;
+
+const SpectatorReactionResultSchema = z.object({
+	accepted: z.boolean(),
+	animal:   SpectatorReactionKeySchema.nullish(),
+});
+export type SpectatorReactionResult = z.infer<typeof SpectatorReactionResultSchema>;
+
+/** The animals watching a game, in arrival order. Newer snapshots have higher versions. */
+const SpectatorsSnapshotSchema = z.object({
+	version: z.number().int(),
+	animals: z.array(SpectatorReactionKeySchema).max(500),
+});
+export type SpectatorsSnapshot = z.infer<typeof SpectatorsSnapshotSchema>;
+
+export interface ReactionHandlers {
+	onReaction:   (gameId: string, reaction: SpectatorReaction) => void;
+	onSpectators: (gameId: string, snapshot: SpectatorsSnapshot) => void;
+}
+
 @injectable()
 export class GameLiveService {
 	private readonly signalRService: SignalRService;
@@ -63,6 +90,60 @@ export class GameLiveService {
 			},
 			group: signalRGroups.achievements(gameId),
 		});
+	}
+
+	/**
+	 * Reactions spectators send on a game, and who is watching it; everyone on the game
+	 * receives both. `onJoined` runs on every (re)join, which is when a spectator's animal
+	 * changes and the crowd needs fetching again.
+	 */
+	subscribeToReactions(
+		gameId: string,
+		handlers: ReactionHandlers,
+		onJoined: () => void | Promise<void>,
+	): SignalRSubscription {
+		return combineSignalRSubscriptions([
+			this.signalRService.registerSubscription({
+				event:   'OnSpectatorReaction',
+				handler: (eventGameId, payload) => {
+					const reaction = parsePayload('OnSpectatorReaction', SpectatorReactionSchema, payload);
+					if (reaction)
+						handlers.onReaction(eventGameId, reaction);
+				},
+				group:         signalRGroups.reactions(gameId),
+				onGroupJoined: onJoined,
+			}),
+			this.signalRService.registerSubscription({
+				event:   'OnSpectatorsChanged',
+				handler: (eventGameId, payload) => {
+					const snapshot = parsePayload('OnSpectatorsChanged', SpectatorsSnapshotSchema, payload);
+					if (snapshot)
+						handlers.onSpectators(eventGameId, snapshot);
+				},
+				group: signalRGroups.reactions(gameId),
+			}),
+		]);
+	}
+
+	/** Who is watching the game now. */
+	async getSpectators(gameId: string): Promise<SpectatorsSnapshot | undefined> {
+		const answer = await this.signalRService.invokeWithResult('GetSpectators', gameId);
+
+		return parsePayload('GetSpectators', SpectatorsSnapshotSchema, answer);
+	}
+
+	/** The animal key this connection spectates the game as; undefined when the game is gone. */
+	async claimSpectatorName(gameId: string): Promise<string | undefined> {
+		const answer = await this.signalRService.invokeWithResult('ClaimSpectatorName', gameId);
+
+		return parsePayload('ClaimSpectatorName', SpectatorReactionKeySchema.nullable(), answer) ?? undefined;
+	}
+
+	/** Sends a reaction to everyone else on the game. */
+	async sendSpectatorReaction(gameId: string, reaction: string): Promise<SpectatorReactionResult | undefined> {
+		const answer = await this.signalRService.invokeWithResult('SendSpectatorReaction', gameId, reaction);
+
+		return parsePayload('SendSpectatorReaction', SpectatorReactionResultSchema, answer);
 	}
 
 	subscribeToGame(

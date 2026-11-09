@@ -1,0 +1,249 @@
+/*
+ * The overlay covers the game; only the floats are drawn, and pointer events pass through.
+ * Floats move with transform and opacity only, so the compositor runs them (the Pi's GPU).
+ */
+:host {
+	--picture-size: clamp(44px, 4.5vw, 72px);
+	/* Floats start somewhere in this band along the right edge, */
+	--lane-width: min(300px, 30vw);
+	/* just above the crowd in the corner: the reactions rise out of it. */
+	--crowd-clearance: 52px;
+
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	overflow: hidden;
+	contain: strict;
+	pointer-events: none;
+}
+
+.float {
+	position: absolute;
+	right: calc(var(--space-3) + var(--lane) * var(--lane-width));
+	bottom: calc(var(--crowd-clearance) + var(--start));
+	opacity: 0;
+	animation: float-rise var(--duration) cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+	will-change: transform, opacity;
+}
+
+.float__body {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--space-1);
+	animation: float-sway var(--sway-duration) ease-in-out infinite;
+}
+
+.picture {
+	display: block;
+	width: var(--picture-size);
+	height: var(--picture-size);
+	animation: float-pop 420ms ease-out both;
+}
+
+.sticker {
+	display: block;
+	padding: 0.1em 0.45em;
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+	background: var(--color-medal-gold);
+	box-shadow: var(--shadow-brutal-sm);
+	color: var(--color-text-primary);
+	font: 700 calc(var(--picture-size) * 0.42) / 1.15 var(--font-family-ui);
+	letter-spacing: -0.02em;
+	white-space: nowrap;
+	rotate: var(--sticker-tilt);
+	animation: float-pop 420ms ease-out both;
+}
+
+.sticker--ton {
+	background: var(--color-status-success);
+}
+
+.name {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	max-width: 12rem;
+	padding: 0.1rem var(--space-2) 0.1rem 0.2rem;
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	background: var(--color-surface-plain);
+	box-shadow: var(--shadow-brutal-xs);
+	color: var(--color-text-primary);
+	font: 700 0.75rem / 1.2 var(--font-family-ui);
+	white-space: nowrap;
+	animation: name-in 260ms 140ms ease-out both;
+}
+
+.name__avatar {
+	width: 18px;
+	height: 18px;
+}
+
+/*
+ * The crowd: who is watching, quietly in the corner. Lighter than the floats (thinner, a
+ * little see-through), and it never moves the board: it sits in the overlay layer.
+ */
+.crowd {
+	position: absolute;
+	right: var(--space-3);
+	bottom: var(--space-3);
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	padding: 3px var(--space-2);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	background: color-mix(in srgb, var(--color-surface-plain) 80%, transparent);
+	box-shadow: var(--shadow-brutal-xs);
+	color: var(--color-text-primary);
+	font: 700 0.75rem / 1 var(--font-family-ui);
+	opacity: 0.88;
+	/* The tooltip lists everyone on hover. */
+	pointer-events: auto;
+}
+
+.crowd__eye {
+	font-size: 0.8rem;
+	opacity: 0.7;
+}
+
+.crowd__avatars {
+	display: inline-flex;
+}
+
+.crowd__avatar {
+	display: grid;
+	place-items: center;
+	width: 24px;
+	height: 24px;
+	margin-left: -6px;
+	border-radius: 50%;
+	background: var(--color-surface-plain);
+	box-shadow: 0 0 0 2px var(--color-surface-plain);
+	animation: crowd-arrive 300ms ease-out both;
+}
+
+.crowd__avatar:first-child {
+	margin-left: 0;
+}
+
+.crowd__picture {
+	width: 20px;
+	height: 20px;
+}
+
+.crowd__picture--cheering {
+	animation: crowd-cheer 450ms ease-out;
+}
+
+.crowd__initial {
+	font-size: 0.7rem;
+}
+
+.crowd__more {
+	padding-right: 2px;
+	opacity: 0.75;
+}
+
+@keyframes crowd-arrive {
+	from {
+		transform: scale(0.3);
+		opacity: 0;
+	}
+}
+
+@keyframes crowd-cheer {
+	40% {
+		transform: translateY(-5px) scale(1.2);
+	}
+}
+
+@keyframes float-rise {
+	0% {
+		transform: translate3d(0, 0, 0);
+		opacity: 0;
+	}
+
+	7% {
+		opacity: 1;
+	}
+
+	70% {
+		opacity: 1;
+	}
+
+	100% {
+		transform: translate3d(0, calc(var(--rise) * -1), 0);
+		opacity: 0;
+	}
+}
+
+@keyframes float-sway {
+	0%,
+	100% {
+		transform: translateX(0) rotate(0);
+	}
+
+	25% {
+		transform: translateX(var(--sway)) rotate(var(--tilt));
+	}
+
+	75% {
+		transform: translateX(calc(var(--sway) * -1)) rotate(calc(var(--tilt) * -1));
+	}
+}
+
+@keyframes float-pop {
+	0% {
+		transform: scale(0.3);
+	}
+
+	60% {
+		transform: scale(1.15);
+	}
+
+	100% {
+		transform: scale(1);
+	}
+}
+
+@keyframes name-in {
+	from {
+		transform: translateY(4px);
+		opacity: 0;
+	}
+
+	to {
+		transform: none;
+		opacity: 1;
+	}
+}
+
+@keyframes float-fade {
+	0%,
+	100% {
+		opacity: 0;
+	}
+
+	12%,
+	80% {
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.float {
+		animation: float-fade var(--duration) linear forwards;
+	}
+
+	.float__body,
+	.picture,
+	.sticker,
+	.name,
+	.crowd__avatar,
+	.crowd__picture--cheering {
+		animation: none;
+	}
+}

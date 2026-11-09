@@ -9,19 +9,30 @@ import { SignalRService, type SignalRSubscriptionOptions } from './signalRServic
 
 type AnyOptions = SignalRSubscriptionOptions<any>;
 
-function createService(): { service: GameLiveService; handlerFor: (event: string) => (...args: unknown[]) => void; } {
+function createService(answer?: unknown): {
+	service:          GameLiveService;
+	handlerFor:       (event: string) => (...args: unknown[]) => void;
+	optionsFor:       (event: string) => AnyOptions;
+	invokeWithResult: ReturnType<typeof vi.fn>;
+} {
 	const registrations: AnyOptions[] = [];
+	const invokeWithResult = vi.fn(async () => answer);
 	container.registerInstance(SignalRService, {
 		registerSubscription: (options: AnyOptions) => {
 			registrations.push(options);
 
 			return { ready: Promise.resolve(), dispose: async () => {} };
 		},
+		invokeWithResult,
 	} as unknown as SignalRService);
+
+	const optionsFor = (event: string) => registrations.find(options => options.event === event)!;
 
 	return {
 		service:    new GameLiveService(),
-		handlerFor: event => registrations.find(options => options.event === event)!.handler,
+		handlerFor: event => optionsFor(event).handler,
+		optionsFor,
+		invokeWithResult,
 	};
 }
 
@@ -75,5 +86,53 @@ describe('GameLiveService', () => {
 
 		expect(handler).toHaveBeenCalledOnce();
 		expect(handler).toHaveBeenCalledWith(testGameId, testPlayerId, [ instance ]);
+	});
+
+	it('parses reactions and the crowd, both on the reactions group', () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const { service, handlerFor, optionsFor } = createService();
+		const onReaction = vi.fn();
+		const onSpectators = vi.fn();
+		const onJoined = vi.fn();
+		service.subscribeToReactions(testGameId, { onReaction, onSpectators }, onJoined);
+
+		handlerFor('OnSpectatorReaction')(testGameId, { reaction: 'fire', animal: 'giraffe' });
+		handlerFor('OnSpectatorReaction')(testGameId, { reaction: 'fire' });
+		handlerFor('OnSpectatorReaction')(testGameId, { reaction: 'x'.repeat(200), animal: 'giraffe' });
+		handlerFor('OnSpectatorsChanged')(testGameId, { version: 4, animals: [ 'giraffe', 'otter' ] });
+		handlerFor('OnSpectatorsChanged')(testGameId, { version: 'new', animals: [] });
+
+		expect(onReaction).toHaveBeenCalledOnce();
+		expect(onReaction).toHaveBeenCalledWith(testGameId, { reaction: 'fire', animal: 'giraffe' });
+		expect(onSpectators).toHaveBeenCalledOnce();
+		expect(onSpectators).toHaveBeenCalledWith(testGameId, { version: 4, animals: [ 'giraffe', 'otter' ] });
+		const reactionsGroup = { join: 'SubscribeReactions', leave: 'UnsubscribeReactions', args: [ testGameId ] };
+		expect(optionsFor('OnSpectatorReaction').group).toEqual(reactionsGroup);
+		expect(optionsFor('OnSpectatorsChanged').group).toEqual(reactionsGroup);
+		expect(optionsFor('OnSpectatorReaction').onGroupJoined).toBe(onJoined);
+	});
+
+	it('fetches the crowd', async () => {
+		const { service, invokeWithResult } = createService({ version: 7, animals: [ 'otter' ] });
+
+		expect(await service.getSpectators(testGameId)).toEqual({ version: 7, animals: [ 'otter' ] });
+		expect(invokeWithResult).toHaveBeenCalledWith('GetSpectators', testGameId);
+	});
+
+	it('claims a spectator name, or none for a game that is gone', async () => {
+		const named = createService('otter');
+		expect(await named.service.claimSpectatorName(testGameId)).toBe('otter');
+		expect(named.invokeWithResult).toHaveBeenCalledWith('ClaimSpectatorName', testGameId);
+
+		container.clearInstances();
+		const gone = createService(null);
+		expect(await gone.service.claimSpectatorName(testGameId)).toBeUndefined();
+	});
+
+	it('sends a reaction and parses the answer', async () => {
+		const { service, invokeWithResult } = createService({ accepted: true, animal: 'otter' });
+
+		expect(await service.sendSpectatorReaction(testGameId, 'clap')).toEqual({ accepted: true, animal: 'otter' });
+		expect(invokeWithResult).toHaveBeenCalledWith('SendSpectatorReaction', testGameId, 'clap');
 	});
 });

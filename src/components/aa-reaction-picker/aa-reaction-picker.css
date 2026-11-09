@@ -1,0 +1,242 @@
+:host {
+	display: inline-flex;
+	font-family: var(--font-family-ui);
+}
+
+/* The React button: a raised pill that stays pressed while the tray is open. */
+.toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	min-height: 34px;
+	padding: 0 var(--space-4) 0 var(--space-2);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-pill);
+	background: var(--color-surface-plain);
+	box-shadow: var(--shadow-brutal-sm);
+	color: var(--color-text-primary);
+	font: 700 var(--font-size-sm) / 1 var(--font-family-ui);
+	cursor: pointer;
+	transition: transform 100ms ease, box-shadow 100ms ease, background 100ms ease;
+}
+
+.toggle__icon {
+	width: 22px;
+	height: 22px;
+}
+
+.toggle:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.toggle[aria-expanded='true'] {
+	background: var(--color-accent-primary);
+	box-shadow: none;
+	transform: translate(2px, 2px);
+}
+
+/* The tray: lives in the top layer, placed under the button by the component. */
+.tray {
+	inset: auto;
+	margin: 0;
+	width: max-content;
+	max-width: calc(100vw - 16px);
+	padding: var(--space-3);
+	overflow: visible;
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-panel);
+	background: var(--color-surface-card);
+	box-shadow: var(--shadow-brutal-md);
+	color: var(--color-text-primary);
+	font-family: var(--font-family-ui);
+}
+
+.tray:popover-open {
+	animation: tray-in 140ms ease-out;
+}
+
+.tray__header {
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	margin-bottom: var(--space-3);
+}
+
+.identity {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	min-height: 28px;
+	margin: 0;
+	font-size: var(--font-size-sm);
+}
+
+/* What is left of the 5 reactions per 5 seconds: full dots are ready, used ones refill. */
+.allowance {
+	display: inline-flex;
+	gap: 4px;
+	margin-left: auto;
+}
+
+.dot {
+	position: relative;
+	box-sizing: border-box;
+	width: 10px;
+	height: 10px;
+	overflow: hidden;
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: 50%;
+	background: var(--color-surface-plain);
+}
+
+.dot::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--color-accent-primary-hover);
+	transform-origin: bottom;
+}
+
+.dot--refilling::after {
+	opacity: 0.45;
+	animation: dot-refill var(--refill-duration) linear var(--refill-delay) both;
+}
+
+.identity strong {
+	font-weight: 700;
+}
+
+.identity__avatar {
+	flex: none;
+	width: 28px;
+	height: 28px;
+}
+
+.identity--pending {
+	color: color-mix(in srgb, var(--color-text-primary) 60%, transparent);
+	font-style: italic;
+}
+
+span.identity__avatar {
+	border: var(--border-width-strong) dashed currentColor;
+	border-radius: 50%;
+	box-sizing: border-box;
+}
+
+.grid {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 52px));
+	gap: var(--space-2);
+	transition: opacity 120ms ease;
+}
+
+.grid--exhausted {
+	opacity: 0.45;
+}
+
+.reaction {
+	display: grid;
+	place-items: center;
+	aspect-ratio: 1;
+	width: 100%;
+	padding: 0;
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	background: var(--color-surface-plain);
+	box-shadow: var(--shadow-brutal-xs);
+	color: var(--color-text-primary);
+	cursor: pointer;
+	transition: transform 90ms ease, box-shadow 90ms ease, background 90ms ease;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.reaction__picture {
+	width: 65%;
+	height: 65%;
+	pointer-events: none;
+}
+
+.reaction__sticker {
+	font: 700 0.95rem / 1 var(--font-family-ui);
+	letter-spacing: -0.02em;
+	pointer-events: none;
+}
+
+.reaction--180 {
+	background: var(--color-medal-gold);
+}
+
+.reaction--ton {
+	background: var(--color-status-success);
+}
+
+.reaction:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.reaction:active:not(:disabled, [aria-disabled='true']) {
+	box-shadow: none;
+	transform: translate(1px, 1px) scale(0.92);
+}
+
+.reaction:disabled,
+.reaction[aria-disabled='true'] {
+	cursor: not-allowed;
+}
+
+.reaction:disabled {
+	opacity: 0.45;
+}
+
+@media (hover: hover) {
+	.toggle:not([aria-expanded='true']):hover {
+		box-shadow: var(--shadow-brutal-control);
+		transform: translate(-1px, -1px);
+	}
+
+	.reaction:not(:disabled, [aria-disabled='true']):hover {
+		box-shadow: var(--shadow-brutal-sm);
+		transform: translate(-1px, -1px);
+	}
+
+	.reaction:not(.reaction--180, .reaction--ton, :disabled, [aria-disabled='true']):hover {
+		background: var(--color-surface-highlight);
+	}
+}
+
+@keyframes dot-refill {
+	from {
+		transform: scaleY(0);
+	}
+
+	to {
+		transform: scaleY(1);
+	}
+}
+
+@keyframes tray-in {
+	from {
+		opacity: 0;
+		transform: translateY(-4px) scale(0.97);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.toggle,
+	.reaction,
+	.grid {
+		transition: none;
+	}
+
+	.tray:popover-open,
+	.dot--refilling::after {
+		animation: none;
+	}
+
+	/* Without the fill, a used dot shows empty until it is ready again. */
+	.dot--refilling::after {
+		transform: scaleY(0);
+	}
+}

@@ -28,6 +28,8 @@ aa-loading-state {
 }
 
 .page-content {
+	/* Holds the reaction overlay: floats rise over the board, clear of the hints below. */
+	position: relative;
 	min-height: 0;
 	height: 100%;
 	display: grid;

@@ -16,6 +16,8 @@ export interface SignalRClientEvents {
 		playerId: string,
 		achievements: unknown,
 	];
+	OnSpectatorReaction: [gameId: string, reaction: unknown];
+	OnSpectatorsChanged: [gameId: string, snapshot: unknown];
 }
 
 interface SignalRHubMethods {
@@ -25,10 +27,20 @@ interface SignalRHubMethods {
 	UnsubscribeSpectate: [gameId: string];
 	SubscribeAchievement: [gameId: string];
 	UnsubscribeAchievement: [gameId: string];
+	SubscribeReactions: [gameId: string];
+	UnsubscribeReactions: [gameId: string];
+}
+
+/** Hub methods that answer. The answer is raw JSON; callers parse it before use. */
+export interface SignalRHubQueries {
+	ClaimSpectatorName: [gameId: string];
+	SendSpectatorReaction: [gameId: string, reaction: string];
+	GetSpectators: [gameId: string];
 }
 
 type SignalREventName = keyof SignalRClientEvents;
 type SignalRHubMethodName = keyof SignalRHubMethods;
+type SignalRHubQueryName = keyof SignalRHubQueries;
 
 export type SignalRGroupSubscription =
 	| {
@@ -44,6 +56,11 @@ export type SignalRGroupSubscription =
 	| {
 		join: 'SubscribeAchievement';
 		leave: 'UnsubscribeAchievement';
+		args: [gameId: string];
+	}
+	| {
+		join: 'SubscribeReactions';
+		leave: 'UnsubscribeReactions';
 		args: [gameId: string];
 	};
 
@@ -61,6 +78,11 @@ export const signalRGroups = {
 	achievements: (gameId: string): SignalRGroupSubscription => ({
 		join:  'SubscribeAchievement',
 		leave: 'UnsubscribeAchievement',
+		args:  [ gameId ],
+	}),
+	reactions: (gameId: string): SignalRGroupSubscription => ({
+		join:  'SubscribeReactions',
+		leave: 'UnsubscribeReactions',
 		args:  [ gameId ],
 	}),
 };
@@ -212,6 +234,14 @@ export class SignalRService {
 
 	isConnected(): boolean {
 		return this.connection?.state === signalR.HubConnectionState.Connected;
+	}
+
+	/** Calls a hub method that answers, on the live connection; fails while it is down. */
+	invokeWithResult<Method extends SignalRHubQueryName>(
+		method: Method,
+		...args: SignalRHubQueries[Method]
+	): Promise<unknown> {
+		return this.invokeHubMethod(method, args);
 	}
 
 	async stop(): Promise<void> {
@@ -369,15 +399,15 @@ export class SignalRService {
 	}
 
 	private async invokeHubMethod(
-		method: SignalRHubMethodName,
+		method: SignalRHubMethodName | SignalRHubQueryName,
 		args: readonly unknown[],
-	): Promise<void> {
+	): Promise<unknown> {
 		const connection = this.getConnection();
 		if (connection.state !== signalR.HubConnectionState.Connected)
 			throw new Error('Live sync is temporarily unavailable. Please try again in a moment.');
 
 		try {
-			await connection.invoke(method, ...args);
+			return await connection.invoke(method, ...args);
 		}
 		catch (error) {
 			throw this.toError(error, `Live sync action failed: ${ method }`);

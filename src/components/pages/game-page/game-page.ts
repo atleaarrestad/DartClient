@@ -1,12 +1,13 @@
 import '../../aa-loading-state/aa-loading-state.js';
 import '../../aa-last-dart-hints/aa-last-dart-hints.js';
+import '../../aa-reaction-overlay/aa-reaction-overlay.js';
 import '../../../ui/button/aa-button.js';
 import '../../../ui/error-state/aa-error-state.js';
 
 import { html, nothing, unsafeCSS } from 'lit';
 import type { PropertyValues } from 'lit';
 import { LitElement } from 'lit';
-import { property, state } from 'lit/decorators.js';
+import { property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { guard } from 'lit/directives/guard.js';
 import { map } from 'lit/directives/map.js';
@@ -25,7 +26,12 @@ import { GameTracker, GameTrackerDelta, PlayerRounds, Round, Season, SeasonStati
 import { DataService } from '../../../services/dataService.js';
 import { DialogService } from '../../../services/dialogService.js';
 import { GameService } from '../../../services/gameService.js';
-import { GameLiveService } from '../../../services/gameLiveService.js';
+import {
+	GameLiveService,
+	type ReactionHandlers,
+	type SpectatorReaction,
+	type SpectatorsSnapshot,
+} from '../../../services/gameLiveService.js';
 import { NotificationService } from '../../../services/notificationService.js';
 import { PlayStatus, setPlayStatus } from '../../../services/playStatus.js';
 import { SeasonService } from '../../../services/seasonService.js';
@@ -43,6 +49,7 @@ import { CacheService } from '../../../services/cacheService.js';
 import { getErrorMessage } from '../../../helpers/getErrorMessage.js';
 import type { AchievementInstanceResponse } from '../../../models/achievementBuilderApi.js';
 import { LastDartHintsLoader, LastDartHintsTarget } from './last-dart-hints-loader.js';
+import type { AaReactionOverlay } from '../../aa-reaction-overlay/aa-reaction-overlay.js';
 
 /** Below this, player rows stop shrinking and the player grid scrolls. */
 const minimumPlayerRowHeight = 240;
@@ -101,8 +108,18 @@ export class GamePage extends LitElement {
 	protected gameLiveService: GameLiveService;
 	private removeSignalRStatusListener?: () => void;
 	private v2AchievementSubscription?: SignalRSubscription;
+	private reactionSubscription?: SignalRSubscription;
 	// Bumped on every (un)subscribe, so a subscribe that was overtaken while awaiting backs off.
-	private achievementSubscriptionGeneration = 0;
+	private gameEventsGeneration = 0;
+	/** Spectators' reactions float over the game, on the players' page and the spectators'. */
+	@query('aa-reaction-overlay') protected reactionOverlay?: AaReactionOverlay;
+	/**
+	 * Who watches the game, as animals. A plain field, handed straight to the overlay, so a
+	 * spectator arriving never re-renders the board.
+	 */
+	private spectators: readonly string[] = [];
+	/** The version of `spectators`; older snapshots arriving late are ignored. */
+	private spectatorsVersion = 0;
 	private lifecycleGeneration = 0;
 	private observedPlayerContainer?: HTMLElement;
 	private readonly playerContainerResizeObserver = new ResizeObserver(() =>
@@ -115,6 +132,11 @@ export class GamePage extends LitElement {
 		playerId: string,
 		achievements: AchievementInstanceResponse[],
 	) => this.HandleV2AchievementProjected(gameId, playerId, achievements);
+
+	private readonly reactionHandlers: ReactionHandlers = {
+		onReaction:   (gameId, reaction) => this.handleSpectatorReaction(gameId, reaction),
+		onSpectators: (gameId, snapshot) => this.applySpectators(gameId, snapshot),
+	};
 
 	constructor() {
 		super();
@@ -272,10 +294,11 @@ export class GamePage extends LitElement {
 		void this.initialize(++this.lifecycleGeneration);
 	}
 
-	public async subscribeToAchievementEvents(gameId: string): Promise<void> {
-		const generation = ++this.achievementSubscriptionGeneration;
-		await this.disposeAchievementSubscription();
-		if (!this.isConnected || generation !== this.achievementSubscriptionGeneration)
+	/** Live events for the game on screen: projected achievements and spectators' reactions. */
+	public async subscribeToGameEvents(gameId: string): Promise<void> {
+		const generation = ++this.gameEventsGeneration;
+		await this.disposeGameEventSubscriptions();
+		if (!this.isConnected || generation !== this.gameEventsGeneration)
 			return;
 
 		const v2Subscription = this.gameLiveService.subscribeToV2Achievements(
@@ -283,18 +306,78 @@ export class GamePage extends LitElement {
 			this.onV2AchievementProjected,
 		);
 		this.v2AchievementSubscription = v2Subscription;
+
+		const reactionSubscription = this.gameLiveService.subscribeToReactions(
+			gameId,
+			this.reactionHandlers,
+			() => this.handleReactionsJoined(gameId),
+		);
+		this.reactionSubscription = reactionSubscription;
+		// Reactions are a bonus: without them (an older backend) play and achievements go on.
+		reactionSubscription.ready.catch(error =>
+			console.warn('[Reactions] unavailable', error));
+
 		await v2Subscription.ready;
 	}
 
-	public async unsubscribeFromAchievementEvents(): Promise<void> {
-		this.achievementSubscriptionGeneration++;
-		await this.disposeAchievementSubscription();
+	public async unsubscribeFromGameEvents(): Promise<void> {
+		this.gameEventsGeneration++;
+		await this.disposeGameEventSubscriptions();
 	}
 
-	private async disposeAchievementSubscription(): Promise<void> {
-		const v2Subscription = this.v2AchievementSubscription;
+	private async disposeGameEventSubscriptions(): Promise<void> {
+		const subscriptions = [ this.v2AchievementSubscription, this.reactionSubscription ];
 		this.v2AchievementSubscription = undefined;
-		await v2Subscription?.dispose();
+		this.reactionSubscription = undefined;
+		this.setSpectators([], 0);
+		await Promise.all(subscriptions.map(subscription => subscription?.dispose()));
+	}
+
+	/**
+	 * The reactions group was (re)joined: fetch the crowd afresh. The version starts over too,
+	 * because after a server restart the server's versions start over.
+	 */
+	private async handleReactionsJoined(gameId: string): Promise<void> {
+		this.spectatorsVersion = 0;
+		await Promise.all([ this.refreshSpectators(gameId), this.onReactionsJoined(gameId) ]);
+	}
+
+	private async refreshSpectators(gameId: string): Promise<void> {
+		try {
+			const snapshot = await this.gameLiveService.getSpectators(gameId);
+			if (snapshot)
+				this.applySpectators(gameId, snapshot);
+		}
+		catch (error) {
+			console.warn('[Reactions] could not fetch the spectators', error);
+		}
+	}
+
+	/**
+	 * Runs whenever the game's reactions group is (re)joined. A reconnect is a new connection
+	 * to the server, so a spectator gets a new animal here.
+	 */
+	protected onReactionsJoined(_gameId: string): void | Promise<void> {}
+
+	private handleSpectatorReaction(gameId: string, reaction: SpectatorReaction): void {
+		if (gameId !== this.gameIdFromLocalStorage)
+			return;
+
+		this.reactionOverlay?.show(reaction.reaction, reaction.animal);
+	}
+
+	private applySpectators(gameId: string, snapshot: SpectatorsSnapshot): void {
+		if (gameId !== this.gameIdFromLocalStorage || snapshot.version <= this.spectatorsVersion)
+			return;
+
+		this.setSpectators(snapshot.animals, snapshot.version);
+	}
+
+	private setSpectators(animals: readonly string[], version: number): void {
+		this.spectators = animals;
+		this.spectatorsVersion = version;
+		if (this.reactionOverlay)
+			this.reactionOverlay.spectators = animals;
 	}
 
 	private async HandleV2AchievementProjected(
@@ -348,13 +431,13 @@ export class GamePage extends LitElement {
 
 	protected async registerSignalRSubscriptions(): Promise<void> {
 		if (this.gameIdFromLocalStorage)
-			await this.subscribeToAchievementEvents(this.gameIdFromLocalStorage);
+			await this.subscribeToGameEvents(this.gameIdFromLocalStorage);
 		else
 			await this.signalRService.ensureConnected();
 	}
 
 	protected async cleanupSignalRSubscriptions(): Promise<void> {
-		await this.unsubscribeFromAchievementEvents();
+		await this.unsubscribeFromGameEvents();
 	}
 
 	protected reportError(error: unknown, fallback: string): void {
@@ -434,7 +517,7 @@ export class GamePage extends LitElement {
 		}
 	}
 
-	private getDisplaySyncStatus(): SignalRConnectionStatus {
+	protected getDisplaySyncStatus(): SignalRConnectionStatus {
 		if (!this.browserOnline)
 			return 'disconnected';
 
@@ -1246,6 +1329,8 @@ export class GamePage extends LitElement {
 						})}
 						${ this.hintPanelCells > 0 ? this.renderLastDartHints(this.hintPanelCells) : nothing }
 					</div>
+
+					<aa-reaction-overlay .spectators=${ this.spectators }></aa-reaction-overlay>
 				</div>
 
 				${ this.hintPanelCells > 0 ? nothing : this.renderLastDartHints() }
