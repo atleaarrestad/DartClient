@@ -672,3 +672,129 @@
 		width: calc(100cqh - 2 * var(--space-3) - 2.25rem);
 	}
 }
+
+/*
+ * ── Compact (a phone): a small board on the left, the best throws beside it ──
+ * Sized by its content, not its box: the page shows it only while there is something to aim
+ * for and gives it the room it needs, so it is a container for its width only. The board
+ * takes about a third of the width, so the throws beside it keep room for their icons.
+ */
+:host([compact]) {
+	container: hints / inline-size;
+	background: var(--color-surface-plain);
+}
+
+.dock--compact {
+	--hints-row: 3rem;
+	grid-template-columns: var(--hints-board-size, clamp(6.5rem, 34cqi, 8.75rem)) minmax(0, 1fr);
+	grid-template-rows: auto;
+	grid-template-areas: 'board list';
+	align-items: center;
+	column-gap: var(--space-3);
+	height: auto;
+	padding: var(--space-3);
+}
+
+.dock--compact .board-area {
+	width: 100%;
+}
+
+.compact-list {
+	grid-area: list;
+	display: grid;
+	gap: var(--space-2);
+	min-width: 0;
+}
+
+/* In the column's own grid, not the dock's 'list' area (which would add a column of its own). */
+.dock--compact .suggestions {
+	grid-area: auto;
+}
+
+/* Only the rows there are: the dock grows when the rest are shown, and the page makes room. */
+.dock--compact .suggestions ol {
+	grid-template-rows: none;
+	grid-auto-rows: var(--hints-row);
+}
+
+.dock--compact .suggestion__main {
+	grid-template-columns: 2.5rem minmax(0, 1fr);
+	column-gap: 0.45rem;
+	padding: 0.2rem 0.45rem 0.2rem 0.25rem;
+}
+
+.dock--compact .suggestion__tile {
+	height: calc(var(--hints-row) - 0.9rem);
+	font-size: 0.85rem;
+}
+
+.dock--compact .suggestion__worth {
+	gap: 0.25rem;
+	font-size: 0.82rem;
+}
+
+.dock--compact .tier img {
+	width: 17px;
+	height: 17px;
+}
+
+.dock--compact .pill {
+	padding: 0.05rem 0.3rem;
+	font-size: 0.64rem;
+}
+
+.dock--compact .suggestion__note {
+	font-size: 0.68rem;
+}
+
+/* No room for where a miss lands: the throw takes the whole row. */
+.dock--compact .suggestion--with-miss {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.dock--compact .suggestion__miss {
+	display: none;
+}
+
+.dock--compact .off-board {
+	margin-top: var(--space-1);
+}
+
+.dock--compact .chip {
+	padding: 0.1rem 0.5rem;
+	font-size: 0.7rem;
+}
+
+.show-all {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-1);
+	min-height: 2.25rem;
+	padding: 0 var(--space-3);
+	background: var(--color-surface-plain);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+	color: var(--color-text-primary);
+	font: 700 0.78rem var(--font-family-ui);
+	cursor: pointer;
+}
+
+.show-all:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.show-all__chevron {
+	width: 14px;
+	height: 14px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2.5;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.show-all[aria-expanded='true'] .show-all__chevron {
+	rotate: 180deg;
+}

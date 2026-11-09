@@ -58,3 +58,372 @@
 		transition: none;
 	}
 }
+
+/*
+ * ── A phone (the width is set in spectate-game-page.ts) ─────────────────────
+ * One bar, the players' list, the last-dart board while there is one, and who watches. The
+ * bar and the board keep their size; the list takes what is left and scrolls inside itself,
+ * without a scrollbar. Nothing else scrolls: the page is exactly the screen.
+ */
+.phone {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+	font-family: var(--font-family-ui);
+}
+
+.phone-bar {
+	flex: none;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-2);
+	padding: var(--space-2) var(--space-3);
+	background: var(--color-surface-plain);
+	border-bottom: var(--border-width-strong) solid var(--color-border-strong);
+}
+
+.phone-bar__label {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	font-size: 0.95rem;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.phone-bar__status {
+	min-width: 0;
+	overflow: hidden;
+	font-size: 0.82rem;
+	font-weight: 700;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.phone-bar__status--offline {
+	font-style: italic;
+	opacity: 0.7;
+}
+
+.phone-list {
+	position: relative;
+	flex: 0 1 auto;
+	min-height: 0;
+	margin: var(--space-3) var(--space-3) 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: none;
+	background: var(--color-surface-plain);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-control);
+	box-shadow: var(--shadow-brutal-control);
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+/* Between the list and the board: at least a gap, and whatever room the list leaves. */
+.phone-gap {
+	flex: 1 0 var(--space-3);
+}
+
+.phone-rank {
+	width: 30px;
+	height: 30px;
+	object-fit: contain;
+}
+
+.phone-sub {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.15rem var(--space-2);
+	min-width: 0;
+	color: #4a4a4a;
+	font-size: 0.72rem;
+}
+
+.phone-score {
+	display: grid;
+	justify-items: end;
+	font-family: var(--font-family-body);
+	font-size: 1.25rem;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.05;
+	white-space: nowrap;
+}
+
+.phone-score__left {
+	color: #4a4a4a;
+	font-size: 0.75rem;
+}
+
+/* Another player: a row to tap. */
+.phone-row {
+	display: grid;
+	grid-template-columns: 30px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--space-3);
+	width: 100%;
+	min-height: 46px;
+	padding: var(--space-1) var(--space-3);
+	background: var(--color-surface-plain);
+	border: 0;
+	border-top: 1px solid var(--color-border-strong);
+	color: var(--color-text-primary);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.phone-row:first-child {
+	border-top: 0;
+}
+
+.phone-row:focus-visible {
+	outline: var(--focus-ring);
+	outline-offset: -3px;
+}
+
+.phone-row__who {
+	display: grid;
+	min-width: 0;
+}
+
+.phone-row__name,
+.phone-focus__name {
+	overflow: hidden;
+	font-family: var(--font-family-body);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.phone-row__name {
+	font-size: 1.05rem;
+	line-height: 1.2;
+}
+
+.phone-tag {
+	padding: 0 0.3rem;
+	border: 1.5px solid var(--color-border-strong);
+	border-radius: var(--radius-sm);
+	color: var(--color-text-primary);
+	font-size: 0.6rem;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	line-height: 1.5;
+	text-transform: uppercase;
+}
+
+.phone-tag--live {
+	background: var(--color-accent-primary-hover);
+}
+
+.phone-tag--next {
+	background: var(--color-accent-primary);
+}
+
+.phone-tag--won {
+	background: var(--color-status-victory);
+}
+
+/* The player in focus, opened up. */
+.phone-focus {
+	display: grid;
+	gap: var(--space-2);
+	padding: var(--space-2) var(--space-3) 0.65rem;
+	background: var(--color-surface-highlight);
+	border-top: 4px solid var(--color-accent-primary-hover);
+}
+
+.phone-focus__head {
+	display: grid;
+	grid-template-columns: 40px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--space-3);
+}
+
+.phone-focus__head .phone-rank {
+	width: 40px;
+	height: 40px;
+}
+
+.phone-focus__who {
+	display: grid;
+	min-width: 0;
+}
+
+.phone-focus__name {
+	font-size: 1.4rem;
+	line-height: 1.1;
+}
+
+.phone-focus .phone-score {
+	font-size: 1.65rem;
+}
+
+.phone-focus .phone-score__left {
+	font-size: 0.85rem;
+}
+
+.phone-darts {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr)) 3.5rem;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.phone-dart {
+	position: relative;
+	display: grid;
+	place-items: center;
+	height: 3rem;
+	background: var(--color-surface-plain);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-md);
+	box-shadow: var(--shadow-brutal-sm);
+	font-family: var(--font-family-body);
+	font-size: 1.6rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.phone-dart__times {
+	position: absolute;
+	right: 0.35rem;
+	bottom: 0.15rem;
+	font-size: 0.75rem;
+	font-style: italic;
+}
+
+.phone-dart--word {
+	font-family: var(--font-family-ui);
+	font-size: 0.85rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.phone-dart--empty {
+	background: rgba(255, 255, 255, 0.5);
+	border-color: rgba(0, 0, 0, 0.25);
+	box-shadow: none;
+}
+
+.phone-dart--next {
+	background: var(--color-surface-card);
+	border: var(--border-width-strong) dashed #e07800;
+	box-shadow: none;
+	color: #7a4300;
+	font-family: var(--font-family-ui);
+	font-size: 0.66rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.phone-round-sum {
+	display: grid;
+	justify-items: center;
+	line-height: 1.1;
+}
+
+.phone-round-sum span {
+	color: #4a4a4a;
+	font-size: 0.62rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.phone-round-sum b {
+	font-family: var(--font-family-body);
+	font-size: 1.4rem;
+	font-weight: 400;
+	font-variant-numeric: tabular-nums;
+}
+
+/* The earlier rounds, small, wrapping to a second line rather than scrolling. */
+.phone-history {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-1);
+}
+
+.phone-round {
+	display: grid;
+	justify-items: center;
+	min-width: 2.2rem;
+	padding: 0.05rem 0.3rem;
+	background: var(--color-surface-plain);
+	border: 1px solid var(--color-border-strong);
+	border-radius: var(--radius-sm);
+	font-variant-numeric: tabular-nums;
+}
+
+.phone-round:nth-child(even) {
+	background: #eef4ef;
+}
+
+.phone-round--overshoot,
+.phone-round--overshoot:nth-child(even) {
+	background: #f5bdbc;
+}
+
+.phone-round--victory,
+.phone-round--victory:nth-child(even) {
+	background: var(--color-status-victory);
+}
+
+.phone-round__number {
+	color: #4a4a4a;
+	font-size: 0.55rem;
+}
+
+.phone-round__sum {
+	font-size: 0.85rem;
+	line-height: 1.1;
+}
+
+.phone-history .projected-achievements {
+	margin-left: auto;
+}
+
+.phone-history .projected-achievement__icon {
+	width: 1.25rem;
+	height: 1.25rem;
+}
+
+.phone-hints {
+	flex: none;
+	margin: 0 var(--space-3);
+	border: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: var(--radius-lg);
+	box-shadow: var(--shadow-brutal-control);
+}
+
+.phone-footer {
+	flex: none;
+	margin-top: var(--space-3);
+}
+
+/* Who watches, as a flat strip along the foot of the screen. */
+.phone-footer aa-watch-panel::part(panel) {
+	padding: 0.55rem var(--space-4);
+	border: 0;
+	border-top: var(--border-width-strong) solid var(--color-border-strong);
+	border-radius: 0;
+	box-shadow: none;
+}
+
+/* Reactions rise over the list from just above who watches, as they do in the side column. */
+.phone > aa-reaction-overlay {
+	--lane-width: 55%;
+	--crowd-clearance: 3.75rem;
+	top: 3.25rem;
+}

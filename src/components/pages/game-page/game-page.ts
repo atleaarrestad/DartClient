@@ -50,7 +50,8 @@ import { CacheService } from '../../../services/cacheService.js';
 import { getErrorMessage } from '../../../helpers/getErrorMessage.js';
 import { getAbsoluteBase } from '../../../getAbsoluteBase.js';
 import type { AchievementInstanceResponse } from '../../../models/achievementBuilderApi.js';
-import { LastDartHintsLoader, LastDartHintsTarget } from './last-dart-hints-loader.js';
+import { findLivePlayerId } from '../../../helpers/spectateFocus.js';
+import { LastDartHintsLoader, LastDartHintsState, LastDartHintsTarget } from './last-dart-hints-loader.js';
 import type { AaReactionOverlay } from '../../aa-reaction-overlay/aa-reaction-overlay.js';
 import type { AaWatchPanel } from '../../aa-watch-panel/aa-watch-panel.js';
 
@@ -98,7 +99,7 @@ export class GamePage extends LitElement {
 	protected selectedCellElement?: aaDartThrow = undefined;
 	@state() protected isActiveGame: boolean = false;
 	protected projectedV2AchievementsByPlayer: Record<string, AchievementInstanceResponse[]> = {};
-	/** The player whose throw changed last; spectators follow them (see getCurrentThrow). */
+	/** The player whose throw changed last; spectators follow them (see getLivePlayerId). */
 	private lastThrowingPlayerId?: string;
 	/** Hints for the dart being thrown, when it is a last dart; fetched apart from saving throws. */
 	private readonly lastDartHints = new LastDartHintsLoader(
@@ -121,7 +122,7 @@ export class GamePage extends LitElement {
 	 * Who watches the game, as animals. A plain field, handed straight to the watch panel, so
 	 * a spectator arriving never re-renders the board.
 	 */
-	private spectators: readonly string[] = [];
+	protected spectators: readonly string[] = [];
 	/** The version of `spectators`; older snapshots arriving late are ignored. */
 	private spectatorsVersion = 0;
 	private lifecycleGeneration = 0;
@@ -914,14 +915,29 @@ export class GamePage extends LitElement {
 
 	/**
 	 * The dart being thrown now. The play page uses the selected cell; spectators have none,
-	 * so they follow whoever threw last, at their next dart when it is a last dart.
+	 * so they follow the player throwing (see getLivePlayerId), at their next dart when it is
+	 * a last dart.
 	 */
 	protected getCurrentThrow(): ThrowPosition | undefined {
-		const playerIndex = this.players.findIndex(player => player.playerId === this.lastThrowingPlayerId);
+		const livePlayerId = this.getLivePlayerId();
+		const playerIndex = this.players.findIndex(player => player.playerId === livePlayerId);
 		const player = this.players[playerIndex];
 		const roundIndex = player ? getLastDartRoundIndex(player) : undefined;
 
 		return roundIndex === undefined ? undefined : { playerIndex, roundIndex, throwIndex: 2 };
+	}
+
+	/**
+	 * Who throws now, as a spectator sees it: whoever threw last while their round is under
+	 * way; on arriving mid-round, the player mid-round; between turns, whoever is up.
+	 */
+	protected getLivePlayerId(): string | undefined {
+		return findLivePlayerId(this.players, this.lastThrowingPlayerId, this.maximumRounds);
+	}
+
+	/** The last-dart hints for the dart being thrown now, as far as they have come. */
+	protected getLastDartHintsState(): LastDartHintsState {
+		return this.lastDartHints.state;
 	}
 
 	/**
@@ -983,7 +999,7 @@ export class GamePage extends LitElement {
 	private tierRewards: TierRewards = {};
 
 	/** The season's MMR per achievement tier, kept as one object while the season is the same. */
-	private getTierRewards(): TierRewards {
+	protected getTierRewards(): TierRewards {
 		const rewards = this.season?.achievementTierRewards;
 		if (rewards !== this.tierRewardsSource) {
 			this.tierRewardsSource = rewards;
@@ -1089,7 +1105,8 @@ export class GamePage extends LitElement {
 		`;
 	}
 
-	private renderReadyState(): unknown {
+	/** The game: the players' cards, and the side column with the hints and who watches. */
+	protected renderReadyState(): unknown {
 		if (!this.isActiveGame)
 			return this.renderEmptyState();
 

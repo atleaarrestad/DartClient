@@ -26,7 +26,8 @@ const listFormat = new Intl.ListFormat('en', { type: 'conjunction' });
  * see who cheered without reading. Without a link (the spectate page) it is the crowd alone.
  *
  * The page hands it the spectators directly (`spectators`), not through a render, so a
- * spectator arriving never re-renders the board.
+ * spectator arriving never re-renders the board. The panel is a part (`panel`), so a page can
+ * restyle it, as the phone layout does for a flat strip along the screen's foot.
  */
 @customElement('aa-watch-panel')
 export class AaWatchPanel extends LitElement {
@@ -87,7 +88,11 @@ export class AaWatchPanel extends LitElement {
 			return nothing;
 
 		return html`
-			<section class=${ classMap({ 'panel': true, 'panel--code': !!this.url }) } aria-label="Watching this game">
+			<section
+				class=${ classMap({ 'panel': true, 'panel--code': !!this.url }) }
+				part="panel"
+				aria-label="Watching this game"
+			>
 				${ this.url ? this.renderCode() : nothing }
 				<div class="panel__text">
 					${ this.url ? html`<span class="panel__title">Scan to watch</span>` : nothing }

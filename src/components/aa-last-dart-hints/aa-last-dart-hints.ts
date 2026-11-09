@@ -28,6 +28,8 @@ import lastDartHintsStyles from './aa-last-dart-hints.css?inline';
 
 /** How many throws the list suggests, the one to make first. */
 const suggestionCount = 4;
+/** How many of them the compact dock shows until asked for the rest. */
+const compactSuggestionCount = 2;
 
 /** How a target is marked on the board, from the most to the least focus. */
 type MarkerKind = 'main' | 'second' | 'sixty-nine' | 'pointed';
@@ -124,6 +126,8 @@ const shapesByKey = new Map(boardShapes.map(shape => [ shape.key, shape ]));
 
 /** The board's view box reaches this far, leaving room for callouts round the board. */
 const viewRadius = 290;
+/** The compact board has no callouts: its view box ends just past the board's edge. */
+const compactViewRadius = radii.edge + 2.5;
 
 /** One part of a callout: a word on a pill ("WIN", "69"), or a tier icon with a count. */
 type CalloutPart =
@@ -306,6 +310,11 @@ const colourClass = (hit: AchievementLegalHit): string => `colour-${ colourOf(hi
  * between darts it rests unlit, so nothing on the page moves or pops up. While hints are on
  * their way it stays unlit too; only if they take a while does a quiet note say so. Takes data
  * only; the game page decides whose hints to show and fetches them.
+ *
+ * `compact` (a phone, where the page shows it only while there is something to aim for): a
+ * small board on the left without callouts, and beside it the best two throws, the other two
+ * a tap away. The page's own list says whose dart it is, so there is no name, and no room
+ * for where a miss lands.
  */
 @customElement('aa-last-dart-hints')
 export class AaLastDartHints extends LitElement {
@@ -316,13 +325,19 @@ export class AaLastDartHints extends LitElement {
 	@property({ attribute: false }) tierRewards: TierRewards = {};
 	/** Hints for `playerName`'s last dart are on their way. */
 	@property({ type: Boolean }) loading = false;
+	/** The small version for a phone: board and list side by side, two throws until asked. */
+	@property({ type: Boolean, reflect: true }) compact = false;
 
 	/** The target under the pointer, marked on the board and in the list. */
 	@state() private pointedKey?: string;
+	/** The compact list shows every suggestion, not just the first two. */
+	@state() private showingAll = false;
 
 	protected override willUpdate(changedProperties: PropertyValues<this>): void {
-		if (changedProperties.has('hints'))
+		if (changedProperties.has('hints')) {
 			this.pointedKey = undefined;
+			this.showingAll = false;
+		}
 	}
 
 	private get list(): readonly LastDartHint[] {
@@ -346,6 +361,29 @@ export class AaLastDartHints extends LitElement {
 			? `${ this.playerName }: ${ main.wins ? 'easiest win' : 'best last dart' } ${ describeHit(main.hit) }, `
 				+ describeWorth(main.hintIndexes.length, main, main.key === sixtyNine?.key).join(' ')
 			: '';
+		const suggestions = this.getSuggestions(plan, pointed);
+		const throwsByKey = new Map(candidates.map(item => [ item.key, item ]));
+
+		if (this.compact) {
+			return html`
+				<span class="visually-hidden" role="status" aria-live="polite">${ summary }</span>
+				<section class="dock dock--compact" aria-label="Last-dart hints">
+					<div class="board-area" aria-hidden="true" @mouseleave=${ this.clearPoint }>
+						${ this.renderBoard(targets, markers, most, [], compactViewRadius) }
+						${ this.renderOffBoard(targets, markers, most, true) }
+					</div>
+					<div class="compact-list">
+						<span class="eyebrow">Last dart</span>
+						${ this.renderSuggestions(
+							this.showingAll ? suggestions : suggestions.slice(0, compactSuggestionCount),
+							plan,
+							throwsByKey,
+						) }
+						${ this.renderShowAll(suggestions.length - compactSuggestionCount) }
+					</div>
+				</section>
+			`;
+		}
 
 		return html`
 			<span class="visually-hidden" role="status" aria-live="polite">${ summary }</span>
@@ -358,14 +396,32 @@ export class AaLastDartHints extends LitElement {
 					${ this.renderBoard(targets, markers, most, placeCallouts(this.getCallouts(plan))) }
 					${ this.renderOffBoard(targets, markers, most) }
 				</div>
-				${ this.renderSuggestions(
-					this.getSuggestions(plan, pointed),
-					plan,
-					new Map(candidates.map(item => [ item.key, item ])),
-				) }
+				${ this.renderSuggestions(suggestions, plan, throwsByKey) }
 			</section>
 		`;
 	}
+
+	/** The compact list's switch between the first two throws and all of them. */
+	private renderShowAll(more: number): TemplateResult | typeof nothing {
+		if (more <= 0)
+			return nothing;
+
+		return html`
+			<button
+				class="show-all"
+				type="button"
+				aria-expanded=${ this.showingAll ? 'true' : 'false' }
+				@click=${ this.toggleShowAll }
+			>
+				${ this.showingAll ? 'Fewer throws' : `${ more } more ${ more === 1 ? 'throw' : 'throws' }` }
+				<svg class="show-all__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+			</button>
+		`;
+	}
+
+	private readonly toggleShowAll = (): void => {
+		this.showingAll = !this.showingAll;
+	};
 
 	/**
 	 * Which target gets which ring: the main throw, the second choice and the dart to 69 each
@@ -428,6 +484,7 @@ export class AaLastDartHints extends LitElement {
 		markers: ReadonlyMap<string, MarkerKind>,
 		most: number,
 		callouts: readonly PlacedCallout[],
+		extent: number = viewRadius,
 	): TemplateResult {
 		const levelOf = (shape: TargetShape): number => getHeatLevel(targets.get(shape.key)?.count ?? 0, most);
 		const unlit = boardShapes.filter(shape => levelOf(shape) === 0);
@@ -440,7 +497,7 @@ export class AaLastDartHints extends LitElement {
 		return html`
 			<svg
 				class=${ classMap({ 'board': true, 'board--lit': lit.length > 0 }) }
-				viewBox="${ -viewRadius } ${ -viewRadius } ${ 2 * viewRadius } ${ 2 * viewRadius }"
+				viewBox="${ -extent } ${ -extent } ${ 2 * extent } ${ 2 * extent }"
 			>
 				<circle class="board__edge" r=${ radii.edge }></circle>
 				${ unlit.map(shape => this.renderShape(shape, 0, markers.has(shape.key))) }
@@ -532,32 +589,40 @@ export class AaLastDartHints extends LitElement {
 		`;
 	}
 
-	/** The rim and a miss: chips under the board, lit and ringed like the segments. */
+	/**
+	 * The rim and a miss: chips under the board, lit and ringed like the segments. The compact
+	 * dock has room only for those that are lit or ringed (`onlyLit`), and none without them.
+	 */
 	private renderOffBoard(
 		targets: ReadonlyMap<string, HintSegment>,
 		markers: ReadonlyMap<string, MarkerKind>,
 		most: number,
-	): TemplateResult {
+		onlyLit = false,
+	): TemplateResult | typeof nothing {
+		const chips = offBoardKeys.flatMap(key => {
+			const count = targets.get(key)?.count ?? 0;
+			const level = getHeatLevel(count, most);
+			const marker = markers.get(key);
+
+			return !onlyLit || level > 0 || marker !== undefined ? [ { key, count, level, marker } ] : [];
+		});
+		if (chips.length === 0)
+			return nothing;
+
 		return html`
 			<div class="off-board">
-				${ offBoardKeys.map(key => {
-					const count = targets.get(key)?.count ?? 0;
-					const level = getHeatLevel(count, most);
-					const marker = markers.get(key);
-
-					return html`
-						<span
-							class=${ classMap({
-								'chip':                true,
-								'colour-off':          true,
-								'lit':                 level > 0,
-								[`heat-${ level }`]:   level > 0,
-								[`chip--${ marker }`]: marker !== undefined,
-							}) }
-							@mouseenter=${ level > 0 ? () => this.point(key) : nothing }
-						>${ key }${ level > 0 ? html`<b>${ count }</b>` : nothing }</span>
-					`;
-				}) }
+				${ chips.map(({ key, count, level, marker }) => html`
+					<span
+						class=${ classMap({
+							'chip':                true,
+							'colour-off':          true,
+							'lit':                 level > 0,
+							[`heat-${ level }`]:   level > 0,
+							[`chip--${ marker }`]: marker !== undefined,
+						}) }
+						@mouseenter=${ level > 0 ? () => this.point(key) : nothing }
+					>${ key }${ level > 0 ? html`<b>${ count }</b>` : nothing }</span>
+				`) }
 			</div>
 		`;
 	}
