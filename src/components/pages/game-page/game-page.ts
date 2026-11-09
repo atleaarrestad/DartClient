@@ -1070,10 +1070,6 @@ export class GamePage extends LitElement {
 		return html`
 			<div class="page-shell">
 				<div class="page-content">
-					<div class="player-header">
-						${this.renderPlayerHeaderContent()}
-					</div>
-
 					<div class="player-container">
 						${this.players.map((player, playerIndex) => {
 							const user = this.getUserFromPlayerIndex(playerIndex);
@@ -1278,11 +1274,20 @@ export class GamePage extends LitElement {
 							`);
 						})}
 					</div>
-
-					<aa-reaction-overlay .spectators=${ this.spectators }></aa-reaction-overlay>
 				</div>
 
-				${ this.renderLastDartHints() }
+				<!--
+					Everything that isn't a player sits in the side column, so the cards keep the
+					board to themselves: the page's own header (the spectate page's), the last-dart
+					hints, and the spectators with their reactions rising over the column.
+				-->
+				<aside class="side">
+					<div class="player-header">
+						${ this.renderPlayerHeaderContent() }
+					</div>
+					${ this.renderLastDartHints() }
+					<aa-reaction-overlay .spectators=${ this.spectators }></aa-reaction-overlay>
+				</aside>
 			</div>
 		`;
 	}

@@ -614,9 +614,10 @@ export class AaLastDartHints extends LitElement {
 
 	/**
 	 * One suggestion: the throw on a tile in its board colour, ringed like on the board; what
-	 * it gets; and what it is. When a treble or double that misses usually still gets something,
-	 * a quieter third of the row shows where the miss lands and what that gets. The
-	 * achievements' names are the tooltips.
+	 * it gets on top (pills and tier counts); below, what it is with the MMR at the end. When a
+	 * treble or double that misses usually still gets something, a quieter third of the row
+	 * shows where the miss lands and what that gets, laid out the same way. The achievements'
+	 * names are the tooltips.
 	 */
 	private renderSuggestion(
 		{ item, kind }: Suggestion,
@@ -646,17 +647,18 @@ export class AaLastDartHints extends LitElement {
 			>
 				<span class="suggestion__main" title=${ groupByName(hints).map(line => line.name).join('\n') }>
 					<span class="suggestion__tile ${ colourClass(item.hit) }">${ renderTileText(item.hit) }</span>
-					<span class="suggestion__worth">
-						${ this.renderWorth(hints, item.mmr, item.wins, landsOnSixtyNine) }
+					<span class="suggestion__worth">${ this.renderWorth(hints, 0, item.wins, landsOnSixtyNine) }</span>
+					<span class="suggestion__note">
+						<span class="suggestion__label">${ labels[kind] }</span>
+						${ item.mmr > 0 ? html`<span class="mmr">+${ item.mmr } MMR</span>` : nothing }
 					</span>
-					<span class="suggestion__note">${ labels[kind] }</span>
 				</span>
 				${ miss }
 			</li>
 		`;
 	}
 
-	/** What a throw gets: a pill for a win or 69, each tier's icon with a count, the MMR. */
+	/** What a throw gets: a pill for a win or 69, each tier's icon with a count, and the MMR if given. */
 	private renderWorth(
 		hints: readonly LastDartHint[],
 		mmr: number,

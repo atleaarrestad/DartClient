@@ -530,18 +530,28 @@
 .pill--win { background: var(--color-status-victory); }
 .pill--sixty-nine { background: var(--hints-ring-sixty-nine); }
 
+/* What it is on the left, its MMR at the end: a column of MMR down the list. */
 .suggestion__note {
 	grid-area: note;
+	display: flex;
+	align-items: baseline;
+	gap: var(--space-2);
 	min-width: 0;
-	overflow: hidden;
 	font-size: 0.74rem;
-	opacity: 0.7;
-	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.suggestion__note:empty {
-	display: none;
+.suggestion__label {
+	min-width: 0;
+	overflow: hidden;
+	opacity: 0.7;
+	text-overflow: ellipsis;
+}
+
+.suggestion__note .mmr {
+	flex: none;
+	margin-left: auto;
+	font-size: 0.78rem;
 }
 
 .idle {
@@ -583,6 +593,56 @@
 	/* Still only after the 400ms, but shown at once and without breathing. */
 	.waiting__note {
 		animation: hints-fade-in 0s 400ms both;
+	}
+}
+
+/* ── A narrow column (a smaller screen): tighter rows, so nothing is cut off ── */
+
+@container hints (width < 400px) {
+	.suggestion__main {
+		grid-template-columns: 3.1rem minmax(0, 1fr);
+		column-gap: 0.5rem;
+		padding-right: 0.45rem;
+	}
+
+	.suggestion__tile {
+		font-size: 0.9rem;
+	}
+
+	.suggestion__worth {
+		gap: 0.4rem;
+		font-size: 0.88rem;
+	}
+
+	.tier img {
+		width: 19px;
+		height: 19px;
+	}
+
+	.suggestion__miss {
+		column-gap: 0.3rem;
+		padding: 0.25rem 0.35rem;
+	}
+
+	.miss__tile {
+		min-width: 0;
+		padding: 0 0.25rem;
+		font-size: 0.75rem;
+	}
+
+	.miss__worth {
+		gap: 0.25rem;
+		font-size: 0.78rem;
+	}
+
+	.miss__worth .tier img {
+		width: 16px;
+		height: 16px;
+	}
+
+	.miss__worth .pill {
+		padding: 0.05rem 0.25rem;
+		font-size: 0.6rem;
 	}
 }
 

@@ -26,7 +26,9 @@ Chosen from the redesign canvas (frame 11, "Side dock + dartboard"). On the play
   - **Suggested throws** (one list, max 4, replacing the big throw card and the "also worth" rows):
     - The one to make first is on top. Each row has a tile in its target's board colour, ringed like the board for the main throw, second choice and 69 dart.
     - Then pills for a win or 69, each tier's icon with a count (e.g. silver 6, bronze 6), and the MMR.
-    - The second line says only what it is: "Easiest win", "Best throw", "Second choice", "If you hit", or "Next round scores double" for 69. No dot-separated extras.
+    - The second line says what it is: "Easiest win", "Best throw", "Second choice", "If you hit", or "Next round scores double" for 69. No dot-separated extras.
+    - The MMR sits right-aligned at the end of the second line, so it forms a column down the list. The top line has only pills and tier counts.
+    - In a column narrower than 400px (a 1600px screen gives 352px), the rows and miss cells use tighter spacing and sizes (`@container hints (width < 400px)`), so nothing is cut off.
     - **Miss cell:** a treble or double whose miss usually still gets something gets a quieter right third (a 2/3 + 1/3 split, dashed divider, faint background).
       - The miss usually lands in the single of the same number (`getMissFallback`).
       - The cell is a small version of the throw beside it, with no label: a tile for that target in its board colour, what it gets on top (tier icons with counts, a "WIN" pill, or a "69" pill), and its MMR below.
@@ -53,7 +55,12 @@ Chosen from the redesign canvas (frame 11, "Side dock + dartboard"). On the play
 - **Helpers**
   - `buildHintStrip` (columns) is replaced by `buildHintTargets`: a map of every target by dart notation, with tests updated.
   - Board geometry (`polar`, `arcPath`, `circlePath`, `wedgeSpan`) moved to `src/ui/dartboard/dartboardGeometry.ts`, which `aa-dartboard` now uses too.
-- **Unchanged:** the reaction overlay. Its crowd still sits in the bottom-right corner of the board area, so the dock doesn't repeat it.
+- **Side column** (`<aside class="side">` in `game-page.ts`): everything that isn't a player moved out of the card area, so the cards have it to themselves.
+  - Top: the page's own header (`renderPlayerHeaderContent`; only the spectate page has one). It shows "Spectating", the React picker and "Join game" on one line, divided off from the hints. "Spectator mode" was shortened to "Spectating" so it fits.
+  - Then the last-dart hints.
+  - Over both: `aa-reaction-overlay`. The crowd pill sits in the column's bottom-right corner, in the free space under the suggestions, and reactions rise up the column (`--lane-width: 55%`).
+  - The column carries the border and background. Below 1000px wide it goes under the cards.
+  - The spectate page's `.player-container` top-padding override is gone, since the header no longer sits above the cards.
 
 ## Last-dart goals: win first, then achievements, and the 69 rule
 

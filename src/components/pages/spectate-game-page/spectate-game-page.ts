@@ -56,7 +56,7 @@ export class SpectateGamePage extends GamePage {
 			<div class="spectator-game-header" role="status">
 				<span class="spectator-game-header__label">
 					<i class="fa-solid fa-eye" aria-hidden="true"></i>
-					Spectator mode
+					Spectating
 				</span>
 				<aa-reaction-picker
 					.animal=${ this.spectatorAnimal }

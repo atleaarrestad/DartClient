@@ -33,30 +33,48 @@ aa-loading-state {
 	grid-template-rows: minmax(0, 1fr);
 }
 
-.page-shell > aa-last-dart-hints {
+/*
+ * The side column: the page's own header (the spectate page's) on top, the last-dart hints
+ * under it, and the spectators over both, their reactions rising up the column. The cards
+ * keep the rest of the screen to themselves.
+ */
+.side {
+	position: relative;
+	min-width: 0;
+	min-height: 0;
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr);
+	background: var(--color-surface-warning-subtle);
 	border-left: var(--border-width-strong) solid var(--color-border-strong);
 }
 
-/* Too narrow for a dock beside the cards: the hints go under them, the board on their left. */
+.side > aa-last-dart-hints {
+	min-height: 0;
+}
+
+/* Reactions rise across most of the column, not just a strip at its edge. */
+.side > aa-reaction-overlay {
+	--lane-width: 55%;
+}
+
+/* Too narrow for a column beside the cards: it goes under them, the board on its left. */
 @media (max-width: 1000px) {
 	.page-shell {
 		grid-template-columns: minmax(0, 1fr);
 		grid-template-rows: minmax(0, 1fr) 15rem;
 	}
 
-	.page-shell > aa-last-dart-hints {
+	.side {
 		border-top: var(--border-width-strong) solid var(--color-border-strong);
 		border-left: none;
 	}
 }
 
 .page-content {
-	/* Holds the reaction overlay: floats rise over the board, clear of the docked hints. */
-	position: relative;
 	min-height: 0;
 	height: 100%;
 	display: grid;
-	grid-template-rows: auto minmax(0, 1fr) auto;
+	grid-template-rows: minmax(0, 1fr);
 }
 
 .player-header {
